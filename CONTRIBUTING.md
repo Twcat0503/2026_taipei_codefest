@@ -94,7 +94,7 @@
 
 ## 相依套件
 
-- 新增套件必須是**開源套件**（pub.dev 上有明確授權），且授權需與本專案 GPL-3.0 相容（MIT、BSD、Apache-2.0 可；不相容授權不可用）。
+- 新增套件必須是**開源套件**（pub.dev／npm 上有明確授權），且授權需與 **AGPL-3.0** 相容（MIT、BSD、Apache-2.0 可；不相容授權（如 GPL-2.0-only、SSPL、各種 proprietary）不可用）。前端 `frontend/` 相依套件適用同一規則。
 - 開 PR 時說明：為什麼需要這個套件、現有套件或標準函式庫為何不夠用。
 - `pubspec.yaml` 與 `pubspec.lock` 的變更放同一個 commit。
 

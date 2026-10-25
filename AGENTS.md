@@ -91,7 +91,7 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 - Commit message 用 Conventional Commits（英文，subject ≤72 字元、祈使句、無句號）；一個 commit／PR 一件事。
 - 生成檔（`*.g.dart`、`lib/gen/`）已被 gitignore、不進 commit；勿手動編輯，改來源後跑 `build_runner` 於本地產生。
 - API key 等機密不進 commit：`.env` 已 gitignore，key 名稱登記 `.env.example`，source code 不硬編碼。
-- 新增相依套件須為開源且與 GPL-3.0 相容（MIT／BSD／Apache-2.0），PR 內說明選用理由。
+- 新增相依套件須為開源且與 **AGPL-3.0** 相容（MIT／BSD／Apache-2.0 可），PR 內說明選用理由。
 
 ## 已知 gotchas
 
