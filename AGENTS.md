@@ -33,6 +33,15 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 
 無。資料目前走 `assets/mock_data/`。
 
+## 團隊協作規範
+
+完整規範見 [CONTRIBUTING.md](CONTRIBUTING.md)，重點摘要：
+
+- 不在 `main` 直接開工；切 `feat/`、`fix/`、`docs/` 等 prefix 的 feature branch，經 PR 併入。
+- PR 需至少一人 review，由維護者 squash merge；合併前無 CI 門檻，但 PR 內文附 `fvm flutter analyze` + `fvm flutter test` 自檢結果。
+- Commit message 用 Conventional Commits（英文，subject ≤72 字元、祈使句、無句號）；一個 commit／PR 一件事。
+- 生成檔（`*.g.dart`、`lib/gen/`）勿手動編輯，改來源後跑 `build_runner` 並與來源同 commit 提交。
+
 ## 已知 gotchas
 
 - 需先接受 Xcode license：`sudo xcodebuild -license accept`，否則 brew／iOS build 會失敗。
