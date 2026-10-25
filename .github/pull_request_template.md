@@ -17,6 +17,8 @@
 
 - [ ] pull request 將會解決 issue 問題
 - [ ] pull request 只解決 issue 提到的問題，並沒有其他額外變更
+- [ ] diff 中沒有 API key、token 等機密（`.env` 未進 commit）
+- [ ] 新增的相依套件為開源且與 GPL-3.0 相容，並已於內文說明理由
 
 ## 受影響的 issue
 
