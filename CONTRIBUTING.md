@@ -1,6 +1,6 @@
 # 貢獻指南（Contributing Guide）
 
-2026 台北秋季程式節工作坊的團隊協作規範。本 repo 為 [taipei-doit/TownPass](https://github.com/taipei-doit/TownPass) 快照，授權 GPL-3.0，所有貢獻同樣以 GPL-3.0 釋出。
+2026 台北秋季程式節工作坊的團隊協作規範。本 repo 為 [taipei-doit/TownPass](https://github.com/taipei-doit/TownPass) 快照（upstream 本體為 GPL-3.0）。**最終成品以 AGPL-3.0 授權**，所有貢獻同樣以 AGPL-3.0 釋出（GPL-3.0 元件依 GPL v3 §13 可併入 AGPL-3.0 成品）。
 
 環境需求與建置指令見 [AGENTS.md](AGENTS.md)：Flutter 用 FVM 釘選版本（首次必跑 `build_runner`）；前端（`frontend/`）用 mise 釘選 Node／pnpm，套件管理用 pnpm。
 
@@ -116,4 +116,6 @@
 ## 其他
 
 - 發現與本規範不符的既有程式碼，可在 PR 內提出，但不要順手做大範圍重構。
+- 上游 TownPass 快照本體為 GPL-3.0，維持不變；本競賽最終成品（含前端與整合後 app）以 **AGPL-3.0** 授權，`LICENSE` 已換為 AGPL-3.0 全文。
+
 - 技術問題與討論請開 GitHub Issue；**競賽規則問題請洽承辦單位（台北市電腦商業同業公會）**。

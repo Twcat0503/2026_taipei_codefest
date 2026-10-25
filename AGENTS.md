@@ -1,6 +1,6 @@
 # 2026 Taipei Codefest — Town Pass Workshop
 
-2026 台北秋季程式節工作坊專案。**主要開發為 Vue3 前端**（`frontend/`）；repo 根目錄為 [taipei-doit/TownPass](https://github.com/taipei-doit/TownPass) 快照（不帶 upstream 歷史）之 Flutter 行動端專案，GPL-3.0。
+2026 台北秋季程式節工作坊專案。**主要開發為 Vue3 前端**（`frontend/`）；repo 根目錄為 [taipei-doit/TownPass](https://github.com/taipei-doit/TownPass) 快照（不帶 upstream 歷史）之 Flutter 行動端專案（upstream 本體為 GPL-3.0）。**最終成品以 AGPL-3.0 授權**。
 
 ## 技術棧與版本
 
