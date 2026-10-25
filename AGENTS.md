@@ -55,6 +55,21 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 - `assets/mock_data/`：mock 資料；`assets/svg/`、`assets/image/` 經 flutter_gen 產生常數，勿手寫 asset 路徑字串。
 - `test/`：目前僅 `widget_test.dart`。
 
+## WebView 整合（前端 ↔ App）
+
+- Vue3 前端以 `flutter_inappwebview` 整合進 app；app 內開網頁一律用 `TPWebView`（`Get.toNamed(TPRoute.webView, arguments: WebViewArgument(url: ...))`），勿自建 InAppWebView。
+- JS→Flutter bridge：`window.flutterObject.postMessage(JSON.stringify({name, data}))`；handler 在 `lib/util/web_message_handler/`（userinfo、location、qr_code_scan、phone_call、notify、open_link、deviceinfo 等），新增能力須 extends `TPWebMessageHandler` 並註冊於 `TPWebMessageListener`。
+- Vue 端必須偵測 `window.flutterObject` 是否存在，瀏覽器獨立執行時走 mock fallback（參與者不裝 Flutter 也能純瀏覽器開發）。
+- 開發聯調：`pnpm dev --host`，app 內開 `http://<開發機IP>:5173`（模擬器 `http://10.0.2.2:5173`）；cleartext HTTP 需 AndroidManifest debug 設定（`usesCleartextTraffic` 或 networkSecurityConfig）。
+- 正式整合：SPA 部署為 https 靜態站；不將 `dist/` 打包進 Flutter assets。
+
+## 無障礙設計標準
+
+- 依台北市政府採用之國家標準：國發會「政府網頁無障礙規範」與「政府行動網路應用無障礙規範」，即 **WCAG 2.1 Level AA**。
+- 前端（Vue3）：語意化 HTML、有意義圖片給 `alt`、表單欄位有 `label`、鍵盤可操作且 focus 可見、內文對比 ≥ 4.5:1（大字 ≥ 3:1）、200% 縮放可正常閱讀；建議以 axe-core／vitest-axe 做自動化檢查。
+- Flutter：互動元件給 `Semantics` 標籤、觸控目標 ≥ 44×44 dp、支援系統字級放大、不以顏色作為唯一資訊線索。
+- PR 須附無障礙自檢結果（見 CONTRIBUTING.md）。
+
 ## 環境變數
 
 無。資料目前走 `assets/mock_data/`。

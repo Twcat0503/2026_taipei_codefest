@@ -57,6 +57,28 @@
 - mobile-first 開發，以 Android 裝置（Chrome）驗證後再提交 PR。
 - 新增前端相依套件同樣須符合下方「相依套件」的開源授權規則。
 
+## WebView 整合
+
+- 前端以 WebView 整合進 app；app 內開網頁一律用 `TPWebView`（`TPRoute.webView`），勿自建 WebView。
+- Bridge 協定：`window.flutterObject.postMessage(JSON.stringify({ name, data }))`，回覆亦為 JSON 字串。
+- 新增原生能力：Flutter 端新增 `TPWebMessageHandler` 子類並註冊到 `TPWebMessageListener._cachedMessageHandlers`；Vue 端經統一封裝函式呼叫，勿在各 component 散寫 `window.flutterObject`。
+- Vue 端必須在 `window.flutterObject` 不存在時有瀏覽器 fallback（mock），確保前端可獨立執行。
+- 開發聯調：`pnpm dev --host` 後於 app 開 `http://<開發機IP>:5173`（模擬器 `10.0.2.2:5173`）；cleartext HTTP 僅開放給 debug 建置。
+- 正式部署：SPA 部署為 https 靜態站；`dist/` 不打包進 Flutter assets。
+
+## 無障礙設計
+
+- 所有網頁與 app 介面以 **WCAG 2.1 Level AA** 為設計標準，依據台北市政府採用之國發會「政府網頁無障礙規範」與「政府行動網路應用無障礙規範」。
+- 前端重點：
+  - 語意化 HTML；有意義的圖片提供 `alt`；表單欄位有對應 `label`。
+  - 所有互動功能可用鍵盤操作，focus 狀態清楚可見。
+  - 內文對比 ≥ 4.5:1、大字 ≥ 3:1；不以顏色作為唯一資訊線索。
+  - 200% 縮放下不需橫向捲動即可閱讀（reflow）。
+- Flutter 重點：
+  - 互動 widget 提供 `Semantics` 標籤；觸控目標 ≥ 44×44 dp。
+  - 支援系統字級放大，勿釘死固定高度導致文字截斷。
+- 自檢：前端跑 axe-core（或 vitest-axe）；Flutter 開 TalkBack 驗證語音朗讀；結果附於 PR 內文。
+
 ## 生成檔與資料
 
 - `*.g.dart`、`lib/gen/` 為生成檔，已被 `.gitignore` 排除、**不進 commit**；修改來源（model、`pubspec.yaml` 的 assets／fonts 等）後在本地執行 `fvm dart run build_runner build` 產生，勿手動編輯。
