@@ -2,7 +2,7 @@
 
 2026 台北秋季程式節工作坊的團隊協作規範。本 repo 為 [taipei-doit/TownPass](https://github.com/taipei-doit/TownPass) 快照，授權 GPL-3.0，所有貢獻同樣以 GPL-3.0 釋出。
 
-環境需求與建置指令見 [AGENTS.md](AGENTS.md)（FVM 釘選 Flutter 版本，首次必跑 `build_runner`）。
+環境需求與建置指令見 [AGENTS.md](AGENTS.md)：Flutter 用 FVM 釘選版本（首次必跑 `build_runner`）；前端（`frontend/`）用 mise 釘選 Node／pnpm，套件管理用 pnpm。
 
 ## 開發流程
 
@@ -15,6 +15,12 @@
 3. 開 PR 到 `main`，一個 PR 只做一件事。
 4. **PR 需至少一位 reviewer approve**，由維護者以 **squash merge** 併入 `main`。
 
+## 開發基準：Android
+
+- Flutter 開發與驗證以 **Android 裝置**（模擬器或實體機）為基準：`fvm flutter devices` 確認裝置後 `fvm flutter run -d <device-id>` 執行。
+- iOS 為 best-effort：能跑更好，但不作為 PR 門檻；iOS 獨有問題請開 issue 追蹤，不擋合併。
+- 前端以 Android 裝置為準：mobile-first 開發，於 Android Chrome 驗證。
+
 ## Commit 規範
 
 - 使用 [Conventional Commits](https://www.conventionalcommits.org/)，內文用英文：`feat:` `fix:` `refactor:` `perf:` `test:` `docs:` `chore:`。
@@ -25,14 +31,31 @@
 
 - 標題沿用 Conventional Commits 風格（squash merge 後即成為 `main` 上的 commit message）。
 - 內文寫清楚：改什麼、為什麼、如何驗證；UI 變更請附截圖或錄影。
-- 合併前無自動化門檻（本 repo 目前無 CI），但請**自行確認**：
+- 合併前無自動化門檻（本 repo 目前無 CI），但請**自行確認**變更所屬棧：
+
+  Flutter（repo 根目錄）：
 
   ```sh
   fvm flutter analyze
   fvm flutter test
   ```
 
+  前端（`frontend/`）：
+
+  ```sh
+  pnpm lint
+  pnpm test
+  ```
+
   結果貼在 PR 內文即可。
+
+## 前端開發（`frontend/`）
+
+- 主要開發區：Vue 3 + Vite + TypeScript，ESLint/Prettier、Vitest。
+- Node 與 pnpm 由 `frontend/mise.toml` 釘選；套件管理一律用 `pnpm`，不用 npm／yarn／bun。
+- `package.json` 與 `pnpm-lock.yaml` 的變更放同一個 commit；`node_modules/`、`dist/` 不進 git。
+- mobile-first 開發，以 Android 裝置（Chrome）驗證後再提交 PR。
+- 新增前端相依套件同樣須符合下方「相依套件」的開源授權規則。
 
 ## 生成檔與資料
 
