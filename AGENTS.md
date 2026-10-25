@@ -70,6 +70,14 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 - Flutter：互動元件給 `Semantics` 標籤、觸控目標 ≥ 44×44 dp、支援系統字級放大、不以顏色作為唯一資訊線索。
 - PR 須附無障礙自檢結果（見 CONTRIBUTING.md）。
 
+## 相關資源（競賽）
+
+- 開發文件（中英）：<https://tpe-guideline.web.app>，首頁含 Figma UI Kit／Town Pass Design Tokens 連結。
+- 活動官網・競賽須知：<https://codefest.taipei/2026-fall>。
+- 開放資料：<https://data.taipei>、<https://data.gov.tw>、<https://tdx.transportdata.tw>；城市儀表板（開源參考）：<https://github.com/taipei-doit/Taipei-City-Dashboard>。
+- Flutter 3.47 更新說明：<https://flutter.dev/blog/whats-new-in-flutter-3-47>（本專案 `.fvmrc` 釘選 3.47.6）。
+- 規則問題請洽承辦單位（台北市電腦商業同業公會），不適用 GitHub Issue。
+
 ## 環境變數
 
 無。資料目前走 `assets/mock_data/`。

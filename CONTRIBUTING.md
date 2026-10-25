@@ -98,7 +98,22 @@
 - 開 PR 時說明：為什麼需要這個套件、現有套件或標準函式庫為何不夠用。
 - `pubspec.yaml` 與 `pubspec.lock` 的變更放同一個 commit。
 
+## 相關資源
+
+| 資源 | 連結／位置 |
+| --- | --- |
+| TownPass 原始碼（upstream） | <https://github.com/taipei-doit/TownPass> |
+| 開發文件（中英） | <https://tpe-guideline.web.app> |
+| 活動官網・競賽須知 | <https://codefest.taipei/2026-fall> |
+| Figma UI Kit | 開發文件首頁有連結，搜尋「Town Pass Design Tokens」 |
+| 開放資料 | <https://data.taipei>、<https://data.gov.tw>、<https://tdx.transportdata.tw> |
+| 城市儀表板（開源參考） | <https://github.com/taipei-doit/Taipei-City-Dashboard> |
+| Flutter 3.47 更新說明 | <https://flutter.dev/blog/whats-new-in-flutter-3-47> |
+
+- 使用開放資料時注意各平台的授權條款與頻率限制；串接 TDX 等需申請 token 的資料源，key 依上方「機密與 API key」規則管理，不進 commit。
+- 設計請沿用 Figma UI Kit 的 Town Pass Design Tokens（色彩、字級、圓角等），勿自行定義新值。
+
 ## 其他
 
 - 發現與本規範不符的既有程式碼，可在 PR 內提出，但不要順手做大範圍重構。
-- 問題與討論請開 GitHub Issue。
+- 技術問題與討論請開 GitHub Issue；**競賽規則問題請洽承辦單位（台北市電腦商業同業公會）**。
