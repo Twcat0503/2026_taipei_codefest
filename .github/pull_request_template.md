@@ -17,6 +17,9 @@
 
 - [ ] pull request 將會解決 issue 問題
 - [ ] pull request 只解決 issue 提到的問題，並沒有其他額外變更
+- [ ] 已執行所屬棧的自檢指令並將結果貼於內文（Flutter：`analyze`／`test`；前端：`pnpm lint`／`pnpm test`）
+- [ ] Flutter 變更已於 Android 裝置／模擬器驗證
+- [ ] 無障礙自檢通過（WCAG 2.1 AA：對比、alt、鍵盤／focus、TalkBack）
 - [ ] diff 中沒有 API key、token 等機密（`.env` 未進 commit）
 - [ ] 新增的相依套件為開源且與 GPL-3.0 相容，並已於內文說明理由
 
