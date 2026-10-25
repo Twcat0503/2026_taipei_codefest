@@ -36,9 +36,22 @@
 
 ## 生成檔與資料
 
-- `*.g.dart`、`lib/gen/` 為生成檔，**勿手動編輯**；修改來源後執行 `fvm dart run build_runner build`，並將生成結果與來源修改放同一個 commit。
+- `*.g.dart`、`lib/gen/` 為生成檔，已被 `.gitignore` 排除、**不進 commit**；修改來源（model、`pubspec.yaml` 的 assets／fonts 等）後在本地執行 `fvm dart run build_runner build` 產生，勿手動編輯。
 - Asset 一律引用 flutter_gen 常數，不手寫路徑字串。
 - 目前資料走 `assets/mock_data/`，新增 mock 資料請維持相同結構與命名。
+
+## 機密與 API key
+
+- API key、token、密碼等機密資訊**一律不進 commit**。
+- `.env`、`.env.*` 已列入 `.gitignore`；環境變數的值放 `.env`，key 名稱登記到 `.env.example`（只列 key，不寫值）。
+- 不在 source code、mock 資料或 PR 內文中硬編碼 key 值。
+- Commit 前檢查 diff 確認未夾帶機密；若不慎提交，立即撤銷該 key 並替換，不要只刪後續 commit。
+
+## 相依套件
+
+- 新增套件必須是**開源套件**（pub.dev 上有明確授權），且授權需與本專案 GPL-3.0 相容（MIT、BSD、Apache-2.0 可；不相容授權不可用）。
+- 開 PR 時說明：為什麼需要這個套件、現有套件或標準函式庫為何不夠用。
+- `pubspec.yaml` 與 `pubspec.lock` 的變更放同一個 commit。
 
 ## 其他
 
