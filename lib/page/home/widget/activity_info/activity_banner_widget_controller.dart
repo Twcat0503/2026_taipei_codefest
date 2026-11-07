@@ -24,14 +24,13 @@ class ActivityBannerWidgetController extends GetxController {
 
     _isLoading = true;
 
-    Timer.periodic(
-      const Duration(seconds: 2),
-      (timer) async {
-        timer.cancel();
-        final String activityData = await rootBundle.loadString(Assets.mockData.activity);
-        list = ActivityList.fromJson(jsonDecode(activityData));
-        isLoading = false;
-      },
-    );
+    Timer.periodic(const Duration(seconds: 2), (timer) async {
+      timer.cancel();
+      final String activityData = await rootBundle.loadString(
+        Assets.mockData.activity,
+      );
+      list = ActivityList.fromJson(jsonDecode(activityData));
+      isLoading = false;
+    });
   }
 }

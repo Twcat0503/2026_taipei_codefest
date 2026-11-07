@@ -52,10 +52,11 @@ class MessageDetailView extends StatelessWidget {
               Expanded(
                 child: SingleChildScrollView(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 21),
-                    child: _RichText(
-                      richText: item.richText!,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 21,
                     ),
+                    child: _RichText(richText: item.richText!),
                   ),
                 ),
               ),
@@ -83,36 +84,39 @@ class _RichText extends StatelessWidget {
           .map(
             (object) => TextSpan(
               text: object.text ?? object.url,
-              style: switch (object.style?.contains(TPRichTextStyle.bold)) {
-                true => TPTextStyles.h3SemiBold,
-                _ => TPTextStyles.h3Regular,
-              }
-                  .copyWith(
-                color: switch (object.url) {
-                  String() => TPColors.primary500,
-                  null => TPColors.grayscale800,
-                },
-                decoration: switch (object.url) {
-                  String() => TextDecoration.underline,
-                  null => switch (object.style?.contains(TPRichTextStyle.underline)) {
-                      true => TextDecoration.underline,
-                      _ => TextDecoration.none,
-                    }
-                },
-                decorationColor: switch (object.url) {
-                  String() => TPColors.primary500,
-                  null => TPColors.grayscale800,
-                },
-                fontStyle: switch (object.style?.contains(TPRichTextStyle.italic)) {
-                  true => FontStyle.italic,
-                  _ => FontStyle.normal,
-                },
-              ),
+              style:
+                  switch (object.style?.contains(TPRichTextStyle.bold)) {
+                    true => TPTextStyles.h3SemiBold,
+                    _ => TPTextStyles.h3Regular,
+                  }.copyWith(
+                    color: switch (object.url) {
+                      String() => TPColors.primary500,
+                      null => TPColors.grayscale800,
+                    },
+                    decoration: switch (object.url) {
+                      String() => TextDecoration.underline,
+                      null => switch (object.style?.contains(
+                        TPRichTextStyle.underline,
+                      )) {
+                        true => TextDecoration.underline,
+                        _ => TextDecoration.none,
+                      },
+                    },
+                    decorationColor: switch (object.url) {
+                      String() => TPColors.primary500,
+                      null => TPColors.grayscale800,
+                    },
+                    fontStyle: switch (object.style?.contains(
+                      TPRichTextStyle.italic,
+                    )) {
+                      true => FontStyle.italic,
+                      _ => FontStyle.normal,
+                    },
+                  ),
               recognizer: switch (object.url) {
-                String uri => TapGestureRecognizer()
-                  ..onTap = () async => await TPRoute.openUri(
-                        uri: uri,
-                      ),
+                String uri =>
+                  TapGestureRecognizer()
+                    ..onTap = () async => await TPRoute.openUri(uri: uri),
                 null => null,
               },
             ),

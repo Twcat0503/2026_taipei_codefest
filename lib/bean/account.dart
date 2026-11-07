@@ -31,7 +31,8 @@ class AccountResponse {
     required this.version,
   });
 
-  factory AccountResponse.fromJson(Map<String, dynamic> json) => _$AccountResponseFromJson(json);
+  factory AccountResponse.fromJson(Map<String, dynamic> json) =>
+      _$AccountResponseFromJson(json);
 
   Map<String, dynamic> toJson() => _$AccountResponseToJson(this);
 }
@@ -101,7 +102,8 @@ class Account {
     required this.cityInternetUid,
   });
 
-  factory Account.fromJson(Map<String, dynamic> json) => _$AccountFromJson(json);
+  factory Account.fromJson(Map<String, dynamic> json) =>
+      _$AccountFromJson(json);
 
   Map<String, dynamic> toJson() => _$AccountToJson(this);
 }
@@ -143,7 +145,8 @@ class Address {
     required this.priority,
   });
 
-  factory Address.fromJson(Map<String, dynamic> json) => _$AddressFromJson(json);
+  factory Address.fromJson(Map<String, dynamic> json) =>
+      _$AddressFromJson(json);
 
   Map<String, dynamic> toJson() => _$AddressToJson(this);
 }

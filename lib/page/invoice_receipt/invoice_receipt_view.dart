@@ -11,9 +11,7 @@ class InvoiceReceiptView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const TPAppBar(
-        title: '發票收據',
-      ),
+      appBar: const TPAppBar(title: '發票收據'),
       body: ListView(
         physics: const BouncingScrollPhysics(),
         children: [

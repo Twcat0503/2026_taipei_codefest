@@ -7,10 +7,10 @@ import 'package:get/get.dart';
 
 class MessageViewController extends GetxController {
   List<MessageType> get tabTypeList => [
-        MessageType.personal,
-        MessageType.tcg,
-        MessageType.system,
-      ];
+    MessageType.personal,
+    MessageType.tcg,
+    MessageType.system,
+  ];
 
   final Rxn<MessageList> list = Rxn();
 
@@ -19,14 +19,13 @@ class MessageViewController extends GetxController {
   bool get isLoading => _isLoading;
 
   List<MessageItem> messageList({required MessageType type}) {
-    return list.value?.data.where((message) => message.type == type).toList() ?? [];
+    return list.value?.data.where((message) => message.type == type).toList() ??
+        [];
   }
 
   int unreadCount({required MessageType type}) {
     return list.value?.data
-            .where(
-              (message) => message.type == type && !message.hasRead,
-            )
+            .where((message) => message.type == type && !message.hasRead)
             .length ??
         0;
   }
@@ -41,7 +40,9 @@ class MessageViewController extends GetxController {
     _isLoading = true;
     update();
 
-    final String messageList = await rootBundle.loadString(Assets.mockData.message);
+    final String messageList = await rootBundle.loadString(
+      Assets.mockData.message,
+    );
     list.value = MessageList.fromJson(jsonDecode(messageList));
 
     _isLoading = false;

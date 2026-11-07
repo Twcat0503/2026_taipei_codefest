@@ -25,35 +25,45 @@ class PortfolioAndAuthView extends StatelessWidget {
   Widget build(BuildContext context) {
     final double toggleButtonWidth = (Get.width - 32) / 2;
     return GetBuilder(
-        init: Get.put<PortfolioAuthViewController>(PortfolioAuthViewController()),
-        builder: (controller) {
-          return Scaffold(
-            appBar: TPAppBar(
-              title: '歷程與授權管理',
-              bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(kToolbarHeight),
-                child: ToggleButtons(
-                  color: Colors.cyan,
-                  borderColor: Colors.cyan,
-                  fillColor: Colors.cyan,
-                  selectedColor: TPColors.white,
-                  isSelected: ToggleTab.values.map((tab) => tab.index == controller.selectIndex).toList(),
-                  borderRadius: const BorderRadius.all(Radius.circular(8)),
-                  constraints: BoxConstraints(minWidth: toggleButtonWidth, minHeight: kToolbarHeight / 1.5),
-                  onPressed: (index) {
-                    if (index != controller.selectIndex) {
-                      controller.selectIndex = index;
-                    }
-                  },
-                  children: ToggleTab.values.map<Widget>((tab) => TPText(tab.label)).toList(),
+      init: Get.put<PortfolioAuthViewController>(PortfolioAuthViewController()),
+      builder: (controller) {
+        return Scaffold(
+          appBar: TPAppBar(
+            title: '歷程與授權管理',
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(kToolbarHeight),
+              child: ToggleButtons(
+                color: Colors.cyan,
+                borderColor: Colors.cyan,
+                fillColor: Colors.cyan,
+                selectedColor: TPColors.white,
+                isSelected: ToggleTab.values
+                    .map((tab) => tab.index == controller.selectIndex)
+                    .toList(),
+                borderRadius: const BorderRadius.all(Radius.circular(8)),
+                constraints: BoxConstraints(
+                  minWidth: toggleButtonWidth,
+                  minHeight: kToolbarHeight / 1.5,
                 ),
+                onPressed: (index) {
+                  if (index != controller.selectIndex) {
+                    controller.selectIndex = index;
+                  }
+                },
+                children: ToggleTab.values
+                    .map<Widget>((tab) => TPText(tab.label))
+                    .toList(),
               ),
             ),
-            body: IndexedStack(
-              index: controller.selectIndex,
-              children: ToggleTab.values.map<Widget>((tab) => tab.contentWidget).toList(),
-            ),
-          );
-        });
+          ),
+          body: IndexedStack(
+            index: controller.selectIndex,
+            children: ToggleTab.values
+                .map<Widget>((tab) => tab.contentWidget)
+                .toList(),
+          ),
+        );
+      },
+    );
   }
 }

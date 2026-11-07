@@ -36,26 +36,37 @@ class FeedbackView extends GetView<FeedbackViewController> {
                       followerAnchor: Alignment.topLeft,
                       child: Stack(
                         children: [
-                          ModalBarrier(onDismiss: controller.toggleDropdownMenu),
+                          ModalBarrier(
+                            onDismiss: controller.toggleDropdownMenu,
+                          ),
                           Align(
                             alignment: Alignment.topCenter,
                             child: ColoredBox(
                               color: TPColors.grayscale50,
                               child: ListView.separated(
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
                                 shrinkWrap: true,
                                 itemCount: FeedbackType.values.length,
-                                separatorBuilder: (_, _) => const TPLine.horizontal(color: TPColors.grayscale200),
+                                separatorBuilder: (_, _) =>
+                                    const TPLine.horizontal(
+                                      color: TPColors.grayscale200,
+                                    ),
                                 itemBuilder: (context, index) {
-                                  final FeedbackType feedbackType = FeedbackType.values[index];
+                                  final FeedbackType feedbackType =
+                                      FeedbackType.values[index];
                                   return GestureDetector(
                                     behavior: HitTestBehavior.opaque,
                                     onTap: () {
-                                      controller.feedbackType.value = feedbackType;
+                                      controller.feedbackType.value =
+                                          feedbackType;
                                       controller.toggleDropdownMenu();
                                     },
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
                                       child: TPText(
                                         feedbackType.string,
                                         style: TPTextStyles.h3Regular,
@@ -72,7 +83,10 @@ class FeedbackView extends GetView<FeedbackViewController> {
                     );
                   },
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     child: Row(
                       children: [
                         Expanded(
@@ -109,23 +123,34 @@ class FeedbackView extends GetView<FeedbackViewController> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 23),
-                    const TPText(
-                      '意見內容',
-                      style: TPTextStyles.bodySemiBold,
-                    ),
+                    const TPText('意見內容', style: TPTextStyles.bodySemiBold),
                     const SizedBox(height: 13),
                     SizedBox(
                       height: 223,
                       child: TextField(
                         controller: controller.controller,
                         decoration: InputDecoration(
-                          enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: TPColors.grayscale500)),
-                          focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: TPColors.grayscale500)),
-                          hintStyle: TPTextStyles.bodyRegular.copyWith(color: TPColors.grayscale400),
+                          enabledBorder: const OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: TPColors.grayscale500,
+                            ),
+                          ),
+                          focusedBorder: const OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: TPColors.grayscale500,
+                            ),
+                          ),
+                          hintStyle: TPTextStyles.bodyRegular.copyWith(
+                            color: TPColors.grayscale400,
+                          ),
                           hintText: '請描述建議與問題',
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 16,
+                          ),
                         ),
-                        onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                        onTapOutside: (_) =>
+                            FocusManager.instance.primaryFocus?.unfocus(),
                         textAlignVertical: TextAlignVertical.top,
                         expands: true,
                         keyboardType: TextInputType.multiline,
@@ -142,7 +167,9 @@ class FeedbackView extends GetView<FeedbackViewController> {
                           child: RichText(
                             text: TextSpan(
                               text: '若您對市政府有任何建議或問題請至',
-                              style: const TextStyle(color: TPColors.grayscale700),
+                              style: const TextStyle(
+                                color: TPColors.grayscale700,
+                              ),
                               children: [
                                 TextSpan(
                                   text: '有話要說',
@@ -150,18 +177,22 @@ class FeedbackView extends GetView<FeedbackViewController> {
                                     decoration: TextDecoration.underline,
                                     color: TPColors.primary500,
                                   ),
-                                  recognizer: TapGestureRecognizer()..onTap = () {},
+                                  recognizer: TapGestureRecognizer()
+                                    ..onTap = () {},
                                 ),
                                 const TextSpan(text: '，若系統操作上有任何問題請'),
                                 TextSpan(
-                                  text: '打客服電話 ${controller.contactPhoneNumber}',
+                                  text:
+                                      '打客服電話 ${controller.contactPhoneNumber}',
                                   style: const TextStyle(
                                     decoration: TextDecoration.underline,
                                     color: TPColors.primary500,
                                   ),
                                   recognizer: TapGestureRecognizer()
                                     ..onTap = () {
-                                      launchUrlString('tel://${controller.contactPhoneNumber}');
+                                      launchUrlString(
+                                        'tel://${controller.contactPhoneNumber}',
+                                      );
                                     },
                                 ),
                               ],
@@ -178,10 +209,7 @@ class FeedbackView extends GetView<FeedbackViewController> {
         ],
       ),
       bottomNavigationBar: TPBottomSheet(
-        child: TPButton.primary(
-          text: '送出',
-          onPressed: controller.sendFeedback,
-        ),
+        child: TPButton.primary(text: '送出', onPressed: controller.sendFeedback),
       ),
     );
   }

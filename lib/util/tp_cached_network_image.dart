@@ -36,9 +36,11 @@ class TPCachedNetworkImage extends StatelessWidget {
       decoration: ShapeDecoration(
         color: color,
         shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(borderRadius)),
+          borderRadius: BorderRadius.circular(borderRadius),
+        ),
       ),
-      child: ClipRRect( // 確保圖片內容（包含載入中及錯誤狀態）也依照圓角進行裁切。
+      child: ClipRRect(
+        // 確保圖片內容（包含載入中及錯誤狀態）也依照圓角進行裁切。
         borderRadius: BorderRadius.circular(borderRadius),
         child: CachedNetworkImage(
           imageUrl: imageUrl,
@@ -50,9 +52,7 @@ class TPCachedNetworkImage extends StatelessWidget {
               const Center(child: CircularProgressIndicator()),
           errorWidget: (context, string, object) => ColoredBox(
             color: TPColors.grayscale100,
-            child: Center(
-              child: Assets.svg.logoS.svg(),
-            ),
+            child: Center(child: Assets.svg.logoS.svg()),
           ),
         ),
       ),

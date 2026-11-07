@@ -181,11 +181,7 @@ class _BillType extends StatelessWidget {
   final String name;
   final GestureTapCallback? onTap;
 
-  const _BillType({
-    required this.icon,
-    required this.name,
-    this.onTap,
-  });
+  const _BillType({required this.icon, required this.name, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -198,10 +194,7 @@ class _BillType extends StatelessWidget {
           children: [
             icon,
             const SizedBox(width: 8),
-            TPText(
-              name,
-              style: TPTextStyles.h3Regular,
-            ),
+            TPText(name, style: TPTextStyles.h3Regular),
           ],
         ),
       ),

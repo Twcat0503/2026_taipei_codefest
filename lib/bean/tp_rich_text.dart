@@ -10,11 +10,7 @@ class TPRichText {
   @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
   final List<TPRichTextStyle?>? style;
 
-  const TPRichText({
-    this.text,
-    this.url,
-    this.style,
-  });
+  const TPRichText({this.text, this.url, this.style});
 
   factory TPRichText.fromJson(Map<String, dynamic> json) =>
       _$TPRichTextFromJson(json);
@@ -30,7 +26,6 @@ enum TPRichTextStyle {
   bold,
   @JsonValue('UNDERLINE')
   underline,
-  ;
 }
 
 extension TPRichTextExtension on TPRichText {

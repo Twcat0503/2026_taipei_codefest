@@ -9,7 +9,8 @@ import 'package:town_pass/util/tp_text.dart';
 class BillAppBar extends StatelessWidget implements PreferredSizeWidget {
   const BillAppBar({super.key});
 
-  double get _bottomHeight => 64 + textSize('text', style: TPTextStyles.bodySemiBold).height + 12 * 2;
+  double get _bottomHeight =>
+      64 + textSize('text', style: TPTextStyles.bodySemiBold).height + 12 * 2;
 
   @override
   Size get preferredSize => Size.fromHeight(kTPToolbarHeight + _bottomHeight);
@@ -87,10 +88,7 @@ class BillAppBar extends StatelessWidget implements PreferredSizeWidget {
                   uri: 'https://taipei-pass-service.vercel.app/fee-payment/history/',
                 ),
               ),
-              _BottomItem(
-                icon: Assets.svg.iconAppBarBill.svg(),
-                title: '發票',
-              ),
+              _BottomItem(icon: Assets.svg.iconAppBarBill.svg(), title: '發票'),
               _BottomItem(
                 icon: Assets.svg.iconAppBarReceipt.svg(),
                 title: '收據',
@@ -108,11 +106,7 @@ class _BottomItem extends StatelessWidget {
   final String title;
   final GestureTapCallback? onTap;
 
-  const _BottomItem({
-    required this.icon,
-    required this.title,
-    this.onTap,
-  });
+  const _BottomItem({required this.icon, required this.title, this.onTap});
 
   @override
   Widget build(BuildContext context) {

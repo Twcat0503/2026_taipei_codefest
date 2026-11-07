@@ -6,30 +6,19 @@ abstract class TPWebMessageReply {
   final String name;
   final Object? data;
 
-  const TPWebMessageReply({
-    required this.name,
-    required this.data,
-  });
+  const TPWebMessageReply({required this.name, required this.data});
 
   WebMessage get message;
 }
 
 class TPWebStringMessageReply extends TPWebMessageReply {
-  TPWebStringMessageReply({
-    required super.name,
-    required super.data,
-  });
+  TPWebStringMessageReply({required super.name, required super.data});
 
   @override
   WebMessage get message => WebMessage(
-        type: WebMessageType.STRING,
-        data: jsonEncode(
-          {
-            'name': name,
-            'data': data,
-          },
-        ),
-      );
+    type: WebMessageType.STRING,
+    data: jsonEncode({'name': name, 'data': data}),
+  );
 }
 
 // class TPWebUInt8ListMessageReply extends TPWebMessageReply {

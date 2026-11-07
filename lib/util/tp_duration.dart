@@ -4,10 +4,7 @@ class TPDuration {
   final DateTime start;
   final DateTime? end;
 
-  const TPDuration({
-    required this.start,
-    required this.end,
-  });
+  const TPDuration({required this.start, required this.end});
 
   String format([String pattern = 'yyyy/MM/dd']) {
     return switch (end) {

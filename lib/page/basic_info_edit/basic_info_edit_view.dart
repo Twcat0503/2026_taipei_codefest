@@ -12,9 +12,7 @@ class BasicInfoEditView extends GetView<BasicInfoEditViewController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: TPAppBar(
-        title: controller.arg.title,
-      ),
+      appBar: TPAppBar(title: controller.arg.title),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -25,10 +23,7 @@ class BasicInfoEditView extends GetView<BasicInfoEditViewController> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TPText(
-                    controller.arg.title,
-                    style: TPTextStyles.h3SemiBold,
-                  ),
+                  TPText(controller.arg.title, style: TPTextStyles.h3SemiBold),
                   TPText(controller.arg.currentValue),
                 ],
               ),
@@ -53,7 +48,10 @@ class BasicInfoEditView extends GetView<BasicInfoEditViewController> {
                     decoration: InputDecoration(
                       hintText: '請輸入新${controller.arg.title}',
                       border: OutlineInputBorder(
-                        borderSide: const BorderSide(color: TPColors.primary500, width: 2.0),
+                        borderSide: const BorderSide(
+                          color: TPColors.primary500,
+                          width: 2.0,
+                        ),
                         borderRadius: BorderRadius.circular(25.0),
                       ),
                     ),

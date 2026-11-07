@@ -6,17 +6,14 @@ class CityServiceEditViewController extends GetxController {
   final Map<MyServiceCategory, List<MyServiceItemId>> categoryMap = {
     for (var category in MyServiceCategory.values)
       category: MyServiceItemId.values
-          .where(
-            (itemId) => itemId.item.category == category,
-          )
+          .where((itemId) => itemId.item.category == category)
           .toList(),
-  }..removeWhere(
-      (category, serviceList) => serviceList.isEmpty,
-    );
+  }..removeWhere((category, serviceList) => serviceList.isEmpty);
 
   final RxBool isEditMode = RxBool(false);
 
-  PinnedServiceWidgetController get pinnedServiceController => Get.find<PinnedServiceWidgetController>();
+  PinnedServiceWidgetController get pinnedServiceController =>
+      Get.find<PinnedServiceWidgetController>();
 
   List<MyServiceItemId>? _recordPinnedList;
 

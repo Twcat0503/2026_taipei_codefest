@@ -23,61 +23,60 @@ class PinnedServiceWidget extends GetView<PinnedServiceWidgetController> {
 
   @override
   Widget build(BuildContext context) {
-    return Obx(
-      () {
-        return Table(
-          columnWidths: const {
-            0: FlexColumnWidth(),
-            1: FlexColumnWidth(),
-            2: FlexColumnWidth(),
-            3: FlexColumnWidth(),
-          },
-          children: (List.from(controller.pinnedList)
-                ..addIf(
+    return Obx(() {
+      return Table(
+        columnWidths: const {
+          0: FlexColumnWidth(),
+          1: FlexColumnWidth(),
+          2: FlexColumnWidth(),
+          3: FlexColumnWidth(),
+        },
+        children:
+            (List.from(controller.pinnedList)..addIf(
                   _appendAddButtonOrNot,
                   _AddMoreButton(onTap: onMoreTap),
                 ))
-              .splitBetweenIndexed(
-                (index, _, _) => index % 4 == 0,
-              )
-              .map<TableRow>(
-                (rowList) {
+                .splitBetweenIndexed((index, _, _) => index % 4 == 0)
+                .map<TableRow>((rowList) {
                   return TableRow(
-                    children: rowList.map<Widget>(
-                      (itemId) {
-                        if (itemId is MyServiceItemId) {
-                          return PinnedServiceItemWidget(
-                            service: itemId.item,
-                            isEdit: isEditMode,
-                            onTap: switch (isEditMode) {
-                              true => (() => controller.pinnedList.remove(itemId)),
-                              false => null,
-                            },
-                          );
-                        }
-                        return itemId;
-                      },
-                    ).toList()
-                      ..addAllIf(
-                        rowList.length < 4,
-                        List.filled(4 - rowList.length, const SizedBox.shrink()),
-                      ),
+                    children:
+                        rowList.map<Widget>((itemId) {
+                          if (itemId is MyServiceItemId) {
+                            return PinnedServiceItemWidget(
+                              service: itemId.item,
+                              isEdit: isEditMode,
+                              onTap: switch (isEditMode) {
+                                true => (() => controller.pinnedList.remove(
+                                  itemId,
+                                )),
+                                false => null,
+                              },
+                            );
+                          }
+                          return itemId;
+                        }).toList()..addAllIf(
+                          rowList.length < 4,
+                          List.filled(
+                            4 - rowList.length,
+                            const SizedBox.shrink(),
+                          ),
+                        ),
                   );
-                },
-              )
-              .toList()
-              .joined(
-                TableRow(
-                  children: List.filled(4, const SizedBox(height: 16)),
+                })
+                .toList()
+                .joined(
+                  TableRow(
+                    children: List.filled(4, const SizedBox(height: 16)),
+                  ),
                 ),
-              ),
-        );
-      },
-    );
+      );
+    });
   }
 
   bool get _appendAddButtonOrNot {
-    return !isEditMode && controller.pinnedList.length < 12 && (showAddInNewLine ? true : controller.pinnedList.length % 4 != 0);
+    return !isEditMode &&
+        controller.pinnedList.length < 12 &&
+        (showAddInNewLine ? true : controller.pinnedList.length % 4 != 0);
   }
 }
 

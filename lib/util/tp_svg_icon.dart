@@ -7,11 +7,7 @@ class TPSvgIcon extends StatelessWidget {
   final SvgGenImage icon;
   final String? semanticsLabel;
 
-  const TPSvgIcon({
-    super.key,
-    required this.icon,
-    this.semanticsLabel,
-  });
+  const TPSvgIcon({super.key, required this.icon, this.semanticsLabel});
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +16,9 @@ class TPSvgIcon extends StatelessWidget {
       semanticsLabel: semanticsLabel,
       height: iconTheme.size,
       width: iconTheme.size,
-      colorFilter: _buildColorFilter(iconTheme.color), // Extracted for better structure
+      colorFilter: _buildColorFilter(
+        iconTheme.color,
+      ), // Extracted for better structure
     );
   }
 
@@ -28,10 +26,7 @@ class TPSvgIcon extends StatelessWidget {
   /// applying a srcIn blend mode if the color is not null.
   ColorFilter? _buildColorFilter(Color? color) {
     return switch (color) {
-      Color c => ColorFilter.mode(
-          c,
-          BlendMode.srcIn,
-        ),
+      Color c => ColorFilter.mode(c, BlendMode.srcIn),
       null => null,
     };
   }

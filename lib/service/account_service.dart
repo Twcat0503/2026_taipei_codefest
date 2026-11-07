@@ -12,9 +12,7 @@ class AccountService extends GetxService {
 
   Future<AccountService> init() async {
     final jsonString = await rootBundle.loadString(Assets.mockData.account);
-    final accountResponse = AccountResponse.fromJson(
-      jsonDecode(jsonString),
-    );
+    final accountResponse = AccountResponse.fromJson(jsonDecode(jsonString));
     _account = accountResponse.account;
     return this;
   }

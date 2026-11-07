@@ -12,16 +12,8 @@ class SubscriptionService extends GetxService {
   void addSubscription({required String title}) {
     final now = DateTime.now();
     itemList.addAll([
-      SubscriptionItem(
-        title: title,
-        content: '$title內容 ' * 20,
-        datetime: now,
-      ),
-      SubscriptionItem(
-        title: title,
-        content: '$title內容2 ' * 20,
-        datetime: now,
-      ),
+      SubscriptionItem(title: title, content: '$title內容 ' * 20, datetime: now),
+      SubscriptionItem(title: title, content: '$title內容2 ' * 20, datetime: now),
     ]);
   }
 

@@ -10,7 +10,8 @@ class SubscriptionList {
 
   const SubscriptionList({required this.list});
 
-  factory SubscriptionList.fromJson(Map<String, dynamic> json) => _$SubscriptionListFromJson(json);
+  factory SubscriptionList.fromJson(Map<String, dynamic> json) =>
+      _$SubscriptionListFromJson(json);
 
   Map<String, dynamic> toJson() => _$SubscriptionListToJson(this);
 }
@@ -34,7 +35,8 @@ class SubscriptionItem {
     required this.datetime,
   });
 
-  factory SubscriptionItem.fromJson(Map<String, dynamic> json) => _$SubscriptionItemFromJson(json);
+  factory SubscriptionItem.fromJson(Map<String, dynamic> json) =>
+      _$SubscriptionItemFromJson(json);
 
   Map<String, dynamic> toJson() => _$SubscriptionItemToJson(this);
 }

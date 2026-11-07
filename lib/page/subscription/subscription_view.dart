@@ -22,15 +22,9 @@ class SubscriptionView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TPText(
-                subscription.title,
-                style: TPTextStyles.titleSemiBold,
-              ),
+              TPText(subscription.title, style: TPTextStyles.titleSemiBold),
               const SizedBox(height: 12.0),
-              TPText(
-                subscription.content,
-                style: TPTextStyles.bodyRegular,
-              ),
+              TPText(subscription.content, style: TPTextStyles.bodyRegular),
               const SizedBox(height: 16.0),
               TPText(
                 DateFormat('yyyy/MM/dd').format(subscription.datetime),
