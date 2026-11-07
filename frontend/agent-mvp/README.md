@@ -42,7 +42,7 @@ mise exec -- pnpm dev
 | 我們的執行層    | `src/agent/tools.ts`                   | 固定服務契約、參數與結果檢查、預覽／確認，不接受任意工具                       |
 | 使用者介面      | `src/App.vue`, `src/i18n.ts`           | 繁中／英文、可調字級、進度、確認與錯誤呈現                                     |
 
-接入點為 `new AgentRunner(modelAdapter, state, mcpClient)`。目前 App 使用預設 DemoMcpClient；隊友實作符合介面的 client 後傳入第三參數。不需重寫路由或 UI。
+接入點為 `new AgentRunner(modelAdapter, state, mcpClient)`。設定 `VITE_TOOL_SOURCE=townpass` 時，App 透過 `tools/townpass/src/agent-client.ts` 查台北通示範站；未設定時使用 DemoMcpClient 的虛構資料。第一次使用前要在 `tools/townpass/` 執行 `pnpm install`。工具契約見 [tools/townpass/docs/tools.md](../../tools/townpass/docs/tools.md)。
 
 ### LLM
 

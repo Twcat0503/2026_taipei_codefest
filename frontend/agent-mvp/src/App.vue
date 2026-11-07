@@ -5,6 +5,7 @@ import { messages } from './i18n';
 import { branches } from './agent/catalog';
 import { initialState, type Locale, type ModelAdapter } from './agent/types';
 import { AgentRunner } from './agent/runner';
+import { createAgentToolClient } from '../../../tools/townpass/src/agent-client';
 import { DemoModel, LocalModel } from './agent/model';
 import { cancelDraft, changeBranch, confirmReservation, prepareReservation } from './agent/tools';
 import { clearTask, getPreference, restoreTask, saveTask, setPreference } from './platform/storage';
@@ -42,7 +43,10 @@ let adapter: ModelAdapter =
         import.meta.env.VITE_MODEL_PROTOCOL === 'tools' ? 'tools' : 'json-schema',
       )
     : new DemoModel();
-let runner = new AgentRunner(adapter, state);
+// VITE_TOOL_SOURCE=townpass 查台北通示範站；未設定時用 DemoMcpClient 的虛構資料。
+const mcpClient =
+  import.meta.env.VITE_TOOL_SOURCE === 'townpass' ? createAgentToolClient() : undefined;
+let runner = new AgentRunner(adapter, state, mcpClient);
 const speechSupported = ref(canReadAloud());
 const speaking = ref(false);
 const speechFailed = ref(false);
@@ -137,7 +141,7 @@ function applyConfig() {
             import.meta.env.VITE_MODEL_PROTOCOL === 'tools' ? 'tools' : 'json-schema',
           )
         : new DemoModel();
-    runner = new AgentRunner(adapter, state);
+    runner = new AgentRunner(adapter, state, mcpClient);
     mode.value = selectedMode.value;
     configStatus.value = 'applied';
   } catch {
