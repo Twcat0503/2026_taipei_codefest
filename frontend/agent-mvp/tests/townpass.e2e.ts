@@ -40,11 +40,15 @@ test('official toilets resume with district and in-app services ask before leavi
   });
   await send(page, '附近的無障礙廁所');
   await expect(page.locator('section.assistant-message')).toContainText('我需要知道位置才能查附近');
-  await send(page, '大安區');
+  // The district is a choice, not something to type.
+  await expect(page.getByRole('heading', { name: '你在哪一區？' })).toBeVisible();
+  await page.getByRole('button', { name: '大安區', exact: true }).click();
   const answer = page.locator('section.assistant-message');
   await expect(answer).toContainText('官方開放資料');
   await expect(answer).toContainText('臺北市政府環境保護局');
   await expect(answer.locator('.result-card').first()).toContainText('無障礙廁座');
+  await expect(page.getByRole('heading', { name: '接下來你可以' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '附近有身障車位的停車場' }).first()).toBeVisible();
   expect(
     (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
       .violations,
@@ -68,14 +72,18 @@ test('official toilets resume with district and in-app services ask before leavi
   await send(page, '路燈壞了我要陳情');
   await expect(page.getByRole('heading', { name: '有話要說' })).toBeVisible();
   await page.getByRole('button', { name: '前往', exact: true }).click();
+  // The report form opens with a draft built from what was said.
   expect(await posted(page)).toEqual({
     name: 'open_link',
-    data: 'https://taipei-pass-service.vercel.app/citizen-report/',
+    data: {
+      url: 'https://taipei-pass-service.vercel.app/citizen-report/form/R-99',
+      prefill: { title: '路燈故障', description: '路燈壞了' },
+    },
   });
   await expect(answer).toContainText('已請手機開啟');
 });
 
-test('live YouBike cards confirm before opening the map', async ({ page }) => {
+test('live YouBike results offer the Town Pass map instead of Google Maps', async ({ page }) => {
   await page.route('**/youbike_immediate.json', (route) =>
     route.fulfill({
       json: [
@@ -97,18 +105,127 @@ test('live YouBike cards confirm before opening the map', async ({ page }) => {
   );
   await send(page, '大安區 YouBike');
   await expect(page.getByRole('heading', { name: '測試站點' })).toBeVisible();
-  await expect(page.locator('section.assistant-message')).toContainText('即時資料');
-  await expect(
-    page.locator('section.assistant-message dd').filter({ hasText: /^7$/ }),
-  ).toBeVisible();
+  const answer = page.locator('section.assistant-message');
+  await expect(answer).toContainText('即時資料');
+  await expect(answer.locator('dd').filter({ hasText: /^7$/ })).toBeVisible();
+  // The data is shown first; no card links out to Google Maps.
+  await expect(answer.getByRole('button', { name: /地圖上看|開啟服務頁面/ })).toHaveCount(0);
   await stubBridge(page);
-  await page.getByRole('button', { name: '在地圖上看', exact: true }).click();
-  await expect(page.getByText('要離開助手，開啟 www.google.com 嗎？')).toBeVisible();
+  await page.getByRole('button', { name: '在台北通「找地點」看地圖' }).click();
+  await expect(page.getByRole('heading', { name: '找地點', exact: true })).toBeVisible();
+  await expect(answer).toContainText('台北通「找地點」');
   expect(await posted(page)).toBeNull();
   await page.getByRole('button', { name: '前往', exact: true }).click();
-  // Google Maps cannot render in a WebView, so it goes to the native map app.
   expect(await posted(page)).toEqual({
-    name: 'launch_map',
-    data: 'https://www.google.com/maps/search/?api=1&query=25.03,121.54',
+    name: 'open_link',
+    data: 'https://taipei-pass-service.vercel.app/surrounding-service/',
+  });
+});
+
+test('water fee asks for the account number once, then fills it in', async ({ page }) => {
+  await stubBridge(page);
+  await send(page, '我要繳水費');
+  await expect(page.getByRole('heading', { name: '繳水費' })).toBeVisible();
+  await page.getByLabel('你的水號是？').fill('1-23-456789');
+  await page.getByRole('button', { name: '前往', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('10 碼');
+  expect(await posted(page)).toBeNull();
+  await page.getByLabel('你的水號是？').fill('1-23-456789-0');
+  expect(
+    (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
+      .violations,
+  ).toEqual([]);
+  await page.getByRole('button', { name: '前往', exact: true }).click();
+  expect(await posted(page)).toEqual({
+    name: 'open_link',
+    data: {
+      url: 'https://taipei-pass-service.vercel.app/fee-payment/detail/fee-6/',
+      prefill: { water_number: '1234567890' },
+    },
+  });
+
+  // Next time nothing has to be typed.
+  await send(page, '我要繳水費');
+  const card = page.locator('.navigation-card');
+  await expect(card).toContainText('將帶入水號');
+  await expect(card).toContainText('1-23-456789-0');
+  await expect(card.getByLabel('你的水號是？')).toHaveCount(0);
+
+  // People can see and delete what is remembered.
+  await page.getByText('設定', { exact: true }).click();
+  await expect(page.locator('.remembered')).toContainText('1-23-456789-0');
+  await page.getByRole('button', { name: '刪除', exact: true }).click();
+  await expect(page.locator('.remembered')).toContainText('目前沒有記住任何資料');
+});
+
+test('a citizen report is drafted from what was said and opens the form filled in', async ({
+  page,
+}) => {
+  await stubBridge(page);
+  await send(page, '大安區和平東路二段100號前的路燈不亮好幾天了，我要陳情');
+  await expect(page.getByRole('heading', { name: '有話要說' })).toBeVisible();
+  await expect(page.getByLabel('案件主旨')).toHaveValue('路燈故障');
+  await expect(page.getByLabel(/描述/)).toHaveValue('大安區和平東路二段100號前的路燈不亮好幾天了');
+  await expect(page.getByLabel(/發生地點/)).toHaveValue('大安區和平東路二段100號前');
+  expect(
+    (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
+      .violations,
+  ).toEqual([]);
+
+  // People can correct the draft; a half-empty draft is caught before leaving.
+  await page.getByLabel('案件主旨').fill('');
+  await page.getByRole('button', { name: '前往', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('主旨和描述都要填');
+  expect(await posted(page)).toBeNull();
+  await page.getByLabel('案件主旨').fill('路燈不亮');
+  await page.getByRole('button', { name: '前往', exact: true }).click();
+  expect(await posted(page)).toEqual({
+    name: 'open_link',
+    data: {
+      url: 'https://taipei-pass-service.vercel.app/citizen-report/form/R-99',
+      prefill: {
+        title: '路燈不亮',
+        description: '大安區和平東路二段100號前的路燈不亮好幾天了',
+        location: '大安區和平東路二段100號前',
+      },
+    },
+  });
+});
+
+test('police report opens the contact form with the member phone and email filled in', async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    const listeners: ((event: { data: string }) => void)[] = [];
+    window.flutterObject = {
+      addEventListener: (_type: string, listener: (event: { data: string }) => void) =>
+        listeners.push(listener),
+      removeEventListener: () => {},
+      postMessage: (message: string) => {
+        const { name } = JSON.parse(message);
+        if (name !== 'userinfo') {
+          document.documentElement.dataset.navigation = message;
+          return;
+        }
+        const data = {
+          idNo: 'A123456789',
+          realName: '王小明',
+          phoneNo: '0912345678',
+          email: 'ming@example.com',
+          residentAddress: '臺北市中山區吉林路69號',
+        };
+        setTimeout(() => listeners.forEach((l) => l({ data: JSON.stringify({ name, data }) })));
+      },
+    } as unknown as typeof window.flutterObject;
+  });
+  await send(page, '我的機車被偷了我要報案');
+  await expect(page.getByText('0912***678')).toBeVisible();
+  await page.getByRole('button', { name: '前往', exact: true }).click();
+  expect(await posted(page)).toEqual({
+    name: 'open_link',
+    data: {
+      url: 'https://taipei-pass-service.vercel.app/police-report/form',
+      prefill: { mobile_number: '0912345678', mail: 'ming@example.com' },
+    },
   });
 });

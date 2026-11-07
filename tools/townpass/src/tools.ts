@@ -58,8 +58,6 @@ const fields = (entries: Record<string, unknown>) =>
     .filter(([, value]) => value !== undefined && value !== null && value !== "")
     .map(([label, value]) => ({ label: text(label), value: text(value) }));
 const httpsOnly = (url: string | undefined) => (url?.startsWith("https://") ? url : undefined);
-const mapLink = (coord: LatLng | null) =>
-  coord ? `https://www.google.com/maps/search/?api=1&query=${coord.lat},${coord.lng}` : undefined;
 
 function output<T>(list: ListLike<T>, toRecord: (item: T) => AgentRecord): ToolOutput {
   return {
@@ -327,7 +325,6 @@ export const AGENT_TOOLS = [
         id: s.id,
         title: text(s.name),
         fields: fields({ 距離: s.distance_m === null ? undefined : `${s.distance_m} 公尺`, 可借: s.available_rent_bikes, 可還: s.available_return_bikes, 地址: s.address, 更新時間: s.updated_at }),
-        url: mapLink(s.coord),
       })),
   }),
   define({
@@ -352,7 +349,6 @@ export const AGENT_TOOLS = [
           營業時間: p.service_time,
           電話: p.tel,
         }),
-        url: mapLink(p.coord),
       })),
   }),
   define({
@@ -373,14 +369,13 @@ export const AGENT_TOOLS = [
           親子廁座: t.family_seats ? `${t.family_seats} 座` : undefined,
           照護床: t.care_bed,
         }),
-        url: mapLink(t.coord),
       })),
   }),
   define({
     name: "open_official_service",
     data: "real",
     description:
-      "找出可以辦這件事的台北通站內服務（優先）或臺北市政府官方網站，由使用者確認後才前往：陳情反映問題（townpass_report）、災情通報（townpass_disaster）、申辦（townpass_apply）、臨櫃叫號（townpass_counter）、找書借書（townpass_library，可帶書名或主題 keyword）、訂閱市政訊息（townpass_subscription）、報案（townpass_police）、優惠票券（townpass_coupon）、票券錢包（townpass_ticket_wallet）、常見問題（townpass_faq）、繳費（fee，或 fee_water、fee_parking、fee_tax 等指定項目，fee_history 看紀錄）、身障者／孕婦／長者服務（services_disabled、services_maternity、services_elderly）、打電話問 1999（call_1999）。這個工具不會送出任何東西。",
+      "找出可以辦這件事的台北通站內服務（優先）或臺北市政府官方網站，由使用者確認後才前往：陳情反映問題（townpass_report）、災情通報（townpass_disaster）、申辦（townpass_apply）、臨櫃叫號（townpass_counter）、找書借書（townpass_library，可帶書名或主題 keyword）、訂閱市政訊息（townpass_subscription）、報案（townpass_police）、優惠票券（townpass_coupon）、票券錢包（townpass_ticket_wallet）、常見問題（townpass_faq）、在台北通地圖找地點（townpass_places）、繳費（fee，或 fee_water、fee_parking、fee_tax 等指定項目，fee_history 看紀錄）、身障者／孕婦／長者服務（services_disabled、services_maternity、services_elderly）、打電話問 1999（call_1999）。這個工具不會送出任何東西。",
     input: z.strictObject({
       destination: z.enum(DESTINATION_IDS).describe("入口代號"),
       keyword: z.string().trim().max(30).optional().describe("只有 townpass_library 使用：書名、作者或主題；沒有指定就省略"),

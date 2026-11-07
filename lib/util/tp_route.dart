@@ -166,7 +166,11 @@ abstract class TPRoute {
     GetPage(name: activityDetail, page: () => const ActivityDetailView()),
   ];
 
-  static Future openUri({required String uri, String? forceTitle}) async {
+  static Future openUri({
+    required String uri,
+    String? forceTitle,
+    Map<String, String>? prefill,
+  }) async {
     if (uri.isEmpty) {
       return Future.value(null);
     }
@@ -182,6 +186,7 @@ abstract class TPRoute {
           arguments: WebViewArgument(
             url: uri.toString(),
             forceTitle: forceTitle,
+            prefill: prefill,
           ),
           preventDuplicates: false,
         ),

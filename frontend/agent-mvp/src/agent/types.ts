@@ -78,6 +78,10 @@ export type TaskState = {
   failure: ToolFailure | null;
   pendingLocation: { request: string } | null;
   navigation: Navigation | null;
+  /** The last tool that produced this answer; drives the follow-up choices. */
+  lastTool: string | null;
+  /** Set when the request sounds like an emergency; the UI offers call buttons. */
+  emergency: import('./skills/emergency').EmergencyKind | null;
   draft: Draft | null;
   receipt: Receipt | null;
   notice:
@@ -95,6 +99,8 @@ export type TaskState = {
     | 'unsupported'
     | 'navigate'
     | 'navigationDeclined'
+    | 'emergency'
+    | 'profile'
     | 'review'
     | 'receipt'
     | 'cancelled'
@@ -113,6 +119,8 @@ export const initialState = (): TaskState => ({
   failure: null,
   pendingLocation: null,
   navigation: null,
+  lastTool: null,
+  emergency: null,
   draft: null,
   receipt: null,
   notice: 'welcome',

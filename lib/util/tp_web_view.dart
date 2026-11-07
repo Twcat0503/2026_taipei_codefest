@@ -9,6 +9,7 @@ import 'package:town_pass/gen/assets.gen.dart';
 import 'package:town_pass/util/tp_app_bar.dart';
 import 'package:town_pass/util/tp_colors.dart';
 import 'package:town_pass/util/tp_external_link.dart';
+import 'package:town_pass/util/tp_prefill.dart';
 import 'package:town_pass/util/web_message_handler/tp_web_message_listener.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -16,7 +17,10 @@ class WebViewArgument {
   final String? url;
   final String? forceTitle;
 
-  const WebViewArgument({this.url, this.forceTitle});
+  /// 開頁後要替民眾填好的欄位（只對台北通站內服務生效，見 tp_prefill.dart）。
+  final Map<String, String>? prefill;
+
+  const WebViewArgument({this.url, this.forceTitle, this.prefill});
 }
 
 /// App 內開網頁使用，可使用 `openUrl` 並以 `url` 為參數帶入開啟網頁： \
@@ -33,6 +37,12 @@ class TPWebView extends StatelessWidget {
   String get url => (Get.arguments as WebViewArgument?)?.url ?? '';
 
   String? get forceTitle => (Get.arguments as WebViewArgument?)?.forceTitle;
+
+  Map<String, String>? get prefill =>
+      (Get.arguments as WebViewArgument?)?.prefill;
+
+  /// 只在第一次載入完成時填寫，之後民眾自己改的內容不會被蓋掉。
+  final RxBool _prefilled = RxBool(false);
 
   final TPAppBarController _defaultTitleController = TPAppBarController();
 
@@ -110,6 +120,16 @@ class TPWebView extends StatelessWidget {
               } catch (_) {
                 controller.loadData(data: _failedToLoadUrlData(url: url));
               }
+            },
+            onLoadStop: (controller, page) async {
+              final Map<String, String>? values = prefill;
+              if (values == null || _prefilled.value || !canPrefill(page)) {
+                return;
+              }
+              _prefilled.value = true;
+              await controller.evaluateJavascript(
+                source: prefillScript(values),
+              );
             },
             onUpdateVisitedHistory: (_, _, _) async {
               canGoBack.value =

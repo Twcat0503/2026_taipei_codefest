@@ -17,6 +17,7 @@ import {
   type TaskState,
 } from './agent/types';
 import { AgentRunner } from './agent/runner';
+import { followUps } from './agent/follow-ups';
 import { createAgentToolClient } from '../../../tools/townpass/src/agent-client';
 import { DemoModel, LocalModel } from './agent/model';
 import { cancelDraft, changeBranch, confirmReservation, prepareReservation } from './agent/tools';
@@ -24,6 +25,32 @@ import { clearTask, getPreference, restoreTask, saveTask, setPreference } from '
 import { canReadAloud, readAloud, stopReading } from './platform/speech';
 import { getLocation, openLink } from './platform/location';
 import { serviceOrigin } from './platform/service-navigation';
+import { PREFILL_FORM_PATH, PREFILL_SLOTS } from './agent/prefill';
+import { draftReport, type ReportDraft } from './agent/skills/report-draft';
+import {
+  forgetWaterNumber,
+  formatWaterNumber,
+  loadProfile,
+  normalizeWaterNumber,
+  rememberWaterNumber,
+} from './platform/profile';
+import { maskIdNo, maskPhone, readMember, type Member } from './platform/member';
+import { TAIPEI_DISTRICTS, updateProfile } from './platform/profile';
+import { EMERGENCY_NUMBERS } from './agent/skills/emergency';
+
+const EMERGENCY_TEXT = {
+  fire: 'emergencyFire',
+  medical: 'emergencyMedical',
+  violence: 'emergencyViolence',
+  police: 'emergencyPolice',
+  mental: 'emergencyMental',
+} as const;
+const CALL_LABEL: Record<string, 'call119' | 'call110' | 'call113' | 'call1925'> = {
+  '119': 'call119',
+  '110': 'call110',
+  '113': 'call113',
+  '1925': 'call1925',
+};
 
 const locale = ref<Locale>(
   getPreference('tp-language', 'zh-Hant-TW') === 'en' ? 'en' : 'zh-Hant-TW',
@@ -77,6 +104,9 @@ const toolClient =
       ? withDemoBills(createAgentToolClient({ getLocation }), billReadTool)
       : createAgentToolClient({ getLocation, includeDemo: false });
 let runner = new AgentRunner(adapter, state, toolClient);
+// Town Pass member data, read once from the app (memory only) for choices, drafts and the profile card.
+const memberInfo = ref<Member | null>(null);
+if (window.flutterObject) void readMember().then((m) => (memberInfo.value = m));
 const speechSupported = ref(canReadAloud());
 const speaking = ref(false);
 const speechFailed = ref(false);
@@ -126,8 +156,89 @@ const leaveQuestion = (record: TaskState['records'][number]) =>
   record.url?.startsWith(`${serviceOrigin}/`)
     ? t.value.leaveAskApp.replace('{name}', record.title[locale.value])
     : t.value.leaveAsk.replace('{host}', hostOf(record.url ?? ''));
-function go(url: string) {
-  openLink(url);
+// Details the assistant fills in for the destination, so people do not type them again.
+const profile = ref(loadProfile());
+const member = ref<Member | 'loading' | 'unavailable' | null>(null);
+const waterInput = ref('');
+const rememberWater = ref(true);
+const editingWater = ref(false);
+const waterError = ref(false);
+const slots = computed(() => (state.navigation ? (PREFILL_SLOTS[state.navigation.id] ?? []) : []));
+const draft = reactive<ReportDraft>({ title: '', description: '', location: '' });
+const draftError = ref(false);
+// A new card (even for the same service) starts from the new request.
+watch(
+  () => state.navigation,
+  async () => {
+    Object.assign(
+      draft,
+      slots.value.some((slot) => slot.source === 'draft')
+        ? draftReport(lastRequest.value, memberInfo.value?.address)
+        : { title: '', description: '', location: '' },
+    );
+    draftError.value = false;
+    waterInput.value = '';
+    editingWater.value = false;
+    waterError.value = false;
+    member.value = null;
+    if (!slots.value.some((slot) => slot.source === 'member')) return;
+    member.value = 'loading';
+    member.value = (await readMember()) ?? 'unavailable';
+  },
+);
+function goNavigation() {
+  if (!state.navigation) return;
+  const prefill: Record<string, string> = {};
+  for (const slot of slots.value) {
+    if (slot.field === 'water_number') {
+      const typed = waterInput.value.trim();
+      if (typed) {
+        const digits = normalizeWaterNumber(typed);
+        if (!digits) {
+          waterError.value = true;
+          return;
+        }
+        prefill.water_number = digits;
+        if (rememberWater.value) {
+          rememberWaterNumber(digits);
+          profile.value = loadProfile();
+        }
+      } else if (profile.value.waterNumber && !editingWater.value)
+        prefill.water_number = profile.value.waterNumber;
+    } else if (slot.source === 'draft') {
+      const value = draft[slot.field as keyof ReportDraft].trim();
+      if (value) prefill[slot.field] = value;
+    } else if (typeof member.value === 'object' && member.value) {
+      const value = memberField(member.value, slot.field);
+      if (value) prefill[slot.field] = value;
+    }
+  }
+  const formPath = PREFILL_FORM_PATH[state.navigation.id];
+  if (formPath) {
+    if (slots.value.some((slot) => slot.source === 'draft')) {
+      // The report form requires a subject and a description; an empty draft opens the list.
+      if (Boolean(prefill.title) !== Boolean(prefill.description)) {
+        draftError.value = true;
+        return;
+      }
+      if (prefill.title) {
+        go(`${serviceOrigin}${formPath}`, prefill);
+        return;
+      }
+    } else if (Object.keys(prefill).length) {
+      // Something to fill in: open the form itself instead of the service home.
+      go(`${serviceOrigin}${formPath}`, prefill);
+      return;
+    }
+  }
+  go(state.navigation.url, prefill);
+}
+function forgetWater() {
+  forgetWaterNumber();
+  profile.value = loadProfile();
+}
+function go(url: string, prefill?: Record<string, string>) {
+  openLink(url, prefill);
   leftFor.value = url;
   confirmingLink.value = null;
 }
@@ -140,6 +251,48 @@ function stay() {
 }
 const inputDisabled = computed(
   () => busy.value || !!state.draft || (mode.value === 'phone' && !phoneState.value.ready),
+);
+// Tap-to-answer choices: missing details (district, bill type) or what to do next.
+const homeDistrict = computed(() => profile.value.homeDistrict ?? memberInfo.value?.district);
+const choices = computed(() =>
+  busy.value || state.draft ? null : followUps(state, { homeDistrict: homeDistrict.value }),
+);
+/** Member values a form field can take; sensitive ones are masked wherever they are shown. */
+function memberField(m: Member, field: string) {
+  return field === 'tax_id'
+    ? m.idNo
+    : field === 'mobile_number'
+      ? m.phone
+      : field === 'mail'
+        ? m.email
+        : undefined;
+}
+const shownMemberField = (m: Member, field: string) => {
+  const value = memberField(m, field);
+  if (!value) return '';
+  return field === 'tax_id'
+    ? maskIdNo(value)
+    : field === 'mobile_number'
+      ? maskPhone(value)
+      : value;
+};
+const MEMBER_LABEL: Record<string, 'prefillIdNo' | 'prefillPhone' | 'prefillMail'> = {
+  tax_id: 'prefillIdNo',
+  mobile_number: 'prefillPhone',
+  mail: 'prefillMail',
+};
+function setHomeDistrict(event: Event) {
+  updateProfile({ homeDistrict: (event.target as HTMLSelectElement).value || undefined });
+  profile.value = loadProfile();
+}
+function setPreferAccessible(event: Event) {
+  updateProfile({ preferAccessible: (event.target as HTMLInputElement).checked });
+  profile.value = loadProfile();
+}
+watch(
+  () => profile.value.preferAccessible,
+  (on) => (runner.preferences.accessible = Boolean(on)),
+  { immediate: true },
 );
 const showSuggestions = computed(
   () =>
@@ -309,6 +462,7 @@ async function applyConfig() {
             )
           : new DemoModel();
     runner = new AgentRunner(adapter, state, toolClient);
+    runner.preferences.accessible = Boolean(profile.value.preferAccessible);
     mode.value = selectedMode.value;
     configStatus.value = 'applied';
   } catch {
@@ -369,8 +523,12 @@ function speak() {
               `${record.title[locale.value]}. ${record.description?.[locale.value] ?? ''}`,
           ),
         ].join('。');
+  // Screen-reader and TTS users hear the choices too, not just sighted users.
+  const choiceText = choices.value
+    ? `${choices.value.prompt[locale.value]}：${choices.value.options.map((o) => o.label[locale.value]).join('、')}`
+    : '';
   readAloud(
-    `${reply.value} ${extra}`,
+    `${reply.value} ${extra} ${choiceText}`,
     locale.value,
     Number(rate.value),
     () => (speaking.value = false),
@@ -433,6 +591,36 @@ onBeforeUnmount(() => {
           >
           <p v-else class="small-note">{{ t.speechUnavailable }}</p>
 
+          <section class="remembered" aria-labelledby="remembered-title">
+            <h2 id="remembered-title">{{ t.rememberedTitle }}</h2>
+            <p v-if="!profile.waterNumber" class="small-note">{{ t.rememberedNone }}</p>
+            <div v-else class="action-row">
+              <span>{{ t.rememberedWater }} {{ formatWaterNumber(profile.waterNumber) }}</span>
+              <button class="text-button" @click="forgetWater">{{ t.rememberedDelete }}</button>
+            </div>
+            <label class="field-label" for="home-district">{{ t.fieldHome }}</label>
+            <select
+              id="home-district"
+              :value="profile.homeDistrict ?? ''"
+              @change="setHomeDistrict"
+            >
+              <option value="">
+                {{
+                  memberInfo?.district
+                    ? `${t.homeFromMember}（${memberInfo.district}）`
+                    : t.homeUnset
+                }}
+              </option>
+              <option v-for="d in TAIPEI_DISTRICTS" :key="d" :value="d">{{ d }}</option>
+            </select>
+            <label class="check"
+              ><input
+                type="checkbox"
+                :checked="profile.preferAccessible"
+                @change="setPreferAccessible"
+              />{{ t.fieldAccessible }}</label
+            >
+          </section>
           <details class="developer-panel">
             <summary>{{ t.developer }}</summary>
             <p>{{ mode === 'phone' ? t.phoneMode : mode === 'local' ? t.local : t.fixture }}</p>
@@ -596,6 +784,66 @@ onBeforeUnmount(() => {
           </li>
         </ul>
         <section
+          v-if="state.notice === 'profile'"
+          class="result-card"
+          aria-labelledby="profile-title"
+        >
+          <h2 id="profile-title">{{ t.profileMember }}</h2>
+          <dl v-if="memberInfo">
+            <template v-if="memberInfo.realName"
+              ><dt>{{ t.fieldName }}</dt>
+              <dd>{{ memberInfo.realName }}</dd></template
+            >
+            <template v-if="memberInfo.phone"
+              ><dt>{{ t.fieldPhone }}</dt>
+              <dd>{{ maskPhone(memberInfo.phone) }}</dd></template
+            >
+            <template v-if="memberInfo.email"
+              ><dt>{{ t.fieldEmail }}</dt>
+              <dd>{{ memberInfo.email }}</dd></template
+            >
+            <template v-if="memberInfo.birthday"
+              ><dt>{{ t.fieldBirthday }}</dt>
+              <dd>{{ memberInfo.birthday }}</dd></template
+            >
+            <template v-if="memberInfo.address"
+              ><dt>{{ t.fieldAddress }}</dt>
+              <dd>{{ memberInfo.address }}</dd></template
+            >
+            <dt>{{ t.fieldIdNo }}</dt>
+            <dd>{{ maskIdNo(memberInfo.idNo) }}</dd>
+          </dl>
+          <p v-else class="small-note">{{ t.profileNoMember }}</p>
+          <h2>{{ t.profileRemembered }}</h2>
+          <dl>
+            <dt>{{ t.rememberedWater }}</dt>
+            <dd>{{ profile.waterNumber ? formatWaterNumber(profile.waterNumber) : t.notSet }}</dd>
+            <dt>{{ t.fieldHome }}</dt>
+            <dd>{{ homeDistrict ?? t.notSet }}</dd>
+            <dt>{{ t.fieldAccessible }}</dt>
+            <dd>{{ profile.preferAccessible ? t.yes : t.no }}</dd>
+          </dl>
+          <p class="small-note">{{ t.profileNote }}</p>
+        </section>
+        <section
+          v-if="state.notice === 'emergency' && state.emergency"
+          class="result-card emergency-card"
+          aria-labelledby="emergency-title"
+        >
+          <h2 id="emergency-title">{{ t[EMERGENCY_TEXT[state.emergency]] }}</h2>
+          <div class="action-row">
+            <button
+              v-for="number in EMERGENCY_NUMBERS[state.emergency]"
+              :key="number"
+              class="primary-button emergency-call"
+              @click="openLink(`tel:${number}`)"
+            >
+              {{ t[CALL_LABEL[number]!] }}
+            </button>
+          </div>
+          <p class="small-note">{{ t.emergencyNote }}</p>
+        </section>
+        <section
           v-if="state.navigation"
           class="result-card navigation-card"
           aria-labelledby="navigation-title"
@@ -609,9 +857,74 @@ onBeforeUnmount(() => {
             <dt>{{ state.navigation.url.startsWith('tel:') ? t.leaveCall : t.leaveSite }}</dt>
             <dd>{{ state.navigation.where }}</dd>
           </dl>
+          <div v-if="slots.some((slot) => slot.source === 'draft')" class="prefill">
+            <p class="field-label">{{ t.draftIntro }}</p>
+            <label class="field-label" for="draft-title">{{ t.draftTitle }}</label>
+            <input id="draft-title" v-model="draft.title" maxlength="40" autocomplete="off" />
+            <label class="field-label" for="draft-description">{{ t.draftDescription }}</label>
+            <textarea
+              id="draft-description"
+              v-model="draft.description"
+              maxlength="500"
+              rows="3"
+            ></textarea>
+            <label class="field-label" for="draft-location">{{ t.draftLocation }}</label>
+            <input
+              id="draft-location"
+              v-model="draft.location"
+              maxlength="100"
+              autocomplete="off"
+              :placeholder="t.draftLocationHint"
+            />
+            <p v-if="draftError" role="alert" class="field-error">{{ t.draftIncomplete }}</p>
+          </div>
+          <div v-else-if="slots.length" class="prefill">
+            <template v-for="slot in slots" :key="slot.field">
+              <template v-if="slot.field === 'water_number'">
+                <template v-if="profile.waterNumber && !editingWater">
+                  <dl>
+                    <dt>{{ t.prefillWater }}</dt>
+                    <dd>{{ formatWaterNumber(profile.waterNumber) }}</dd>
+                  </dl>
+                  <button class="text-button" @click="editingWater = true">
+                    {{ t.prefillWaterChange }}
+                  </button>
+                </template>
+                <template v-else>
+                  <label class="field-label" for="water-number">{{ t.prefillWaterAsk }}</label>
+                  <p id="water-hint" class="small-note">{{ t.prefillWaterHint }}</p>
+                  <input
+                    id="water-number"
+                    v-model="waterInput"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    maxlength="14"
+                    aria-describedby="water-hint"
+                    :aria-invalid="waterError"
+                    @input="waterError = false"
+                  />
+                  <p v-if="waterError" role="alert" class="field-error">
+                    {{ t.prefillWaterInvalid }}
+                  </p>
+                  <label class="check"
+                    ><input v-model="rememberWater" type="checkbox" />{{ t.prefillRemember }}</label
+                  >
+                </template>
+              </template>
+              <template v-else>
+                <dl v-if="typeof member === 'object' && member && memberField(member, slot.field)">
+                  <dt>{{ t[MEMBER_LABEL[slot.field]!] }}</dt>
+                  <dd>{{ shownMemberField(member, slot.field) }}</dd>
+                </dl>
+                <p v-else-if="member === 'unavailable'" class="small-note">
+                  {{ t.prefillNoMember }}
+                </p>
+              </template>
+            </template>
+          </div>
           <p class="small-note">{{ state.source?.note || t.leaveNote }}</p>
           <div class="action-row">
-            <button class="primary-button" @click="go(state.navigation.url)">
+            <button class="primary-button" @click="goNavigation">
               {{ state.navigation.url.startsWith('tel:') ? t.leaveDial : t.leaveGo }}</button
             ><button class="text-button" @click="stay">{{ t.leaveStay }}</button>
           </div>
@@ -656,6 +969,24 @@ onBeforeUnmount(() => {
           <p class="small-note">{{ t.saved }}</p>
         </section>
 
+        <section
+          v-if="choices"
+          class="choices"
+          :class="{ 'choices-ask': choices.kind === 'choose' }"
+          aria-labelledby="choices-title"
+        >
+          <h2 id="choices-title">{{ choices.prompt[locale] }}</h2>
+          <div class="suggestions">
+            <button
+              v-for="choice in choices.options"
+              :key="choice.request"
+              :disabled="inputDisabled"
+              @click="submit(choice.request)"
+            >
+              {{ choice.label[locale] }}
+            </button>
+          </div>
+        </section>
         <div v-if="showSuggestions" class="suggestions" role="group" :aria-label="t.quick">
           <button
             v-for="suggestion in suggestions"
