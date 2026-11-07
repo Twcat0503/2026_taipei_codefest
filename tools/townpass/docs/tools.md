@@ -36,7 +36,7 @@ await client.callTool({ name: "find_nearby_youbike", arguments: { near_me: true 
 | places | `find_nearby_toilets` | 見下方 | 真實：環保局官方資料的日期快照，含無障礙、親子廁座與照護床 |
 | library、services、bills、perks | `open_official_service` | `destination`、`keyword?` | 台北通站內服務或官方入口白名單，由使用者確認後前往 |
 
-`find_nearby_*` 的參數是 `near_me`、`radius_m`（預設 1000）、`area`、`keyword`、`accessible`。`accessible: true` 時公廁只列有無障礙廁座的，停車場只列有身障或孕婦車位的。
+`find_nearby_*` 的參數是 `near_me`、`radius_m`（預設 1000）、`area`、`keyword`、`accessible`。`accessible: true` 時公廁只列有無障礙廁座的；停車場只列有身障**或**孕婦車位的。查特定車位時，`find_nearby_parking` 另外傳 `parking_space: "disabled"`（身障車位）或 `parking_space: "pregnancy"`（孕婦優先車位），避免混入另一種車位。定位後依直線距離排序，沒有座標的停車場不列入附近查詢；車位數不是即時空位。
 
 ### 服務入口 `open_official_service`
 

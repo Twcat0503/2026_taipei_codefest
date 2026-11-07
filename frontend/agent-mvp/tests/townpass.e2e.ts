@@ -30,6 +30,153 @@ const posted = async (page: Page) => {
   return raw ? JSON.parse(raw) : null;
 };
 
+const parkingLot = (id: string, latitude: number, disabled: number, pregnancy: number) => ({
+  id,
+  name: `停車場${id}`,
+  area: '信義區',
+  address: '信義路',
+  summary: '',
+  tel: '02-1234-5678',
+  payex: '',
+  serviceTime: '',
+  tw97x: '',
+  tw97y: '',
+  totalcar: 10,
+  totalmotor: 0,
+  Handicap_First: String(disabled),
+  Pregnancy_First: String(pregnancy),
+  EntranceCoord: { EntrancecoordInfo: [{ Xcod: String(latitude), Ycod: '121.56' }] },
+});
+async function stubParking(page: Page, lots: ReturnType<typeof parkingLot>[]) {
+  await page.route('**/TCMSV_alldesc.json', (route) =>
+    route.fulfill({
+      contentType: 'application/octet-stream',
+      body: JSON.stringify({
+        data: { UPDATETIME: 'Mon Oct 19 10:26:00 CST 2026', park: lots },
+      }),
+    }),
+  );
+}
+
+test('shows a location status while waiting for permission before searching', async ({ page }) => {
+  await stubParking(page, [parkingLot('找到', 25.0305, 1, 0)]);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: (
+          success: (position: { coords: { latitude: number; longitude: number } }) => void,
+        ) => {
+          (window as Window & { releaseLocation?: () => void }).releaseLocation = () =>
+            success({ coords: { latitude: 25.03, longitude: 121.56 } });
+        },
+      },
+    });
+  });
+  await page.getByRole('button', { name: '找最近的身障車位' }).click();
+  await expect(page.getByText('正在取得你的位置…')).toBeVisible();
+  await page.evaluate(() =>
+    (window as Window & { releaseLocation?: () => void }).releaseLocation?.(),
+  );
+  await expect(page.getByRole('heading', { name: '停車場找到' })).toBeVisible();
+});
+
+test('locates before fetching parking and lists only matching disabled spaces by distance', async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: (
+          success: (position: { coords: { latitude: number; longitude: number } }) => void,
+        ) => {
+          document.documentElement.dataset.located = 'yes';
+          success({ coords: { latitude: 25.03, longitude: 121.56 } });
+        },
+      },
+    });
+  });
+  await page.route('**/TCMSV_alldesc.json', async (route) => {
+    expect(await page.evaluate(() => document.documentElement.dataset.located)).toBe('yes');
+    await route.fulfill({
+      contentType: 'application/octet-stream',
+      body: JSON.stringify({
+        data: {
+          UPDATETIME: 'Mon Oct 19 10:26:00 CST 2026',
+          park: [
+            parkingLot('較遠', 25.032, 2, 0),
+            parkingLot('孕婦專用', 25.0301, 0, 3),
+            parkingLot('最近', 25.0305, 1, 0),
+          ],
+        },
+      }),
+    });
+  });
+  await page.getByRole('button', { name: '找最近的身障車位' }).click();
+  const answer = page.locator('section.assistant-message');
+  await expect(answer.locator('.result-card h2')).toHaveText(['停車場最近', '停車場較遠']);
+  await expect(answer).toContainText('距離為直線距離');
+  await expect(answer).toContainText('不是即時空位');
+  await expect(answer.getByRole('button', { name: '查看原始資料' })).toBeVisible();
+  expect(
+    (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
+      .violations,
+  ).toEqual([]);
+  await stubBridge(page);
+  await answer.getByRole('button', { name: '查看原始資料' }).click();
+  expect(await posted(page)).toMatchObject({
+    name: 'open_link',
+    data: expect.stringMatching(/^https:\/\/data\.taipei\/dataset\/detail/),
+  });
+  await answer.getByRole('button', { name: '撥打 停車場最近 的電話' }).click();
+  expect(await posted(page)).toEqual({ name: 'phone_call', data: '0212345678' });
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('25.03');
+});
+
+test('empty nearby parking can expand to 3 km; denied location offers a district instead', async ({
+  page,
+}) => {
+  await stubParking(page, [
+    parkingLot('孕婦專用', 25.0301, 0, 3),
+    parkingLot('較遠', 25.046, 2, 0),
+  ]);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: (
+          success: (position: { coords: { latitude: number; longitude: number } }) => void,
+        ) => success({ coords: { latitude: 25.03, longitude: 121.56 } }),
+      },
+    });
+  });
+  await page.getByRole('button', { name: '找最近的身障車位' }).click();
+  await expect(page.getByText('1 公里內沒有符合指定車位的停車場。')).toBeVisible();
+  await page.getByRole('button', { name: '擴大到 3 公里' }).click();
+  await expect(page.getByRole('heading', { name: '停車場較遠' })).toBeVisible();
+
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: { getCurrentPosition: (_success: unknown, failure: () => void) => failure() },
+    });
+  });
+  await page.getByRole('button', { name: '回到安心助手首頁' }).click();
+  await page.getByRole('button', { name: '找最近的身障車位' }).click();
+  await expect(page.getByRole('button', { name: '重新定位' })).toBeVisible();
+  await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(
+    (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
+      .violations,
+  ).toEqual([]);
+  await page.getByLabel('改用行政區查詢').selectOption('信義區');
+  await page.getByRole('button', { name: '查詢這一區' }).click();
+  await expect(page.getByRole('heading', { name: '停車場較遠' })).toBeVisible();
+  await expect(page.getByText(/依行政區列出，沒有依距離排序/)).toBeVisible();
+});
+
 test('official toilets resume with district and in-app services ask before leaving', async ({
   page,
 }) => {

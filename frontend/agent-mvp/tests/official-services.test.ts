@@ -145,13 +145,14 @@ describe('navigation rules', () => {
   });
 });
 
-it('filters parking to lots with disabled or pregnancy spaces from the official feed', async () => {
+it('routes disabled and pregnancy parking to separate official-data filters', async () => {
   const feed = {
     data: {
       UPDATETIME: 'Mon Oct 19 10:26:00 CST 2026',
       park: [
         { id: 'a', Handicap_First: '3', Pregnancy_First: '0' },
         { id: 'b', Handicap_First: '0', Pregnancy_First: '0' },
+        { id: 'c', Handicap_First: '0', Pregnancy_First: '2' },
       ].map((p, i) => ({
         ...p,
         area: '信義區',
@@ -181,4 +182,9 @@ it('filters parking to lots with disabled or pregnancy spaces from the official 
   expect(state.records.map((r) => r.title['zh-Hant-TW'])).toEqual(['停車場0']);
   expect(state.source?.note).toContain('2026-10-19');
   expect(state.source?.note).toContain('不是即時空位');
+  const pregnancy = initialState();
+  await new AgentRunner(new DemoModel(), pregnancy, realClient(fetchFn)).run(
+    '信義區有孕婦車位的停車場',
+  );
+  expect(pregnancy.records.map((r) => r.title['zh-Hant-TW'])).toEqual(['停車場2']);
 });

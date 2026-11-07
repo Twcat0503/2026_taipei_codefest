@@ -167,6 +167,17 @@ describe("services", () => {
     ]);
   });
 
+  it("keeps disabled and pregnancy spaces separate before ranking nearby parking", async () => {
+    const disabled = await s.places.parking({
+      lat: 25.03, lng: 121.56, radius_m: 3000, parking_space: "disabled", limit: LIMIT,
+    });
+    expect(disabled.results.map((p) => p.id)).toEqual(["1"]);
+    const pregnancy = await s.places.parking({
+      area: "信義區", radius_m: 1000, parking_space: "pregnancy", limit: LIMIT,
+    });
+    expect(pregnancy.results.map((p) => p.id)).toEqual(["5"]);
+  });
+
   it("toilets come from the dated official snapshot and can require accessible seats", async () => {
     const body = await s.places.toilets({ area: "大安區", accessible: true, radius_m: 1000, limit: LIMIT });
     expect(body.data_source.note).toContain("臺北市政府環境保護局");

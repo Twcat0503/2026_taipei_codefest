@@ -88,6 +88,12 @@ const placeInput = z.strictObject({
     .describe("使用者要無障礙設施時設為 true：公廁只列有無障礙廁座的，停車場只列有身障或孕婦車位的"),
 });
 type PlaceInput = z.output<typeof placeInput>;
+const parkingInput = placeInput.extend({
+  parking_space: z
+    .enum(["disabled", "pregnancy"])
+    .optional()
+    .describe("指定身障車位或孕婦優先車位；不要用 accessible 混查兩種車位"),
+});
 
 /** 沒給行政區和關鍵字也算在問附近。位置只在瀏覽器內計算距離，不會傳給模型。 */
 async function placeQuery(args: PlaceInput, ctx: ToolContext) {
@@ -339,10 +345,13 @@ export const AGENT_TOOLS = [
     name: "find_nearby_parking",
     data: "real",
     description:
-      "查臺北市停車場的地址、費率、總車位，以及身障、孕婦優先車位數（官方開放資料，不是即時空位）。要身障或孕婦車位時設 accessible。問附近或最近時設 near_me；也可用 area 或 keyword。",
-    input: placeInput,
+      "查臺北市停車場的地址、費率、總車位，以及身障、孕婦優先車位數（官方開放資料，不是即時空位）。指定身障車位設 parking_space=disabled，孕婦車位設 pregnancy，不要混查。問附近或最近時設 near_me；也可用 area 或 keyword。",
+    input: parkingInput,
     run: async (args, ctx) =>
-      output(await ctx.services.places.parking(await placeQuery(args as PlaceInput, ctx)), (p) => ({
+      output(await ctx.services.places.parking({
+        ...await placeQuery(args, ctx),
+        parking_space: args.parking_space,
+      }), (p) => ({
         id: p.id,
         title: text(p.name),
         description: text(p.fee),

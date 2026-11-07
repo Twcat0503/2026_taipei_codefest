@@ -8,6 +8,8 @@ const safeRequests = [
   'rehabRequest',
   'benefitsRequest',
   'accessibleRequest',
+  'parkingSuggestion',
+  'pregnancyParkingSuggestion',
   'browseBooks',
   'browseBills',
   'browseServices',
