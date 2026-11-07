@@ -25,6 +25,7 @@ import 'package:town_pass/util/tp_route.dart';
 import 'package:town_pass/util/tp_text.dart';
 import 'package:town_pass/util/web_message_handler/local_ai_origin.dart';
 import 'package:town_pass/util/web_message_handler/tp_web_message_reply.dart';
+import 'package:town_pass/util/web_message_handler/userinfo_access.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 abstract class TPWebMessageHandler {
@@ -53,8 +54,16 @@ class UserinfoWebMessageHandler extends TPWebMessageHandler {
     required bool isMainFrame,
     required onReply,
   }) async {
+    // 會員資料只給白名單來源的主 frame；其他頁面（含 App 內開的外部網站與
+    // iframe）一律回 null，網頁端視同沒有會員資料。
+    final allowed =
+        isMainFrame && isUserinfoOriginAllowed(_originOf(sourceOrigin));
     onReply?.call(
-      replyWebMessage(data: Get.find<AccountService>().account ?? []),
+      replyWebMessage(
+        data: allowed
+            ? userinfoPayload(Get.find<AccountService>().account)
+            : null,
+      ),
     );
   }
 }
