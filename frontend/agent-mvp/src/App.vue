@@ -1,11 +1,26 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import BillPanel from './components/BillPanel.vue';
 import { billCategories, billReadTool, type BillSelection } from './agent/skills/bills';
 import { withDemoBills } from './agent/tool-client';
 import PhoneModelPanel from './components/PhoneModelPanel.vue';
 import { PhoneModel, type PhoneState } from './agent/phone-model';
 import UiIcon from './components/UiIcon.vue';
+import NavigationPanel from './components/NavigationPanel.vue';
+import EmergencyCard from './components/EmergencyCard.vue';
+import ProfilePanel from './components/ProfilePanel.vue';
+import { followUps } from './agent/follow-ups';
+import { serviceOrigin } from './platform/service-navigation';
+import {
+  forgetWaterNumber,
+  formatWaterNumber,
+  loadProfile,
+  TAIPEI_DISTRICTS,
+  updateProfile,
+} from './platform/profile';
+import { readMember, type Member } from './platform/member';
+import WelcomePanel from './components/WelcomePanel.vue';
+import VoiceWave from './components/VoiceWave.vue';
 import { messages } from './i18n';
 import { branches } from './agent/catalog';
 import {
@@ -20,10 +35,19 @@ import { AgentRunner } from './agent/runner';
 import { createAgentToolClient } from '../../../tools/townpass/src/agent-client';
 import { DemoModel, LocalModel } from './agent/model';
 import { cancelDraft, changeBranch, confirmReservation, prepareReservation } from './agent/tools';
-import { clearTask, getPreference, restoreTask, saveTask, setPreference } from './platform/storage';
+import {
+  clearConversation,
+  clearTask,
+  getPreference,
+  restoreConversation,
+  restoreTask,
+  saveConversation,
+  saveTask,
+  setPreference,
+} from './platform/storage';
 import { canReadAloud, readAloud, stopReading } from './platform/speech';
 import { getLocation, openLink } from './platform/location';
-import { serviceOrigin } from './platform/service-navigation';
+import { createVoiceInput, type VoiceStatus } from './platform/voice-input';
 
 const locale = ref<Locale>(
   getPreference('tp-language', 'zh-Hant-TW') === 'en' ? 'en' : 'zh-Hant-TW',
@@ -41,6 +65,35 @@ const lastRequest = ref('');
 const busy = ref(false);
 const stage = ref<'routing' | 'searching'>('routing');
 const resultHeading = ref<HTMLElement>();
+const requestInput = ref<HTMLTextAreaElement>();
+const assistantBody = ref<HTMLElement>();
+const keyboardViewportHeight = ref<number | null>(null);
+const preferencesDialog = ref<HTMLDialogElement>();
+const home = ref(!resumed.value);
+const native = !!window.flutterObject;
+const voiceOpen = ref(false);
+const voiceStatus = ref<VoiceStatus>('idle');
+const voiceOriginal = ref('');
+const voice = createVoiceInput(
+  (status) => (voiceStatus.value = status),
+  (text) =>
+    (input.value = `${voiceOriginal.value}${voiceOriginal.value ? ' ' : ''}${text}`.slice(0, 600)),
+  () => {
+    voiceOpen.value = false;
+    void focusInput();
+  },
+);
+const voiceMessage = computed(() => {
+  const keys = {
+    idle: 'voiceHint',
+    starting: 'voiceStarting',
+    listening: 'voiceListening',
+    unavailable: 'voiceUnavailable',
+    permission: 'voicePermission',
+    error: 'voiceError',
+  } as const;
+  return t.value[keys[voiceStatus.value]];
+});
 const phoneState = ref<PhoneState>({ phase: 'idle', ready: false, error: null });
 const phone = new PhoneModel((value) => {
   phoneState.value = value;
@@ -66,17 +119,58 @@ let adapter: ModelAdapter =
           import.meta.env.VITE_MODEL_PROTOCOL === 'tools' ? 'tools' : 'json-schema',
         )
       : new DemoModel();
-// 預設只用真實資料：官方即時／開放資料與官方入口，不拿模擬資料回答使用者。
-// 開發時 VITE_TOOL_SOURCE=townpass-demo 可加回示範站資料與示範帳單，=demo 則為完全虛構的資料。
+// 預設只用真實資料：台北通官方工具與開放資料（includeDemo: false）。帳單、前往確認卡與水號帶入
+// 都走這條路；示範帳單面板（withDemoBills）會攔下繳費需求，所以只在示範資料模式提供。
+// VITE_TOOL_SOURCE=townpass-demo 加回示範站模擬資料與示範帳單，=demo 為完全虛構的資料。
 const toolSource = import.meta.env.VITE_TOOL_SOURCE;
-const realData = toolSource !== 'demo' && toolSource !== 'townpass-demo';
 const toolClient =
   toolSource === 'demo'
     ? undefined
     : toolSource === 'townpass-demo'
       ? withDemoBills(createAgentToolClient({ getLocation }), billReadTool)
       : createAgentToolClient({ getLocation, includeDemo: false });
+const realData = toolSource !== 'demo' && toolSource !== 'townpass-demo';
 let runner = new AgentRunner(adapter, state, toolClient);
+// 台北通會員資料：只在 App 內讀一次、只留在記憶體，供選項、草稿與「我的資料」使用。
+const memberInfo = ref<Member | null>(null);
+if (window.flutterObject) void readMember().then((m) => (memberInfo.value = m));
+// 民眾要求助手記住的資料（只存在這支手機）。
+const profile = ref(loadProfile());
+const homeDistrict = computed(() => profile.value.homeDistrict ?? memberInfo.value?.district);
+watch(
+  () => profile.value.preferAccessible,
+  (on) => (runner.preferences.accessible = Boolean(on)),
+  { immediate: true },
+);
+function setHomeDistrict(event: Event) {
+  updateProfile({ homeDistrict: (event.target as HTMLSelectElement).value || undefined });
+  profile.value = loadProfile();
+}
+function setPreferAccessible(event: Event) {
+  updateProfile({ preferAccessible: (event.target as HTMLInputElement).checked });
+  profile.value = loadProfile();
+}
+function forgetWater() {
+  forgetWaterNumber();
+  profile.value = loadProfile();
+}
+// 離開助手一律要第二次、明確的點選。
+const confirmingLink = ref<string | null>(null);
+const leftFor = ref(false);
+const hostOf = (url: string) => (url.startsWith('tel:') ? url.slice(4) : new URL(url).host);
+const leaveQuestion = (record: TaskState['records'][number]) =>
+  record.url?.startsWith(`${serviceOrigin}/`)
+    ? t.value.leaveAskApp.replace('{name}', record.title[locale.value])
+    : t.value.leaveAsk.replace('{host}', hostOf(record.url ?? ''));
+function goRecord(url: string) {
+  openLink(url);
+  leftFor.value = true;
+  confirmingLink.value = null;
+}
+// 示範（規則模擬）模式沒有真正的視覺模型；本機與手機模型才送照片。
+const canSeePhotos = computed(
+  () => mode.value === 'local' || (mode.value === 'phone' && phoneState.value.ready),
+);
 const speechSupported = ref(canReadAloud());
 const speaking = ref(false);
 const speechFailed = ref(false);
@@ -88,6 +182,7 @@ const activeBook = computed(() =>
 const activeBranch = computed(() =>
   branches.find((branch) => branch.id === state.receipt?.branchId),
 );
+// 真實資料模式的「不支援／沒有結果」要提到官方資料，不能暗示示範內容。
 const noticeText = (notice: TaskState['notice']) =>
   realData && notice === 'unsupported'
     ? t.value.unsupportedReal
@@ -95,6 +190,10 @@ const noticeText = (notice: TaskState['notice']) =>
       ? t.value.emptyReal
       : t.value[notice];
 const reply = computed(() => noticeText(state.notice));
+// 回答下方的選項：補資料用的選擇題（行政區、帳單種類），或下一步建議。
+const choices = computed(() =>
+  busy.value || state.draft ? null : followUps(state, { homeDistrict: homeDistrict.value }),
+);
 const suggestions = computed(() =>
   realData
     ? [
@@ -103,41 +202,10 @@ const suggestions = computed(() =>
         t.value.petitionSuggestion,
         t.value.paySuggestion,
         t.value.counter,
-        t.value.bookSuggestion,
         t.value.disabledSuggestion,
-        t.value.browseServices,
       ]
-    : [
-        t.value.browseBills,
-        t.value.browseBooks,
-        t.value.browseServices,
-        t.value.counter,
-        t.value.feeSuggestion,
-        t.value.youbikeSuggestion,
-        t.value.perkSuggestion,
-      ],
+    : [t.value.browseBooks, t.value.browseServices],
 );
-// Leaving the assistant always needs a second, explicit tap.
-const confirmingLink = ref<string | null>(null);
-const leftFor = ref<string | null>(null);
-const hostOf = (url: string) => (url.startsWith('tel:') ? url.slice(4) : new URL(url).host);
-// In-app Town Pass pages are named by service, not by the demo host they happen to load from.
-const leaveQuestion = (record: TaskState['records'][number]) =>
-  record.url?.startsWith(`${serviceOrigin}/`)
-    ? t.value.leaveAskApp.replace('{name}', record.title[locale.value])
-    : t.value.leaveAsk.replace('{host}', hostOf(record.url ?? ''));
-function go(url: string) {
-  openLink(url);
-  leftFor.value = url;
-  confirmingLink.value = null;
-}
-function stay() {
-  if (state.navigation) {
-    state.navigation = null;
-    state.notice = 'navigationDeclined';
-  }
-  confirmingLink.value = null;
-}
 const inputDisabled = computed(
   () => busy.value || !!state.draft || (mode.value === 'phone' && !phoneState.value.ready),
 );
@@ -146,14 +214,22 @@ const showSuggestions = computed(
     !busy.value &&
     !state.draft &&
     !state.receipt &&
-    ['welcome', 'unsupported', 'empty', 'error', 'cancelled', 'navigationDeclined'].includes(
-      state.notice,
-    ),
+    [
+      'welcome',
+      'greeting',
+      'unsupported',
+      'empty',
+      'error',
+      'cancelled',
+      'navigationDeclined',
+    ].includes(state.notice),
 );
+const hasConversation = computed(() => state.notice !== 'welcome' || turns.value.length > 0);
 
-// 對話紀錄只留在記憶體，不寫入 localStorage。
 type Turn = {
   id: number;
+  restored?: boolean;
+  time: number;
   request: string;
   notice: TaskState['notice'];
   books: TaskState['bookResults'];
@@ -166,13 +242,41 @@ type Turn = {
   reference?: string;
   receiptBook?: Localized;
 };
-const turns = ref<Turn[]>([]);
-let nextTurnId = 0;
+const restoredTurns = restoreConversation();
+const turns = ref<Turn[]>(
+  restoredTurns.map((turn, index) => ({
+    id: index,
+    restored: true,
+    time: 0,
+    request: turn.request
+      ? messages[locale.value][turn.request as keyof (typeof messages)['en']]
+      : t.value.savedRequestUnavailable,
+    notice: turn.notice,
+    books: [],
+    records: [],
+    navigation: null,
+    source: null,
+    bills: null,
+    failure: null,
+    traces: [],
+  })),
+);
+let nextTurnId = turns.value.length;
+const conversationSaveFailed = ref(false);
+if (turns.value.length) home.value = false;
+function persistConversation() {
+  const current =
+    lastRequest.value && state.notice !== 'welcome'
+      ? [{ request: lastRequest.value, notice: state.notice }]
+      : [];
+  conversationSaveFailed.value = !saveConversation([...turns.value, ...current]);
+}
 function archiveTurn() {
   if (!lastRequest.value && state.notice === 'welcome') return;
   const finished = !!state.receipt;
   turns.value.push({
     id: nextTurnId++,
+    time: Date.now(),
     request: lastRequest.value,
     notice: state.notice,
     books: finished ? [] : state.bookResults,
@@ -197,6 +301,8 @@ watch(
     setPreference('tp-font', fontSize.value);
     stopReading();
     speaking.value = false;
+    voice.cancel();
+    voiceOpen.value = false;
   },
   { immediate: true },
 );
@@ -209,17 +315,109 @@ watch(
 async function focusResult() {
   await nextTick();
   resultHeading.value?.focus({ preventScroll: true });
-  resultHeading.value?.scrollIntoView({ block: 'start' });
+  if (assistantBody.value && resultHeading.value) {
+    assistantBody.value.scrollBy({
+      top:
+        resultHeading.value.getBoundingClientRect().top -
+        assistantBody.value.getBoundingClientRect().top,
+    });
+  }
+}
+function updateKeyboardViewport() {
+  const viewport = window.visualViewport;
+  const editing = document.activeElement === requestInput.value;
+  keyboardViewportHeight.value =
+    editing && viewport && viewport.scale === 1 && window.innerHeight - viewport.height > 100
+      ? viewport.height
+      : null;
+}
+function updateKeyboardAfterFocusOut() {
+  queueMicrotask(updateKeyboardViewport);
+}
+onMounted(() => {
+  window.visualViewport?.addEventListener('resize', updateKeyboardViewport);
+  window.addEventListener('resize', updateKeyboardViewport);
+  document.addEventListener('focusin', updateKeyboardViewport);
+  document.addEventListener('focusout', updateKeyboardAfterFocusOut);
+});
+function onViewEntered() {
+  if (
+    !home.value &&
+    hasConversation.value &&
+    !voiceOpen.value &&
+    document.activeElement !== requestInput.value
+  )
+    void focusResult();
+}
+async function focusInput() {
+  home.value = false;
+  await nextTick();
+  requestInput.value?.focus();
+}
+function openSettings() {
+  profile.value = loadProfile();
+  const dialog = preferencesDialog.value;
+  if (!dialog) return;
+  dialog.inert = false;
+  dialog.removeAttribute('aria-hidden');
+  dialog.showModal();
+}
+function closeSettings() {
+  const dialog = preferencesDialog.value;
+  if (!dialog) return;
+  dialog.inert = true;
+  dialog.setAttribute('aria-hidden', 'true');
+  dialog.close();
+}
+function goHome() {
+  if (busy.value) return;
+  cancelVoice();
+  home.value = true;
+}
+function startVoice() {
+  if (inputDisabled.value) return;
+  stopReading();
+  speaking.value = false;
+  home.value = false;
+  voiceOriginal.value = input.value;
+  voiceOpen.value = true;
+  voice.start(locale.value);
+}
+function cancelVoice() {
+  voice.cancel();
+  if (voiceOpen.value) input.value = voiceOriginal.value;
+  voiceOpen.value = false;
+}
+function typeInstead() {
+  voice.cancel();
+  voiceOpen.value = false;
+  void focusInput();
 }
 async function submit(text = input.value) {
   if (inputDisabled.value || !text.trim()) return;
+  if (/^(?:你好|您好|嗨|哈囉|hello|hi)[!！。,.，\s]*$/iu.test(text.trim())) {
+    archiveTurn();
+    lastRequest.value = text.trim();
+    input.value = '';
+    home.value = false;
+    resumed.value = false;
+    Object.assign(state, initialState(), { notice: 'greeting' });
+    saveTask(state);
+    persistConversation();
+    await focusResult();
+    return;
+  }
+  profile.value = loadProfile();
+  confirmingLink.value = null;
+  leftFor.value = false;
   stopReading();
   speaking.value = false;
+  voice.cancel();
+  voiceOpen.value = false;
+  home.value = false;
   archiveTurn();
   lastRequest.value = text.trim();
   input.value = '';
-  confirmingLink.value = null;
-  leftFor.value = null;
   resumed.value = false;
   busy.value = true;
   await focusResult();
@@ -230,6 +428,7 @@ async function submit(text = input.value) {
   } finally {
     busy.value = false;
     saveTask(state);
+    persistConversation();
     await focusResult();
   }
 }
@@ -287,11 +486,24 @@ function reset() {
   stopReading();
   speaking.value = false;
   clearTask();
+  clearConversation();
+  conversationSaveFailed.value = false;
   Object.assign(state, initialState());
   turns.value = [];
   resumed.value = false;
   lastRequest.value = '';
   input.value = '';
+  runner.cancelVision();
+  cancelVoice();
+  input.value = '';
+  home.value = true;
+  closeSettings();
+}
+function stay() {
+  if (state.navigation) {
+    state.navigation = null;
+    state.notice = 'navigationDeclined';
+  }
 }
 async function applyConfig() {
   if (busy.value) return;
@@ -309,6 +521,7 @@ async function applyConfig() {
             )
           : new DemoModel();
     runner = new AgentRunner(adapter, state, toolClient);
+    runner.preferences.accessible = Boolean(profile.value.preferAccessible);
     mode.value = selectedMode.value;
     configStatus.value = 'applied';
   } catch {
@@ -369,8 +582,12 @@ function speak() {
               `${record.title[locale.value]}. ${record.description?.[locale.value] ?? ''}`,
           ),
         ].join('。');
+  // 螢幕閱讀與朗讀的使用者也要聽得到選項。
+  const choiceText = choices.value
+    ? `${choices.value.prompt[locale.value]}：${choices.value.options.map((o) => o.label[locale.value]).join('、')}`
+    : '';
   readAloud(
-    `${reply.value} ${extra}`,
+    `${reply.value} ${extra} ${choiceText}`,
     locale.value,
     Number(rate.value),
     () => (speaking.value = false),
@@ -381,6 +598,11 @@ function speak() {
   );
 }
 onBeforeUnmount(() => {
+  window.visualViewport?.removeEventListener('resize', updateKeyboardViewport);
+  window.removeEventListener('resize', updateKeyboardViewport);
+  document.removeEventListener('focusin', updateKeyboardViewport);
+  document.removeEventListener('focusout', updateKeyboardAfterFocusOut);
+  voice.cancel();
   runner.cancel();
   if (mode.value === 'phone')
     void phone
@@ -393,22 +615,443 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <a class="skip-link" href="#request">{{ t.skip }}</a>
-  <header class="chat-header">
-    <h1>{{ t.product }}</h1>
-    <div class="header-actions">
-      <button
-        class="icon-button"
-        :disabled="busy"
-        :aria-label="t.newTask"
-        :title="t.newTask"
-        @click="reset"
-      >
-        <UiIcon name="plus" />
+  <div
+    class="assistant-shell"
+    :class="{ 'native-host': native, 'is-home': home }"
+    :style="keyboardViewportHeight ? { height: `${keyboardViewportHeight}px` } : undefined"
+  >
+    <a class="skip-link" href="#request">{{ t.skip }}</a>
+    <header v-if="!native" class="chat-header">
+      <button class="icon-button" :disabled="busy" :aria-label="t.backHome" @click="goHome">
+        <UiIcon name="back" />
       </button>
-      <details class="settings">
-        <summary>{{ t.settings }}</summary>
-        <div class="settings-panel">
+      <span>{{ t.product }}</span>
+      <button class="icon-button" :disabled="busy" :aria-label="t.newTask" @click="reset">
+        <UiIcon name="close" />
+      </button>
+    </header>
+
+    <main id="main" ref="assistantBody" class="assistant-body">
+      <button v-if="mode === 'phone' && !home" class="phone-status-button" @click="openSettings">
+        {{ phoneState.ready ? t.phoneConnected : t.phoneStart }}
+      </button>
+      <Transition name="view-fade" mode="out-in" @after-enter="onViewEntered">
+        <WelcomePanel
+          v-if="home"
+          :locale="locale"
+          :disabled="inputDisabled"
+          :has-task="hasConversation"
+          :pending-draft="!!state.draft"
+          :native="native || mode === 'phone'"
+          :model-needs-start="mode === 'phone' && !phoneState.ready"
+          :model-starting="phoneStarting"
+          :model-status="
+            phoneState.error ? t[`phoneError_${phoneState.error}`] : t[`phone_${phoneState.phase}`]
+          "
+          @request="submit"
+          @voice="startVoice"
+          @start-model="startPhone"
+          @resume="home = false"
+          @settings="openSettings"
+        />
+
+        <div v-else class="conversation">
+          <div class="conversation-heading" :class="{ 'has-request': hasConversation }">
+            <h1>{{ lastRequest || t.today }}</h1>
+            <button class="icon-button" :aria-label="t.settings" @click="openSettings">
+              <UiIcon name="settings" />
+            </button>
+          </div>
+          <div v-if="!hasConversation && !voiceOpen" class="conversation-empty">
+            <p>{{ t.welcome }}</p>
+            <p class="small-note">{{ t.historyHint }}</p>
+          </div>
+          <div class="messages">
+            <template v-for="turn in turns" :key="turn.id">
+              <div v-if="turn.request" class="user-message">
+                <span class="sr-only">{{ t.you }}</span>
+                <p>{{ turn.request }}</p>
+              </div>
+              <article class="past-message" :aria-label="t.assistant">
+                <p v-if="turn.restored" class="small-note">{{ t.savedSummaryNote }}</p>
+                <p class="reply-bubble">{{ noticeText(turn.notice) }}</p>
+                <ul v-if="turn.books.length" class="plain-list">
+                  <li v-for="book in turn.books" :key="book.id">
+                    <strong>{{ book.title[locale] }}</strong
+                    ><span>{{ book.author[locale] }}</span>
+                  </li>
+                </ul>
+                <ul v-if="turn.records.length" class="plain-list">
+                  <li v-for="record in turn.records" :key="record.id">
+                    <strong>{{ record.title[locale] }}</strong
+                    ><span v-if="record.description?.[locale]">{{
+                      record.description[locale]
+                    }}</span>
+                  </li>
+                </ul>
+                <template v-if="turn.bills">
+                  <p class="small-note">{{ t.billDemo }}</p>
+                  <ul class="plain-list">
+                    <li v-for="bill in turn.bills.records" :key="bill.id">
+                      {{ billCategories[bill.category].label[locale] }} · {{ bill.periodLabel }} ·
+                      {{ bill.amount }} TWD · {{ t[`billStatus_${bill.status}`] }}
+                    </li>
+                  </ul>
+                </template>
+                <p v-if="turn.navigation" class="small-note">
+                  {{ turn.navigation.title[locale] }}（{{ turn.navigation.where }}）
+                </p>
+                <p v-if="turn.failure?.hint" class="small-note">{{ turn.failure.hint }}</p>
+                <p v-if="turn.source && !turn.navigation" class="source-note">
+                  {{ turn.source.label }}：{{ turn.source.note }}
+                </p>
+                <p v-if="turn.reference" class="small-note">
+                  {{ turn.receiptBook?.[locale] }}・{{ t.reference }} {{ turn.reference }}
+                </p>
+                <details v-if="turn.traces.length" class="decision">
+                  <summary>{{ t.trace }}</summary>
+                  <ol class="trace" lang="en">
+                    <li v-for="event in turn.traces" :key="event.id">
+                      <code>{{ event.actor }} / {{ event.event }}</code
+                      ><span>{{ event.detail }}</span
+                      ><small>{{ event.elapsedMs }} ms</small>
+                    </li>
+                  </ol>
+                </details>
+              </article>
+            </template>
+
+            <p v-if="resumed" class="notice-box" role="status">{{ t.resumed }}</p>
+            <div v-if="lastRequest && turns.length" class="user-message">
+              <span class="sr-only">{{ t.you }}</span>
+              <p>{{ lastRequest }}</p>
+            </div>
+            <section
+              v-if="state.notice !== 'welcome' || busy"
+              ref="resultHeading"
+              class="assistant-message"
+              tabindex="-1"
+              :aria-label="t.assistant"
+              :aria-busy="busy"
+            >
+              <p :class="busy ? 'sr-only' : 'reply-bubble'" role="status" aria-live="polite">
+                {{ busy ? t[stage] : reply }}
+              </p>
+              <div v-if="busy" class="working">
+                <span class="working-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                <button class="text-button" @click="runner.cancel()">{{ t.stop }}</button>
+              </div>
+              <template v-else>
+                <BillPanel
+                  v-if="state.domain === 'bills'"
+                  :state="state"
+                  :locale="locale"
+                  @select="billAction"
+                  @retry="billAction()"
+                />
+                <ul v-if="shownBooks.length && !state.draft && !state.receipt" class="result-list">
+                  <li v-for="book in shownBooks" :key="book.id" class="result-card">
+                    <span v-if="book.category[locale]" class="category">{{
+                      book.category[locale]
+                    }}</span>
+                    <h2>{{ book.title[locale] }}</h2>
+                    <p>{{ book.author[locale] }}</p>
+                    <button v-if="!toolClient" class="primary-button" @click="prepare(book.id)">
+                      {{ t.reserve }}
+                    </button>
+                    <button v-else class="outline-button" @click="showBookDetails(book.id)">
+                      {{ t.details }}
+                    </button>
+                  </li>
+                </ul>
+                <ul v-if="state.records.length" class="result-list">
+                  <li v-for="record in state.records" :key="record.id" class="result-card">
+                    <span v-if="record.category?.[locale]" class="category">{{
+                      record.category[locale]
+                    }}</span>
+                    <h2>{{ record.title[locale] }}</h2>
+                    <p v-if="record.description?.[locale]">{{ record.description[locale] }}</p>
+                    <dl v-if="record.fields?.length">
+                      <template v-for="field in record.fields" :key="field.label[locale]"
+                        ><dt>{{ field.label[locale] }}</dt>
+                        <dd>{{ field.value[locale] }}</dd></template
+                      >
+                    </dl>
+                    <template v-if="record.url">
+                      <div
+                        v-if="confirmingLink === record.id"
+                        class="leave-confirm"
+                        role="group"
+                        :aria-label="t.leaveTitle"
+                      >
+                        <p>{{ leaveQuestion(record) }}</p>
+                        <div class="action-row">
+                          <button class="primary-button" @click="goRecord(record.url)">
+                            {{ t.leaveGo }}
+                          </button>
+                          <button class="text-button" @click="confirmingLink = null">
+                            {{ t.leaveStay }}
+                          </button>
+                        </div>
+                      </div>
+                      <button v-else class="outline-button" @click="confirmingLink = record.id">
+                        {{
+                          record.url.startsWith('https://www.google.com/maps')
+                            ? t.openMap
+                            : t.openPage
+                        }}
+                      </button>
+                    </template>
+                  </li>
+                </ul>
+                <ProfilePanel
+                  v-if="state.notice === 'profile'"
+                  :member="memberInfo"
+                  :profile="profile"
+                  :home-district="homeDistrict"
+                  :locale="locale"
+                />
+                <EmergencyCard
+                  v-if="state.notice === 'emergency' && state.emergency"
+                  :kind="state.emergency"
+                  :locale="locale"
+                />
+                <NavigationPanel
+                  v-if="state.navigation"
+                  :navigation="state.navigation"
+                  :source="state.source"
+                  :locale="locale"
+                  :request="lastRequest"
+                  :can-see-photos="canSeePhotos"
+                  :demo-mode="mode === 'demo'"
+                  :describe="(image: string) => runner.describePhoto(image, locale)"
+                  :cancel-describe="() => runner.cancelVision()"
+                  :photo-file="null"
+                  @stay="stay"
+                />
+                <p v-if="state.failure?.hint" class="notice-box">{{ state.failure.hint }}</p>
+                <p v-if="state.source && !state.navigation" class="source-note">
+                  {{ state.source.label }}：{{ state.source.note }}
+                  <template v-if="state.source.truncated">{{
+                    t.truncated.replace('{total}', String(state.source.total))
+                  }}</template>
+                </p>
+                <button
+                  v-if="state.notice === 'error' && lastRequest"
+                  class="primary-button"
+                  @click="submit(lastRequest)"
+                >
+                  {{ t.retry }}
+                </button>
+
+                <Transition name="content-fade" mode="out-in" @after-enter="focusResult">
+                  <section
+                    v-if="state.draft"
+                    key="review"
+                    class="result-card review-panel"
+                    aria-labelledby="review-title"
+                  >
+                    <span class="demo-badge">{{ t.demoBadge }}</span>
+                    <h2 id="review-title">{{ t.reviewTitle }}</h2>
+                    <dl>
+                      <dt>{{ t.book }}</dt>
+                      <dd>{{ activeBook?.title[locale] }}</dd>
+                    </dl>
+                    <label class="field-label" for="branch">{{ t.branch }}</label>
+                    <select id="branch" :value="state.draft.branchId" @change="updateBranch">
+                      <option v-for="branch in branches" :key="branch.id" :value="branch.id">
+                        {{ branch.name[locale] }}
+                      </option>
+                    </select>
+                    <p class="small-note">{{ t.simulated }}</p>
+                    <div class="action-row">
+                      <button class="primary-button" @click="confirm">{{ t.confirm }}</button
+                      ><button class="outline-button" @click="cancelDraft(state)">
+                        {{ t.cancel }}
+                      </button>
+                    </div>
+                  </section>
+                  <section
+                    v-else-if="state.receipt"
+                    key="receipt"
+                    class="result-card receipt-panel"
+                    aria-labelledby="receipt-title"
+                  >
+                    <span class="receipt-check" aria-hidden="true"><UiIcon name="check" /></span>
+                    <h2 id="receipt-title">{{ t.receiptTitle }}</h2>
+                    <dl>
+                      <dt>{{ t.book }}</dt>
+                      <dd>{{ activeBook?.title[locale] }}</dd>
+                      <dt>{{ t.branch }}</dt>
+                      <dd>{{ activeBranch?.name[locale] }}</dd>
+                      <dt>{{ t.reference }}</dt>
+                      <dd class="receipt-reference">{{ state.receipt.reference }}</dd>
+                    </dl>
+                    <p class="small-note">{{ t.saved }}</p>
+                  </section>
+                </Transition>
+                <section
+                  v-if="choices"
+                  class="choices"
+                  :class="{ 'choices-ask': choices.kind === 'choose' }"
+                  aria-labelledby="choices-title"
+                >
+                  <h2 id="choices-title">{{ choices.prompt[locale] }}</h2>
+                  <div class="recovery-options">
+                    <button
+                      v-for="choice in choices.options"
+                      :key="choice.request"
+                      class="outline-button"
+                      :disabled="inputDisabled"
+                      @click="submit(choice.request)"
+                    >
+                      {{ choice.label[locale] }}
+                    </button>
+                  </div>
+                </section>
+                <p v-if="leftFor" class="small-note" role="status">{{ t.leaveRequested }}</p>
+                <div
+                  v-if="showSuggestions"
+                  class="recovery-options"
+                  role="group"
+                  :aria-label="t.quick"
+                >
+                  <button
+                    v-for="suggestion in suggestions"
+                    :key="suggestion"
+                    class="outline-button"
+                    :disabled="inputDisabled"
+                    @click="submit(suggestion)"
+                  >
+                    {{ suggestion }}
+                  </button>
+                </div>
+                <button v-if="speechSupported" class="text-button read-button" @click="speak">
+                  <UiIcon name="sound" />{{ speaking ? t.stopRead : t.read }}
+                </button>
+                <p v-if="speechFailed" role="alert" class="small-note">{{ t.speechError }}</p>
+                <details v-if="state.traces.length" class="decision">
+                  <summary>{{ t.trace }}</summary>
+                  <ol class="trace" lang="en">
+                    <li v-for="event in state.traces" :key="event.id">
+                      <code>{{ event.actor }} / {{ event.event }}</code
+                      ><span>{{ event.detail }}</span
+                      ><small>{{ event.elapsedMs }} ms</small>
+                    </li>
+                  </ol>
+                </details>
+              </template>
+            </section>
+          </div>
+          <div v-if="busy || voiceOpen" class="townpass-watermark" aria-hidden="true">
+            <strong>城 市 通</strong><span>TOWN PASS</span>
+          </div>
+        </div>
+      </Transition>
+    </main>
+
+    <section v-if="voiceOpen" class="voice-dock" :aria-label="t.voiceLabel">
+      <div class="voice-surface">
+        <VoiceWave wide :active="voiceStatus === 'listening'" />
+        <p role="status">{{ voiceMessage }}</p>
+        <p v-if="input && voiceStatus === 'listening'" class="voice-transcript">{{ input }}</p>
+        <div class="voice-actions">
+          <button class="voice-dismiss" :aria-label="t.voiceCancel" @click="cancelVoice">
+            <UiIcon name="close" />
+          </button>
+          <button
+            v-if="voiceStatus === 'listening'"
+            class="voice-text-button"
+            @click="voice.finish()"
+          >
+            {{ t.voiceFinish }}
+          </button>
+          <button
+            v-if="voiceStatus === 'error' || voiceStatus === 'permission'"
+            class="voice-text-button"
+            @click="startVoice"
+          >
+            {{ t.voiceRetry }}
+          </button>
+          <button class="voice-text-button" @click="typeInstead">{{ t.useKeyboard }}</button>
+        </div>
+      </div>
+    </section>
+    <footer v-else class="composer-dock">
+      <div v-if="!home && !state.draft" class="quick-chips" role="group" :aria-label="t.quick">
+        <button
+          :disabled="inputDisabled"
+          :aria-label="t.browseBills"
+          @click="submit(t.browseBills)"
+        >
+          <span aria-hidden="true"></span>{{ t.billShortcut }}
+        </button>
+        <button :disabled="inputDisabled" @click="submit(t.reportRequest)">
+          <span aria-hidden="true"></span>{{ t.reportShortcut }}
+        </button>
+        <button :disabled="inputDisabled" :aria-label="t.counter" @click="submit(t.counter)">
+          <span aria-hidden="true"></span>{{ t.counterShortcut }}
+        </button>
+      </div>
+      <p v-if="state.draft && !home" class="draft-hint">{{ t.draftHint }}</p>
+      <form class="composer" @submit.prevent="submit()">
+        <label class="sr-only" for="request">{{ t.questionLabel }}</label>
+        <div class="composer-box">
+          <textarea
+            id="request"
+            ref="requestInput"
+            v-model="input"
+            :placeholder="home ? t.homePlaceholder : t.chatPlaceholder"
+            maxlength="600"
+            rows="1"
+            :disabled="inputDisabled"
+            aria-describedby="input-help"
+            @focus="home = false"
+            @keydown.enter.exact="onEnter"
+          ></textarea>
+          <button
+            type="submit"
+            class="send-button"
+            :class="{ 'is-empty': !input.trim() }"
+            :aria-label="t.send"
+            :disabled="inputDisabled || !input.trim()"
+          >
+            <UiIcon name="send" />
+          </button>
+        </div>
+      </form>
+      <p id="input-help" class="composer-note">
+        <span>{{ mode === 'demo' ? t.ruleBadge : t.modelBadge }}</span
+        ><span class="scope-copy"> · {{ !toolClient ? t.demoBadge : t.readOnlyBadge }}</span>
+      </p>
+      <p v-if="conversationSaveFailed" role="status">{{ t.conversationSaveFailed }}</p>
+    </footer>
+
+    <dialog
+      ref="preferencesDialog"
+      class="settings-dialog"
+      aria-labelledby="settings-title"
+      @cancel.prevent="closeSettings"
+    >
+      <div class="dialog-heading">
+        <h2 id="settings-title">{{ t.settingsTitle }}</h2>
+        <button class="icon-button" :aria-label="t.closeSettings" @click="closeSettings">
+          <UiIcon name="close" />
+        </button>
+      </div>
+      <div class="settings-content">
+        <PhoneModelPanel
+          v-if="mode === 'phone'"
+          :state="phoneState"
+          :locale="locale"
+          :starting="phoneStarting"
+          :busy="busy"
+          @start="startPhone"
+          @stop="stopPhone"
+          @refresh="refreshPhone"
+        />
+        <section class="settings-section" aria-labelledby="reading-title">
+          <h3 id="reading-title">{{ t.readingSettings }}</h3>
           <label
             >{{ t.font
             }}<select v-model="fontSize" :aria-label="t.font">
@@ -432,286 +1075,91 @@ onBeforeUnmount(() => {
             </select></label
           >
           <p v-else class="small-note">{{ t.speechUnavailable }}</p>
-
-          <details class="developer-panel">
-            <summary>{{ t.developer }}</summary>
-            <p>{{ mode === 'phone' ? t.phoneMode : mode === 'local' ? t.local : t.fixture }}</p>
-            <p class="small-note">{{ t.connectionHint }}</p>
-            <form class="settings-form" @submit.prevent="applyConfig">
-              <label
-                >{{ t.mode
-                }}<select v-model="selectedMode" :disabled="busy">
-                  <option value="demo">{{ t.demoMode }}</option>
-                  <option value="local">{{ t.localMode }}</option>
-                  <option value="phone">{{ t.phoneMode }}</option>
-                </select></label
-              ><template v-if="selectedMode === 'local'"
-                ><label
-                  >{{ t.endpoint
-                  }}<input v-model="endpoint" type="url" required :disabled="busy" /></label
-                ><label
-                  >{{ t.model
-                  }}<input v-model="modelName" required :disabled="busy" /></label></template
-              ><button class="outline-button" :disabled="busy">{{ t.apply }}</button>
-              <p v-if="configStatus" role="status">{{ t[configStatus] }}</p>
-            </form>
-            <p class="small-note">{{ t.boundary }}</p>
-          </details>
-        </div>
-      </details>
-    </div>
-  </header>
-
-  <main id="main" class="messages">
-    <PhoneModelPanel
-      v-if="mode === 'phone'"
-      :state="phoneState"
-      :locale="locale"
-      :starting="phoneStarting"
-      :busy="busy"
-      @start="startPhone"
-      @stop="stopPhone"
-      @refresh="refreshPhone"
-    />
-    <template v-for="turn in turns" :key="turn.id">
-      <div v-if="turn.request" class="user-message">
-        <span class="sr-only">{{ t.you }}</span>
-        <p>{{ turn.request }}</p>
-      </div>
-      <div class="assistant-message">
-        <span class="sr-only">{{ t.assistant }}</span>
-        <p>{{ noticeText(turn.notice) }}</p>
-        <p v-if="turn.navigation" class="small-note">
-          {{ turn.navigation.title[locale] }}（{{ turn.navigation.where }}）
-        </p>
-        <ul v-if="turn.books.length" class="plain-list">
-          <li v-for="book in turn.books" :key="book.id">
-            <strong>{{ book.title[locale] }}</strong>
-            <span>{{ book.author[locale] }}</span>
-          </li>
-        </ul>
-        <ul v-if="turn.records.length" class="plain-list">
-          <li v-for="record in turn.records" :key="record.id">
-            <strong>{{ record.title[locale] }}</strong>
-            <span v-if="record.description?.[locale]">{{ record.description[locale] }}</span>
-          </li>
-        </ul>
-        <template v-if="turn.bills">
-          <p class="small-note">{{ t.billDemo }}</p>
-          <ul class="plain-list">
-            <li v-for="bill in turn.bills.records" :key="bill.id">
-              {{ billCategories[bill.category].label[locale] }} · {{ bill.periodLabel }} ·
-              {{ bill.amount }} TWD · {{ t[`billStatus_${bill.status}`] }}
-            </li>
-          </ul>
-        </template>
-        <p v-if="turn.failure?.hint" class="small-note">{{ turn.failure.hint }}</p>
-        <p v-if="turn.source" class="small-note">{{ turn.source.label }}</p>
-        <p v-if="turn.reference" class="small-note">
-          {{ turn.receiptBook?.[locale] }}・{{ t.reference }} {{ turn.reference }}
-        </p>
-        <details v-if="turn.traces.length" class="decision">
-          <summary>{{ t.trace }}</summary>
-          <ol class="trace" lang="en">
-            <li v-for="event in turn.traces" :key="event.id">
-              <code>{{ event.actor }} / {{ event.event }}</code
-              ><span>{{ event.detail }}</span
-              ><small>{{ event.elapsedMs }} ms</small>
-            </li>
-          </ol>
-        </details>
-      </div>
-    </template>
-
-    <p v-if="resumed" class="small-note" role="status">{{ t.resumed }}</p>
-    <div v-if="lastRequest" class="user-message">
-      <span class="sr-only">{{ t.you }}</span>
-      <p>{{ lastRequest }}</p>
-    </div>
-
-    <section
-      ref="resultHeading"
-      class="assistant-message"
-      tabindex="-1"
-      :aria-label="t.assistant"
-      :aria-busy="busy"
-    >
-      <p role="status" aria-live="polite">{{ busy ? t[stage] : reply }}</p>
-      <div v-if="busy" class="working">
-        <span class="working-dots" aria-hidden="true">•••</span
-        ><button class="text-button" @click="runner.cancel()">{{ t.stop }}</button>
-      </div>
-
-      <template v-if="!busy">
-        <BillPanel
-          v-if="state.domain === 'bills'"
-          :state="state"
-          :locale="locale"
-          @select="billAction"
-          @retry="billAction()"
-        />
-        <ul v-if="shownBooks.length && !state.draft && !state.receipt" class="result-list">
-          <li v-for="book in shownBooks" :key="book.id" class="result-card">
-            <span v-if="book.category[locale]" class="category">{{ book.category[locale] }}</span>
-            <h2>{{ book.title[locale] }}</h2>
-            <p>{{ book.author[locale] }}</p>
-            <button v-if="!toolClient" class="outline-button" @click="prepare(book.id)">
-              {{ t.reserve }}
-            </button>
-            <button v-else class="outline-button" @click="showBookDetails(book.id)">
-              {{ t.details }}
-            </button>
-          </li>
-        </ul>
-        <ul v-if="state.records.length" class="result-list">
-          <li v-for="record in state.records" :key="record.id" class="result-card">
-            <span v-if="record.category?.[locale]" class="category">{{
-              record.category[locale]
-            }}</span>
-            <h2>{{ record.title[locale] }}</h2>
-            <p v-if="record.description?.[locale]">{{ record.description[locale] }}</p>
-            <dl v-if="record.fields?.length">
-              <template v-for="field in record.fields" :key="field.label[locale]">
-                <dt>{{ field.label[locale] }}</dt>
-                <dd>{{ field.value[locale] }}</dd>
-              </template>
-            </dl>
-            <template v-if="record.url">
-              <div
-                v-if="confirmingLink === record.id"
-                class="leave-confirm"
-                role="group"
-                :aria-label="t.leaveTitle"
-              >
-                <p>{{ leaveQuestion(record) }}</p>
-                <div class="action-row">
-                  <button class="primary-button" @click="go(record.url)">{{ t.leaveGo }}</button
-                  ><button class="text-button" @click="stay">{{ t.leaveStay }}</button>
-                </div>
-              </div>
-              <button v-else class="outline-button" @click="confirmingLink = record.id">
-                {{ record.url.startsWith('https://www.google.com/maps') ? t.openMap : t.openPage }}
-              </button>
-            </template>
-          </li>
-        </ul>
-        <section
-          v-if="state.navigation"
-          class="result-card navigation-card"
-          aria-labelledby="navigation-title"
-        >
-          <span class="category">{{ state.navigation.provider }}</span>
-          <h2 id="navigation-title">{{ state.navigation.title[locale] }}</h2>
-          <p v-if="state.navigation.description?.[locale]">
-            {{ state.navigation.description[locale] }}
-          </p>
-          <dl>
-            <dt>{{ state.navigation.url.startsWith('tel:') ? t.leaveCall : t.leaveSite }}</dt>
-            <dd>{{ state.navigation.where }}</dd>
-          </dl>
-          <p class="small-note">{{ state.source?.note || t.leaveNote }}</p>
-          <div class="action-row">
-            <button class="primary-button" @click="go(state.navigation.url)">
-              {{ state.navigation.url.startsWith('tel:') ? t.leaveDial : t.leaveGo }}</button
-            ><button class="text-button" @click="stay">{{ t.leaveStay }}</button>
+        </section>
+        <section class="settings-section remembered" aria-labelledby="remembered-title">
+          <h3 id="remembered-title">{{ t.rememberedTitle }}</h3>
+          <p v-if="!profile.waterNumber" class="small-note">{{ t.rememberedNone }}</p>
+          <div v-else class="action-row">
+            <span>{{ t.rememberedWater }} {{ formatWaterNumber(profile.waterNumber) }}</span>
+            <button class="text-button" @click="forgetWater">{{ t.rememberedDelete }}</button>
           </div>
-        </section>
-        <p v-if="leftFor" class="small-note" role="status">{{ t.leaveRequested }}</p>
-        <p v-if="state.failure?.hint" class="small-note">{{ state.failure.hint }}</p>
-        <p v-if="state.source && !state.navigation" class="small-note">
-          {{ state.source.label }}：{{ state.source.note }}
-          <template v-if="state.source.truncated">
-            {{ t.truncated.replace('{total}', String(state.source.total)) }}
-          </template>
-        </p>
-
-        <section v-if="state.draft" class="result-card" aria-labelledby="review-title">
-          <h2 id="review-title">{{ t.reviewTitle }}</h2>
-          <dl>
-            <dt>{{ t.book }}</dt>
-            <dd>{{ activeBook?.title[locale] }}</dd>
-          </dl>
-          <label class="field-label" for="branch">{{ t.branch }}</label
-          ><select id="branch" :value="state.draft.branchId" @change="updateBranch">
-            <option v-for="branch in branches" :key="branch.id" :value="branch.id">
-              {{ branch.name[locale] }}
-            </option>
-          </select>
-          <p class="small-note">{{ t.simulated }}</p>
-          <div class="action-row">
-            <button class="primary-button" @click="confirm">{{ t.confirm }}</button
-            ><button class="text-button" @click="cancelDraft(state)">{{ t.cancel }}</button>
-          </div>
-        </section>
-        <section v-if="state.receipt" class="result-card" aria-labelledby="receipt-title">
-          <h2 id="receipt-title">{{ t.receiptTitle }}</h2>
-          <dl>
-            <dt>{{ t.book }}</dt>
-            <dd>{{ activeBook?.title[locale] }}</dd>
-            <dt>{{ t.branch }}</dt>
-            <dd>{{ activeBranch?.name[locale] }}</dd>
-            <dt>{{ t.reference }}</dt>
-            <dd class="receipt-reference">{{ state.receipt.reference }}</dd>
-          </dl>
-          <p class="small-note">{{ t.saved }}</p>
-        </section>
-
-        <div v-if="showSuggestions" class="suggestions" role="group" :aria-label="t.quick">
-          <button
-            v-for="suggestion in suggestions"
-            :key="suggestion"
-            :disabled="inputDisabled"
-            @click="submit(suggestion)"
+          <label
+            >{{ t.fieldHome
+            }}<select
+              :value="profile.homeDistrict ?? ''"
+              :aria-label="t.fieldHome"
+              @change="setHomeDistrict"
+            >
+              <option value="">
+                {{
+                  memberInfo?.district
+                    ? `${t.homeFromMember}（${memberInfo.district}）`
+                    : t.homeUnset
+                }}
+              </option>
+              <option v-for="d in TAIPEI_DISTRICTS" :key="d" :value="d">{{ d }}</option>
+            </select></label
           >
-            {{ suggestion }}
+          <label class="check"
+            ><input
+              type="checkbox"
+              :checked="profile.preferAccessible"
+              @change="setPreferAccessible"
+            />{{ t.fieldAccessible }}</label
+          >
+        </section>
+        <section v-if="!native && mode !== 'phone'" class="settings-section">
+          <button
+            class="outline-button"
+            :disabled="inputDisabled"
+            @click="
+              closeSettings();
+              startVoice();
+            "
+          >
+            {{ t.voiceLabel }}
           </button>
-        </div>
-
-        <button
-          v-if="speechSupported && state.notice !== 'welcome'"
-          class="text-button read-button"
-          @click="speak"
-        >
-          <UiIcon name="sound" />{{ speaking ? t.stopRead : t.read }}
-        </button>
-        <p v-if="speechFailed" role="alert" class="small-note">{{ t.speechError }}</p>
-        <details v-if="state.traces.length" class="decision">
-          <summary>{{ t.trace }}</summary>
-          <ol class="trace" lang="en">
-            <li v-for="event in state.traces" :key="event.id">
-              <code>{{ event.actor }} / {{ event.event }}</code
-              ><span>{{ event.detail }}</span
-              ><small>{{ event.elapsedMs }} ms</small>
-            </li>
-          </ol>
+        </section>
+        <details class="developer-panel">
+          <summary>{{ t.developer }}</summary>
+          <p>{{ mode === 'phone' ? t.phoneMode : mode === 'local' ? t.local : t.fixture }}</p>
+          <p class="small-note">{{ t.connectionHint }}</p>
+          <form class="settings-form" @submit.prevent="applyConfig">
+            <label
+              >{{ t.mode
+              }}<select v-model="selectedMode" :disabled="busy">
+                <option value="demo">{{ t.demoMode }}</option>
+                <option value="local">{{ t.localMode }}</option>
+                <option value="phone">{{ t.phoneMode }}</option>
+              </select></label
+            >
+            <template v-if="selectedMode === 'local'"
+              ><label
+                >{{ t.endpoint
+                }}<input v-model="endpoint" type="url" required :disabled="busy" /></label
+              ><label>{{ t.model }}<input v-model="modelName" required :disabled="busy" /></label
+            ></template>
+            <button class="primary-button" :disabled="busy">{{ t.apply }}</button>
+            <p v-if="configStatus" role="status">{{ t[configStatus] }}</p>
+          </form>
+          <p class="small-note">{{ t.boundary }}</p>
         </details>
-      </template>
-    </section>
-  </main>
-
-  <form class="composer" @submit.prevent="submit()">
-    <label class="sr-only" for="request">{{ t.questionLabel }}</label>
-    <div class="composer-box">
-      <textarea
-        id="request"
-        v-model="input"
-        :placeholder="t.placeholder"
-        maxlength="600"
-        rows="1"
-        :disabled="inputDisabled"
-        aria-describedby="input-help"
-        @keydown.enter.exact="onEnter"
-      ></textarea>
-      <button
-        type="submit"
-        class="send-button"
-        :aria-label="t.send"
-        :title="t.send"
-        :disabled="inputDisabled || !input.trim()"
-      >
-        <UiIcon name="send" />
-      </button>
-    </div>
-    <p id="input-help">{{ realData ? t.composerNoteReal : t.composerNote }}</p>
-  </form>
+        <div class="settings-section">
+          <button
+            class="outline-button"
+            :disabled="busy"
+            @click="
+              closeSettings();
+              goHome();
+            "
+          >
+            {{ t.backHome }}
+          </button>
+          <button class="text-button" :disabled="busy" @click="reset">{{ t.clearProgress }}</button>
+          <p class="small-note">{{ t.privacyHint }}</p>
+          <p class="small-note">{{ toolClient ? t.toolScope : t.demoScope }}</p>
+        </div>
+      </div>
+    </dialog>
+  </div>
 </template>

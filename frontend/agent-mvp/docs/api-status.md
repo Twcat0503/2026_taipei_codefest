@@ -23,7 +23,8 @@
 - `location`：只在附近查詢時取得位置；無權限／逾時會提示補充行政區。座標不進入模型上下文。
 - `open_link`：使用者點選工具結果或固定帳單範本時導頁。沒有成功載入回覆，不能把請求開頁當成完成服務。
 - `userinfo` 未接；App 目前帳戶仍是 mock，不能拿來代表正式登入。
-- `tts/share` 已存在於 App，但 Vue 的語音完成／錯誤生命週期尚未接入。WebView 不使用 speechSynthesis。
+- `tts`：`src/platform/speech.ts` 以 requestId 接上開始／完成／停止／錯誤生命週期（待實機驗證）；WebView 不使用 speechSynthesis。`share` 尚未接入。
+- `haptic`、`a11y_state`：震動回饋與系統無障礙設定；`a11y_state` 的螢幕閱讀器狀態只回報給允許的來源，前端只放記憶體。契約見 [無障礙文件](accessibility.md)。
 
 ## 正式服務仍需交付
 

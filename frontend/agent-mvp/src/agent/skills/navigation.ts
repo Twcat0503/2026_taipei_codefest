@@ -1,3 +1,5 @@
+import { normalizeRequest } from './normalize';
+
 /**
  * Destination skill. The model may suggest a destination id, but explicit wording in the
  * user's request wins: a 1.7B on-device model mislabels short requests often enough to matter.
@@ -8,6 +10,7 @@
 export const CATALOG_TOOL = 'list_townpass_services';
 export const DESTINATION_RULES: readonly [id: string, pattern: RegExp][] = [
   ['catalog', /有哪些服務|有什麼服務|服務清單|可以做什麼|能做什麼|what services/i],
+  ['townpass_places', /找地點|看地圖|地圖上|打開地圖|on the map|map/i],
   ['call_1999', /1999|打電話|撥電話|撥打|call/i],
   ['townpass_disaster', /災情|淹水|樹倒|土石流|disaster|flood/i],
   ['townpass_report', /陳情|檢舉|報修|反映|投訴|路燈|坑洞|噪音|違停|有話要說|petition|complain/i],
@@ -16,7 +19,7 @@ export const DESTINATION_RULES: readonly [id: string, pattern: RegExp][] = [
   ['fee_scan', /掃碼|條碼|掃描.*(繳費|帳單)/i],
   ['fee_water', /水費|water bill/i],
   ['fee_parking', /停車費|parking fee/i],
-  ['fee_tax', /地方稅|房屋稅|地價稅|牌照稅|tax/i],
+  ['fee_tax', /地方稅|房屋稅|地價稅|牌照稅|繳稅|稅金|稅單|tax/i],
   ['fee_tuition', /學雜費|學費|tuition/i],
   ['fee_housing', /社宅|國宅|租金|public housing/i],
   ['fee_medical', /醫療費|醫藥費|medical fee/i],
@@ -36,7 +39,8 @@ export const DESTINATION_RULES: readonly [id: string, pattern: RegExp][] = [
 ];
 
 export function destinationFor(request: string): string | null {
-  return DESTINATION_RULES.find(([, pattern]) => pattern.test(request))?.[0] ?? null;
+  const text = normalizeRequest(request);
+  return DESTINATION_RULES.find(([, pattern]) => pattern.test(text))?.[0] ?? null;
 }
 
 /** Task words at either end of a suggested keyword; titles keep their inner words. */
