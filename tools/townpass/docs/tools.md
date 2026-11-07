@@ -2,16 +2,19 @@
 
 給 agent 與前端的對接文件。這裡的工具全部唯讀，不會送件、付款或預約。
 
-工具直接在瀏覽器執行，不需要 server。agent 預設就會使用，第一次要先在這個目錄執行 `pnpm install`；設定 `VITE_TOOL_SOURCE=demo` 才改用 agent 內建的虛構資料。
+工具直接在瀏覽器執行，不需要 server。第一次要先在這個目錄執行 `pnpm install`。
 
 ```ts
-const client = createAgentToolClient({ getLocation }); // 可傳 baseUrl、timeoutMs、fetchFn
+// App 正式流程：只提供真實資料與官方入口
+const client = createAgentToolClient({ getLocation, includeDemo: false }); // 可傳 baseUrl、timeoutMs、fetchFn
 await client.callTool({ name: "find_nearby_youbike", arguments: { near_me: true } }, { signal });
 ```
 
-## 16 支工具
+`includeDemo` 預設為 `true`（相容既有測試），會多提供示範站模擬資料的工具；App 預設傳 `false`，開發時設 `VITE_TOOL_SOURCE=townpass-demo` 才加回來。
 
-依 agent 的分流領域分組。`keyword` 省略或空字串代表列出全部；單次最多回 20 筆。
+## 17 支工具
+
+依 agent 的分流領域分組。`keyword` 省略或空字串代表列出全部；單次最多回 20 筆。標「真實」的工具才會在 App 預設模式提供。
 
 | 領域 | 工具 | 參數 | 資料性質 |
 | --- | --- | --- | --- |
@@ -28,11 +31,29 @@ await client.callTool({ name: "find_nearby_youbike", arguments: { near_me: true 
 | services | `list_report_categories` | `kind`（`citizen`、`disaster`） | 示範 |
 | services | `list_subscription_topics` | `keyword?` | 示範，只列主題，不代為訂閱 |
 | perks | `search_perks` | `keyword?`、`kind?`（`hot_spot`、`ticket`、`coupon`） | 示範 |
-| places | `find_nearby_youbike` | 見下方 | 即時 |
-| places | `find_nearby_parking` | 見下方 | 快照，沒有即時空位 |
-| places | `find_nearby_toilets` | 見下方 | 快照 |
+| places | `find_nearby_youbike` | 見下方 | 真實：交通局即時資料 |
+| places | `find_nearby_parking` | 見下方 | 真實：停管處官方資料，含身障、孕婦車位數；不是即時空位 |
+| places | `find_nearby_toilets` | 見下方 | 真實：環保局官方資料的日期快照，含無障礙、親子廁座與照護床 |
+| library、services、bills | `open_official_service` | `destination`、`keyword?` | 真實：官方入口白名單，由使用者確認後前往 |
 
-`find_nearby_*` 的參數是 `near_me`、`radius_m`（預設 1000）、`area`、`keyword`。
+`find_nearby_*` 的參數是 `near_me`、`radius_m`（預設 1000）、`area`、`keyword`、`accessible`。`accessible: true` 時公廁只列有無障礙廁座的，停車場只列有身障或孕婦車位的。
+
+### 官方入口 `open_official_service`
+
+模型只選代號，網址一律由 [src/destinations.ts](../src/destinations.ts) 組出；只有 `library_catalog` 會帶 `keyword`（書名、作者或主題），其他入口忽略。回傳 `source: "link"`、一筆紀錄，**不代表已開啟**：前端必須先讓使用者確認。
+
+| 代號 | 入口 | 網址 |
+| --- | --- | --- |
+| `library_catalog` | 臺北市立圖書館館藏查詢 | `https://book.tpml.edu.tw/search?…`（有 keyword 時） |
+| `services_disabled` | 台北服務通：身障者相關服務 | `https://service.taipei/search-item?…Disabled` |
+| `services_maternity` | 台北服務通：孕婦相關服務 | `…Maternity` |
+| `services_elderly` | 台北服務通：長者相關服務 | `…Elderly` |
+| `services_home` | 台北服務通 | `https://service.taipei/` |
+| `petition` | 臺北市陳情系統 | `https://1999.gov.taipei/` |
+| `call_1999` | 撥打 1999 | `tel:1999`（App 內走 `phone_call` bridge） |
+| `pay` | 臺北市政府智慧支付平台 | `https://pay.taipei/` |
+
+網址都在 2026-11-07 實際開啟確認過。舊的「市民服務大平臺」`service.gov.taipei` 已公告搬到 `service.taipei`，不要再用；`service.taipei` 帶 `keyword` 的網址不會出結果，所以只用分類頁。
 
 - **定位不經過模型：** 模型只會設 `near_me: true`，座標由呼叫端的 `getLocation` 在瀏覽器內取得，只用來算距離。
 - 沒有 `area` 和 `keyword` 時一律視為問附近。拿不到定位會回 `LOCATION_UNAVAILABLE`，agent 會請使用者改說行政區。
@@ -59,8 +80,8 @@ await client.callTool({ name: "find_nearby_youbike", arguments: { near_me: true 
 }
 ```
 
-- `source` 是 `demo`、`snapshot` 或 `live`，畫面要用 `source_label` 和 `source_note` 標示資料性質。
-- `records[]` 只有 `id`、`title` 一定有；`description`、`category`、`author`、`fields`、`url` 依工具而定。`url` 一定是 `https://`。
+- `source` 是 `demo`、`snapshot`、`live` 或 `link`（官方入口），畫面要用 `source_label` 和 `source_note` 標示資料性質；真實資料的 `source_note` 已含提供機關、資料集、資料時間與授權條款顯名。
+- `records[]` 只有 `id`、`title` 一定有；`description`、`category`、`author`、`fields`、`url` 依工具而定。`url` 是 `https://`，唯一例外是官方入口的 `tel:1999`。
 - 文字已去掉上游的 HTML 標籤，每欄最多 500 字；`en` 放的是原文，不是翻譯。
 - **查無資料：** `records` 是空陣列，`total` 是 0，不是錯誤。
 - **失敗：** `isError: true`，`text` 是 `{"error":{"code","message","hint"}}`。
@@ -80,5 +101,7 @@ await client.callTool({ name: "find_nearby_youbike", arguments: { near_me: true 
 
 - **連結不等於資料存在：** 示範站是 SPA，不存在的頁面也回 HTTP 200。
 - **座標可能不完整：** 部分停車場沒有座標，用定位查時不會出現。
-- **下載量：** 第一次查附近設施會載入資料檔：廁所約 2.6MB、停車場約 1.1MB、YouBike 約 0.9MB，之後有快取。
-- **資料授權：** 示範站的資料來自 TownPass-Services，repo 沒有 LICENSE，授權仍待向主辦單位確認。
+- **下載量：** 第一次查停車場會載入官方資料檔約 2.9MB、YouBike 約 0.9MB，之後有快取；公廁資料打包在程式內，不需下載。
+- **停車場：** 官方「剩餘車位」檔停在舊時間點，所以只用靜態欄位（總車位、身障與孕婦車位、費率），並在來源說明寫出官方資料時間。
+- **公廁快照：** data.taipei 的 API 與 CSV 都沒有開放跨網域，WebView 讀不到，所以用 `node scripts/fetch-official-toilets.mjs` 產生 `src/data/toilets.generated.ts`，保留官方匯入日期；提交前可重跑更新。
+- **資料授權：** 真實資料依《政府資料開放授權條款－第1版》顯名。示範站的資料來自 TownPass-Services，repo 沒有 LICENSE，授權仍待向主辦單位確認，App 預設不使用。

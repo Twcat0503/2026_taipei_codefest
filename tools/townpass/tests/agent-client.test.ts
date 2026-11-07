@@ -58,10 +58,10 @@ const parse = (result: { content: { text: string }[] }) => JSON.parse(result.con
 describe("createAgentToolClient", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("列出 16 支工具與 JSON Schema", async () => {
+  it("列出 17 支工具與 JSON Schema", async () => {
     const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch });
     const { tools } = await client.listTools({ signal: signal() });
-    expect(tools).toHaveLength(16);
+    expect(tools).toHaveLength(17);
     expect(tools.map((tool) => tool.name)).toContain("find_nearby_youbike");
     expect(tools.every((tool) => tool.inputSchema.type === "object")).toBe(true);
   });
@@ -173,5 +173,35 @@ describe("createAgentToolClient", () => {
     const client = createAgentToolClient({ baseUrl: BASE });
     const result = await client.callTool({ name: "search_library_books", arguments: { keyword: "神奇" } }, { signal: signal() });
     expect(parse(result).records).toHaveLength(1);
+  });
+
+  it("App 模式只提供真實資料與官方入口，不提供示範站模擬資料", async () => {
+    const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch, includeDemo: false });
+    const { tools } = await client.listTools({ signal: signal() });
+    expect(tools.map((tool) => tool.name).sort()).toEqual([
+      "find_nearby_parking",
+      "find_nearby_toilets",
+      "find_nearby_youbike",
+      "open_official_service",
+    ]);
+    const demo = await client.callTool({ name: "search_library_books", arguments: { keyword: "貓" } }, { signal: signal() });
+    expect(demo.isError).toBe(true);
+  });
+
+  it("官方入口只從白名單組網址，關鍵字只用在館藏查詢", async () => {
+    const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch, includeDemo: false });
+    const call = async (args: Record<string, unknown>) => {
+      const result = await client.callTool({ name: "open_official_service", arguments: args }, { signal: signal() });
+      return result.isError ? null : JSON.parse(result.content[0]!.text);
+    };
+    const books = await call({ destination: "library_catalog", keyword: "貓" });
+    expect(books.source).toBe("link");
+    expect(books.records[0].url).toBe("https://book.tpml.edu.tw/search?searchField=FullText&searchInput=%E8%B2%93");
+    expect((await call({ destination: "pay", keyword: "水費" })).records[0].url).toBe("https://pay.taipei/");
+    expect((await call({ destination: "library_catalog", keyword: "https://evil.example/" })).records[0].url).toBe(
+      "https://book.tpml.edu.tw/",
+    );
+    expect((await call({ destination: "call_1999" })).records[0].url).toBe("tel:1999");
+    expect(await call({ destination: "https://evil.example/" })).toBeNull();
   });
 });

@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { DESTINATIONS, DESTINATION_IDS, destinationUrl } from "./destinations.js";
 import { CATALOG } from "./services/catalog.js";
 import type { Services } from "./services/index.js";
 import { LocationError } from "./shared/errors.js";
@@ -22,7 +23,8 @@ export interface AgentRecord {
   url?: string;
 }
 export interface ToolOutput {
-  source: DataSource["kind"];
+  /** link：不是資料，是經白名單確認的官方入口，由使用者決定要不要前往。 */
+  source: DataSource["kind"] | "link";
   source_label: string;
   source_note: string;
   source_url: string;
@@ -82,6 +84,10 @@ const placeInput = z.strictObject({
   radius_m: z.number().int().min(1).max(20_000).optional().describe("near_me 的搜尋半徑（公尺），預設 1000"),
   area: z.string().trim().max(100).optional().describe("行政區，例如 大安區"),
   keyword: z.string().trim().max(100).optional().describe("名稱或地址關鍵字"),
+  accessible: z
+    .boolean()
+    .optional()
+    .describe("使用者要無障礙設施時設為 true：公廁只列有無障礙廁座的，停車場只列有身障或孕婦車位的"),
 });
 type PlaceInput = z.output<typeof placeInput>;
 
@@ -89,7 +95,7 @@ type PlaceInput = z.output<typeof placeInput>;
 async function placeQuery(args: PlaceInput, ctx: ToolContext) {
   const area = orAll(args.area);
   const key = orAll(args.keyword);
-  const base = { radius_m: args.radius_m ?? 1000, area, keyword: key, limit: MAX_RECORDS };
+  const base = { radius_m: args.radius_m ?? 1000, area, keyword: key, accessible: args.accessible, limit: MAX_RECORDS };
   if (!args.near_me && (area || key)) return base;
   const position = await ctx.getLocation?.(ctx.signal);
   if (!position) throw new LocationError();
@@ -98,6 +104,8 @@ async function placeQuery(args: PlaceInput, ctx: ToolContext) {
 
 interface ToolDef<S extends z.ZodObject> {
   name: string;
+  /** real：官方即時資料、官方開放資料或官方入口；demo：示範站的模擬資料，只供開發測試。 */
+  data: "real" | "demo";
   description: string;
   input: S;
   run: (args: z.output<S>, ctx: ToolContext) => Promise<ToolOutput>;
@@ -115,6 +123,7 @@ const bookRecord = (book: { id: string; book_name: string; author: string; subje
 export const AGENT_TOOLS = [
   define({
     name: "list_townpass_services",
+    data: "demo",
     description: "列出台北通所有網頁服務與連結，含警政、訂閱、票券錢包、繳費紀錄這些只能到頁面操作的服務。問「有哪些服務」或要找某個服務頁時使用。",
     input: z.strictObject({ keyword }),
     run: async ({ keyword: key }, ctx) => {
@@ -139,12 +148,14 @@ export const AGENT_TOOLS = [
   }),
   define({
     name: "search_library_books",
+    data: "demo",
     description: "以關鍵字搜尋圖書館藏，比對書名、著者、出版項、主題、ISBN。示範資料，不代表真實館藏。",
     input: z.strictObject({ keyword }),
     run: async ({ keyword: key }, ctx) => output(await ctx.services.library.search(key ?? "", MAX_RECORDS), bookRecord),
   }),
   define({
     name: "get_library_book",
+    data: "demo",
     description: "用搜尋或排行取得的 id 查書籍詳情：冊別、預約等待人數、可取書分館。只能查詢。",
     input: z.strictObject({ book_id: z.string().trim().min(1).max(100).describe("書籍 id，例如 lib-book-5") }),
     run: async ({ book_id }, ctx) => {
@@ -166,6 +177,7 @@ export const AGENT_TOOLS = [
   }),
   define({
     name: "get_library_ranking",
+    data: "demo",
     description: "依點閱次數由高到低列出書籍。問熱門書、排行榜時使用。",
     input: z.strictObject({}),
     run: async (_args, ctx) =>
@@ -173,6 +185,7 @@ export const AGENT_TOOLS = [
   }),
   define({
     name: "list_library_branches",
+    data: "demo",
     description: "列出圖書分館與借書站，含行政區、地址、電話，可用行政區篩選。",
     input: z.strictObject({ area: z.string().trim().max(100).optional().describe("行政區，例如 信義區") }),
     run: async ({ area }, ctx) =>
@@ -184,6 +197,7 @@ export const AGENT_TOOLS = [
   }),
   define({
     name: "list_library_notices",
+    data: "demo",
     description: "列出圖書館重要訊息，內容日期可能已過期。",
     input: z.strictObject({}),
     run: async (_args, ctx) =>
@@ -197,6 +211,7 @@ export const AGENT_TOOLS = [
   }),
   define({
     name: "search_application_services",
+    data: "demo",
     description: "搜尋可線上申辦的項目及主管機關，例如補助、證明。只能查項目，不能送出申辦。",
     input: z.strictObject({ keyword }),
     run: async ({ keyword: key }, ctx) => {
@@ -211,6 +226,7 @@ export const AGENT_TOOLS = [
   }),
   define({
     name: "search_service_counters",
+    data: "demo",
     description: "查戶政、地政、區公所、稅捐處、就業服務站的櫃檯目前號碼與等待人數。號碼是示範資料，不是現場實際叫號。",
     input: z.strictObject({ keyword }),
     run: async ({ keyword: key }, ctx) =>
@@ -227,6 +243,7 @@ export const AGENT_TOOLS = [
   }),
   define({
     name: "search_faq",
+    data: "demo",
     description: "搜尋台北通常見問題，例如登入註冊、卡證、優惠、帳單。",
     input: z.strictObject({ keyword }),
     run: async ({ keyword: key }, ctx) =>
@@ -239,6 +256,7 @@ export const AGENT_TOOLS = [
   }),
   define({
     name: "search_fee_types",
+    data: "demo",
     description: "搜尋可繳費的項目，例如水費、停車費、地方稅，並列出查繳方式與需要的欄位。不會查帳單，也不會付款。",
     input: z.strictObject({ keyword }),
     run: async ({ keyword: key }, ctx) =>
@@ -255,6 +273,7 @@ export const AGENT_TOOLS = [
   }),
   define({
     name: "list_report_categories",
+    data: "demo",
     description: "列出「有話要說」陳情（citizen）或「災情通報」（disaster）的分類。不能送出案件；緊急情況請撥打 119 或 110。",
     input: z.strictObject({ kind: z.enum(["citizen", "disaster"]).describe("citizen=陳情，disaster=災情通報") }),
     run: async ({ kind }, ctx) =>
@@ -267,6 +286,7 @@ export const AGENT_TOOLS = [
   }),
   define({
     name: "list_subscription_topics",
+    data: "demo",
     description: "列出台北通可訂閱的市政訊息主題，例如交通措施、銀髮資訊、圖書到期通知。只列主題，不代為訂閱。",
     input: z.strictObject({ keyword }),
     run: async ({ keyword: key }, ctx) =>
@@ -279,6 +299,7 @@ export const AGENT_TOOLS = [
   }),
   define({
     name: "search_perks",
+    data: "demo",
     description: "搜尋熱門景點（hot_spot）、票券（ticket）與優惠券（coupon）。內容不代表真實優惠，也不能購票或兌換。",
     input: z.strictObject({ keyword, kind: z.enum(["hot_spot", "ticket", "coupon"]).optional().describe("省略代表全部") }),
     run: async ({ keyword: key, kind }, ctx) =>
@@ -298,6 +319,7 @@ export const AGENT_TOOLS = [
   }),
   define({
     name: "find_nearby_youbike",
+    data: "real",
     description: "查 YouBike 2.0 站點的即時可借車輛與可停空位。問附近或最近時設 near_me；也可用 area 或 keyword。",
     input: placeInput,
     run: async (args, ctx) =>
@@ -310,27 +332,82 @@ export const AGENT_TOOLS = [
   }),
   define({
     name: "find_nearby_parking",
-    description: "查停車場的地址、費率與總車位，沒有即時空位。問附近或最近時設 near_me；也可用 area 或 keyword。",
+    data: "real",
+    description:
+      "查臺北市停車場的地址、費率、總車位，以及身障、孕婦優先車位數（官方開放資料，不是即時空位）。要身障或孕婦車位時設 accessible。問附近或最近時設 near_me；也可用 area 或 keyword。",
     input: placeInput,
     run: async (args, ctx) =>
       output(await ctx.services.places.parking(await placeQuery(args as PlaceInput, ctx)), (p) => ({
         id: p.id,
         title: text(p.name),
         description: text(p.fee),
-        fields: fields({ 距離: p.distance_m === null ? undefined : `${p.distance_m} 公尺`, 地址: p.address, 總車位: p.total_car_spaces, 機車位: p.total_motorcycle_spaces, 營業時間: p.service_time, 電話: p.tel }),
+        fields: fields({
+          距離: p.distance_m === null ? undefined : `${p.distance_m} 公尺`,
+          地址: p.address,
+          身障車位: p.handicap_spaces ? `${p.handicap_spaces} 格` : undefined,
+          孕婦優先車位: p.pregnancy_spaces ? `${p.pregnancy_spaces} 格` : undefined,
+          身障優惠: p.handicap_discount,
+          總車位: p.total_car_spaces,
+          機車位: p.total_motorcycle_spaces,
+          營業時間: p.service_time,
+          電話: p.tel,
+        }),
         url: mapLink(p.coord),
       })),
   }),
   define({
     name: "find_nearby_toilets",
-    description: "查公廁的地址與類型，keyword 也可比對類型，例如無障礙廁所。問附近或最近時設 near_me；也可用 area 或 keyword。",
+    data: "real",
+    description:
+      "查臺北市公廁的地址、無障礙廁座、親子廁座與照護床（環保局官方開放資料）。要無障礙廁所時設 accessible。問附近或最近時設 near_me；也可用 area 或 keyword。",
     input: placeInput,
     run: async (args, ctx) =>
       output(await ctx.services.places.toilets(await placeQuery(args as PlaceInput, ctx)), (t) => ({
         id: t.id,
         title: text(t.name),
-        fields: fields({ 距離: t.distance_m === null ? undefined : `${t.distance_m} 公尺`, 地址: t.address, 類型: t.type, 等級: t.grade }),
+        category: text(t.type),
+        fields: fields({
+          距離: t.distance_m === null ? undefined : `${t.distance_m} 公尺`,
+          地址: t.address,
+          無障礙廁座: t.accessible_seats ? `${t.accessible_seats} 座` : "無",
+          親子廁座: t.family_seats ? `${t.family_seats} 座` : undefined,
+          照護床: t.care_bed,
+        }),
         url: mapLink(t.coord),
       })),
   }),
+  define({
+    name: "open_official_service",
+    data: "real",
+    description:
+      "找出可以辦這件事的臺北市政府官方網站或電話，由使用者確認後才前往：查書借書（library_catalog，可帶書名或主題 keyword）、身障者服務與補助（services_disabled）、孕婦服務（services_maternity）、長者服務（services_elderly）、其他申辦（services_home）、陳情或反映問題（petition）、打電話問 1999（call_1999）、繳費（pay）。這個工具不會送出任何東西。",
+    input: z.strictObject({
+      destination: z.enum(DESTINATION_IDS).describe("官方入口代號"),
+      keyword: z.string().trim().max(30).optional().describe("只有 library_catalog 使用：書名、作者或主題；沒有指定就省略"),
+    }),
+    run: async ({ destination, keyword: key }) => {
+      const target = DESTINATIONS.find((d) => d.id === destination)!;
+      const url = destinationUrl(target, key as string | undefined);
+      return {
+        source: "link",
+        source_label: "官方入口",
+        source_note: `${target.provider}的官方服務。按下前往才會開啟，助手不會替你送出資料。`,
+        source_url: url,
+        total: 1,
+        truncated: false,
+        records: [
+          {
+            id: target.id,
+            title: text(target.title),
+            description: text(target.description),
+            fields: fields({ 提供單位: target.provider, 前往: url.startsWith("tel:") ? `撥打 ${url.slice(4)}` : new URL(url).host }),
+            url,
+          },
+        ],
+      };
+    },
+  }),
 ];
+
+/** App 預設只開放真實資料的工具；示範站模擬資料只在開發模式明確要求時才提供。 */
+export const toolsFor = (includeDemo: boolean) => AGENT_TOOLS.filter((tool) => includeDemo || tool.data === "real");
