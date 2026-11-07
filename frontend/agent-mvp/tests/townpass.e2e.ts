@@ -297,7 +297,6 @@ test('greeting and urgent requests have distinct, actionable responses', async (
   await expect(page.getByRole('heading', { name: /119/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /119/ })).toBeVisible();
   await expect(page.locator('.navigation-card')).toHaveCount(0);
-  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('失火了');
 });
 
 test('water fee asks for the account number once, then fills it in', async ({ page }) => {

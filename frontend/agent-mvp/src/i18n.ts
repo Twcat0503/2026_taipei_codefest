@@ -31,7 +31,6 @@ const zh = {
   history: '這次的對話',
   historyEmpty: '還沒有對話，從下方輸入需求就可以開始。',
   historyHint: '對話摘要保存在這個裝置；自由輸入及查詢結果不會保存。',
-  savedRequestUnavailable: '這則自由輸入未保存',
   savedSummaryNote: '這是已保存的摘要，查詢結果未保存。',
   conversationSaveFailed: '無法在此裝置保存對話摘要，請檢查瀏覽器儲存空間。',
   continueTask: '繼續目前的需求',
@@ -336,7 +335,6 @@ const en: Record<keyof typeof zh, string> = {
   historyEmpty: 'No conversation yet. Type a request below to get started.',
   historyHint:
     'Conversation summaries are saved on this device; free text and results are not saved.',
-  savedRequestUnavailable: 'This free-text message was not saved',
   savedSummaryNote: 'This is a saved summary; search results were not saved.',
   conversationSaveFailed: 'Could not save the conversation summary. Check browser storage.',
   continueTask: 'Continue your current task',

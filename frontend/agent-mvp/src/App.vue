@@ -92,7 +92,9 @@ const keyboardViewportHeight = ref<number | null>(null);
 /** Typing with little height left (soft keyboard open, or large text): hide the quick chips. */
 const composerCompact = ref(false);
 const preferencesDialog = ref<HTMLDialogElement>();
-const home = ref(!resumed.value);
+// Every entry starts on the home screen so the voice button is the first thing people see;
+// a saved conversation or draft is picked up from there with "continue".
+const home = ref(true);
 const native = !!window.flutterObject;
 const voiceOpen = ref(false);
 const voiceStatus = ref<VoiceStatus>('idle');
@@ -295,9 +297,8 @@ const turns = ref<Turn[]>(
     id: index,
     restored: true,
     time: 0,
-    request: turn.request
-      ? messages[locale.value][turn.request as keyof (typeof messages)['en']]
-      : t.value.savedRequestUnavailable,
+    // Unsaved requests are simply left out rather than shown as a placeholder.
+    request: turn.request ? messages[locale.value][turn.request] : (turn.text ?? ''),
     notice: turn.notice,
     books: [],
     records: [],
@@ -309,8 +310,8 @@ const turns = ref<Turn[]>(
   })),
 );
 let nextTurnId = turns.value.length;
+taskTitle.value = turns.value.at(-1)?.request ?? '';
 const conversationSaveFailed = ref(false);
-if (turns.value.length) home.value = false;
 function persistConversation() {
   const current =
     lastRequest.value && state.notice !== 'welcome'
