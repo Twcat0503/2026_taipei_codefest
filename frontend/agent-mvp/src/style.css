@@ -118,7 +118,9 @@ a {
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 100dvh;
+  /* 開發看板（src/dev/hud.ts，?hud=1）固定在最上方，把高度寫進 --dev-hud-height 讓頁面讓位。 */
+  height: calc(100dvh - var(--dev-hud-height, 0px));
+  margin-top: var(--dev-hud-height, 0px);
   margin-inline: auto;
   background: var(--paper);
 }
@@ -1173,6 +1175,74 @@ dd {
 .photo-options input {
   max-width: 100%;
   font-size: 0.875rem;
+}
+
+/* 前往確認卡：報案表單（有話要說）、會員資料帶入、水號 */
+.navigation-card {
+  border-color: var(--teal);
+}
+.navigation-card dl,
+.report-form dl {
+  margin: 0;
+}
+.report-form,
+.prefill {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 1rem;
+  border-radius: 1.25rem;
+  background: var(--pale);
+}
+.report-form .field-label,
+.prefill .field-label {
+  margin-top: 0.25rem;
+  color: var(--deep);
+}
+.report-form textarea {
+  width: 100%;
+  min-height: 6rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--muted);
+  border-radius: 0.75rem;
+  background: var(--paper);
+  line-height: 1.5;
+  resize: vertical;
+}
+.report-form a {
+  color: var(--teal);
+}
+.report-photo {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+}
+.photo-button {
+  gap: 0.5rem;
+  cursor: pointer;
+}
+.photo-preview {
+  width: 100%;
+  max-height: 14rem;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--paper);
+}
+.field-error {
+  color: #a1260d;
+  font-weight: 600;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: var(--touch-target);
+}
+.check input {
+  width: 1.25rem;
+  min-height: 0;
+  height: 1.25rem;
 }
 
 /* In-place feedback: no translating, lifting or scaling interactive controls. */

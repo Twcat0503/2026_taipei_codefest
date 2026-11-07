@@ -6,6 +6,7 @@ import { withDemoBills } from './agent/tool-client';
 import PhoneModelPanel from './components/PhoneModelPanel.vue';
 import { PhoneModel, type PhoneState } from './agent/phone-model';
 import UiIcon from './components/UiIcon.vue';
+import NavigationPanel from './components/NavigationPanel.vue';
 import WelcomePanel from './components/WelcomePanel.vue';
 import DisasterDemo from './components/DisasterDemo.vue';
 import VoiceWave from './components/VoiceWave.vue';
@@ -16,6 +17,7 @@ import {
   type Locale,
   type Localized,
   type ModelAdapter,
+  type Navigation,
   type TaskState,
 } from './agent/types';
 import { AgentRunner } from './agent/runner';
@@ -57,6 +59,8 @@ const assistantBody = ref<HTMLElement>();
 const keyboardViewportHeight = ref<number | null>(null);
 const attachmentInput = ref<HTMLInputElement>();
 const attachments = ref<File[]>([]);
+// 圖片附件不留在附件列：交給報案表單做影像描述（見 selectAttachments）。
+const pendingPhoto = ref<File | null>(null);
 const preferencesDialog = ref<HTMLDialogElement>();
 const home = ref(!resumed.value);
 const disasterDemo = ref(false);
@@ -109,12 +113,19 @@ let adapter: ModelAdapter =
           import.meta.env.VITE_MODEL_PROTOCOL === 'tools' ? 'tools' : 'json-schema',
         )
       : new DemoModel();
-// 預設查台北通工具；VITE_TOOL_SOURCE=demo 才用 DemoToolClient 的虛構資料。
+// 預設只用真實資料：台北通官方工具與開放資料（includeDemo: false），報案、前往確認卡才會出現；
+// 帳單面板仍帶示範帳單。VITE_TOOL_SOURCE=townpass-demo 加回示範站模擬資料，=demo 為完全虛構的資料。
+const toolSource = import.meta.env.VITE_TOOL_SOURCE;
 const toolClient =
-  import.meta.env.VITE_TOOL_SOURCE === 'demo'
+  toolSource === 'demo'
     ? undefined
-    : withDemoBills(createAgentToolClient({ getLocation }), billReadTool);
+    : withDemoBills(
+        createAgentToolClient({ getLocation, includeDemo: toolSource === 'townpass-demo' }),
+        billReadTool,
+      );
 let runner = new AgentRunner(adapter, state, toolClient);
+// 示範（規則模擬）模式沒有真正的視覺模型；本機與手機模型才送照片。
+const canSeePhotos = computed(() => mode.value !== 'demo');
 const speechSupported = ref(canReadAloud());
 const speaking = ref(false);
 const speechFailed = ref(false);
@@ -135,7 +146,9 @@ const showSuggestions = computed(
     !busy.value &&
     !state.draft &&
     !state.receipt &&
-    ['welcome', 'unsupported', 'empty', 'error', 'cancelled'].includes(state.notice),
+    ['welcome', 'unsupported', 'empty', 'error', 'cancelled', 'navigationDeclined'].includes(
+      state.notice,
+    ),
 );
 const hasConversation = computed(() => state.notice !== 'welcome' || turns.value.length > 0);
 
@@ -147,6 +160,7 @@ type Turn = {
   notice: TaskState['notice'];
   books: TaskState['bookResults'];
   records: TaskState['records'];
+  navigation: Navigation | null;
   source: TaskState['source'];
   bills: TaskState['billResult'];
   failure: TaskState['failure'];
@@ -166,6 +180,7 @@ const turns = ref<Turn[]>(
     notice: turn.notice,
     books: [],
     records: [],
+    navigation: null,
     source: null,
     bills: null,
     failure: null,
@@ -192,6 +207,7 @@ function archiveTurn() {
     notice: state.notice,
     books: finished ? [] : state.bookResults,
     records: state.records,
+    navigation: state.navigation,
     source: state.source,
     bills: state.billResult,
     failure: state.failure,
@@ -314,8 +330,8 @@ function typeInstead() {
   voiceOpen.value = false;
   void focusInput();
 }
-async function submit(text = input.value) {
-  if (inputDisabled.value || attachments.value.length || !text.trim()) return;
+async function submit(text = input.value, withPhoto = false) {
+  if (inputDisabled.value || (attachments.value.length && !withPhoto) || !text.trim()) return;
   if (
     /^(?:我想要|我要|我想)?通報災情[。！!？?]?$|^(?:i want to )?report a disaster[.!?]?$/iu.test(
       text.trim(),
@@ -409,18 +425,39 @@ function reset() {
   lastRequest.value = '';
   input.value = '';
   attachments.value = [];
+  pendingPhoto.value = null;
+  runner.cancelVision();
   cancelVoice();
   input.value = '';
   home.value = true;
   closeSettings();
   disasterDemo.value = false;
 }
-function selectAttachments(event: Event) {
+function stay() {
+  if (state.navigation) {
+    state.navigation = null;
+    state.notice = 'navigationDeclined';
+  }
+}
+async function selectAttachments(event: Event) {
   const target = event.target as HTMLInputElement;
   if (inputDisabled.value) return;
-  attachments.value = [...attachments.value, ...Array.from(target.files ?? [])];
+  const files = Array.from(target.files ?? []);
   target.value = '';
+  // 圖片＝拍照報案：助手看照片幫忙描述，填進「有話要說」的報案表單；其他檔案仍無法讀取。
+  const images = files.filter((file) => file.type.startsWith('image/'));
+  attachments.value = [...attachments.value, ...files.filter((file) => !images.includes(file))];
   if (attachments.value.length) home.value = false;
+  const [image] = images;
+  if (!image) return;
+  home.value = false;
+  disasterDemo.value = false;
+  pendingPhoto.value = image;
+  // 報案表單還沒開的話，先開「有話要說」，照片再交給表單。
+  if (state.navigation?.id !== 'townpass_report') await submit(t.value.reportRequest, true);
+  await nextTick();
+  // 沒有開出報案表單（例如被擋下或出錯）就不要把照片留到下一張卡。
+  pendingPhoto.value = null;
 }
 function removeAttachment(index: number) {
   attachments.value.splice(index, 1);
@@ -491,6 +528,11 @@ function speak() {
               `${billCategories[bill.category].label[locale.value]}. ${bill.periodLabel}. ${bill.amount} TWD. ${t.value[`billStatus_${bill.status}`]}`,
           ) ?? []),
           ...shownBooks.value.map((book) => book.title[locale.value]),
+          ...(state.navigation
+            ? [
+                `${state.navigation.title[locale.value]}. ${state.navigation.description?.[locale.value] ?? ''}`,
+              ]
+            : []),
           ...state.records.map(
             (record) =>
               `${record.title[locale.value]}. ${record.description?.[locale.value] ?? ''}`,
@@ -605,8 +647,11 @@ onBeforeUnmount(() => {
                     </li>
                   </ul>
                 </template>
+                <p v-if="turn.navigation" class="small-note">
+                  {{ turn.navigation.title[locale] }}（{{ turn.navigation.where }}）
+                </p>
                 <p v-if="turn.failure?.hint" class="small-note">{{ turn.failure.hint }}</p>
-                <p v-if="turn.source" class="source-note">
+                <p v-if="turn.source && !turn.navigation" class="source-note">
                   {{ turn.source.label }}：{{ turn.source.note }}
                 </p>
                 <p v-if="turn.reference" class="small-note">
@@ -686,8 +731,22 @@ onBeforeUnmount(() => {
                     </button>
                   </li>
                 </ul>
+                <NavigationPanel
+                  v-if="state.navigation"
+                  :navigation="state.navigation"
+                  :source="state.source"
+                  :locale="locale"
+                  :request="lastRequest"
+                  :can-see-photos="canSeePhotos"
+                  :demo-mode="mode === 'demo'"
+                  :describe="(image: string) => runner.describePhoto(image, locale)"
+                  :cancel-describe="() => runner.cancelVision()"
+                  :photo-file="pendingPhoto"
+                  @photo-consumed="pendingPhoto = null"
+                  @stay="stay"
+                />
                 <p v-if="state.failure?.hint" class="notice-box">{{ state.failure.hint }}</p>
-                <p v-if="state.source" class="source-note">
+                <p v-if="state.source && !state.navigation" class="source-note">
                   {{ state.source.label }}：{{ state.source.note }}
                   <template v-if="state.source.truncated">{{
                     t.truncated.replace('{total}', String(state.source.total))
