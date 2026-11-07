@@ -89,6 +89,7 @@ const requestInput = ref<HTMLTextAreaElement>();
 const photoInput = ref<HTMLInputElement>();
 const pendingPhoto = ref<File | null>(null);
 const photoEntryNotice = ref<'photoSimulated' | 'photoNotReady' | 'photoError' | null>(null);
+let photoNoticeTimer: ReturnType<typeof setTimeout> | undefined;
 const assistantBody = ref<HTMLElement>();
 const keyboardViewportHeight = ref<number | null>(null);
 /** Typing with little height left (soft keyboard open, or large text): hide the quick chips. */
@@ -115,6 +116,8 @@ const voiceMessage = computed(() => {
     idle: 'voiceHint',
     starting: 'voiceStarting',
     listening: 'voiceListening',
+    transcribing: 'voiceTranscribing',
+    modelUnavailable: 'voiceModelUnavailable',
     unavailable: 'voiceUnavailable',
     permission: 'voicePermission',
     error: 'voiceError',
@@ -256,7 +259,10 @@ const suggestions = computed(() =>
     : [t.value.browseBooks, t.value.browseServices],
 );
 const inputDisabled = computed(
-  () => busy.value || !!state.draft || (mode.value === 'phone' && !phoneState.value.ready),
+  () =>
+    busy.value ||
+    (!home.value && !!state.draft) ||
+    (mode.value === 'phone' && !phoneState.value.ready),
 );
 const showSuggestions = computed(
   () =>
@@ -398,7 +404,17 @@ function updateKeyboardViewport() {
 function updateKeyboardAfterFocusOut() {
   queueMicrotask(updateKeyboardViewport);
 }
+function onPageShow(event: PageTransitionEvent) {
+  if (!event.persisted) return;
+  runner.cancel();
+  cancelVoice();
+  stopReading();
+  speaking.value = false;
+  if (preferencesDialog.value?.open) closeSettings();
+  home.value = true;
+}
 onMounted(() => {
+  window.addEventListener('pageshow', onPageShow);
   window.visualViewport?.addEventListener('resize', updateKeyboardViewport);
   window.addEventListener('resize', updateKeyboardViewport);
   document.addEventListener('focusin', updateKeyboardViewport);
@@ -417,6 +433,13 @@ async function focusInput() {
   home.value = false;
   await nextTick();
   requestInput.value?.focus();
+}
+function beginHomeTask() {
+  if (home.value && !busy.value) reset();
+}
+function openTextConversation() {
+  beginHomeTask();
+  home.value = false;
 }
 function openSettings() {
   profile.value = loadProfile();
@@ -454,13 +477,24 @@ function onHistoryBack() {
 onMounted(() => window.addEventListener('popstate', onHistoryBack));
 onBeforeUnmount(() => window.removeEventListener('popstate', onHistoryBack));
 function startVoice() {
-  if (inputDisabled.value) return;
+  if (busy.value || (!home.value && !!state.draft)) return;
+  beginHomeTask();
   stopReading();
   speaking.value = false;
   home.value = false;
   voiceOriginal.value = input.value;
   voiceOpen.value = true;
   voice.start(locale.value);
+}
+function startSystemVoice() {
+  if (busy.value || (!home.value && !!state.draft)) return;
+  beginHomeTask();
+  stopReading();
+  speaking.value = false;
+  home.value = false;
+  voiceOriginal.value = input.value;
+  voiceOpen.value = true;
+  voice.startSystem(locale.value);
 }
 function cancelVoice() {
   voice.cancel();
@@ -478,6 +512,7 @@ async function searchParking(
   area: string | null = null,
   newRequest = true,
 ) {
+  beginHomeTask();
   if (busy.value || state.draft || !toolClient) return;
   if (newRequest) archiveTurn();
   parkingSearch.value = { space, radius, area };
@@ -549,6 +584,7 @@ function pickNearbyParking() {
 }
 async function submit(text = input.value) {
   if (inputDisabled.value || !text.trim()) return;
+  beginHomeTask();
   parkingSearch.value = null;
   if (/^(?:你好|您好|嗨|哈囉|hello|hi)[!！。,.，\s]*$/iu.test(text.trim())) {
     archiveTurn();
@@ -658,6 +694,8 @@ function reset() {
   clearConversation();
   parkingSearch.value = null;
   conversationSaveFailed.value = false;
+  confirmingLink.value = null;
+  leftFor.value = false;
   Object.assign(state, initialState());
   turns.value = [];
   resumed.value = false;
@@ -679,9 +717,15 @@ function stay() {
   }
 }
 function requestPhoto() {
-  if (busy.value || state.draft) return;
+  if (busy.value || (!home.value && state.draft)) return;
+  clearTimeout(photoNoticeTimer);
   if (!canSeePhotos.value) {
     photoEntryNotice.value = mode.value === 'demo' ? 'photoSimulated' : 'photoNotReady';
+    if (photoEntryNotice.value === 'photoSimulated') {
+      photoNoticeTimer = setTimeout(() => {
+        if (photoEntryNotice.value === 'photoSimulated') photoEntryNotice.value = null;
+      }, 5000);
+    }
     return;
   }
   photoEntryNotice.value = null;
@@ -691,7 +735,7 @@ async function selectPhoto(event: Event) {
   const input = event.target as HTMLInputElement;
   const photo = input.files?.[0];
   input.value = '';
-  if (!photo || !canSeePhotos.value || busy.value || state.draft) return;
+  if (!photo || !canSeePhotos.value || busy.value || (!home.value && state.draft)) return;
   if (
     !['image/jpeg', 'image/png', 'image/webp'].includes(photo.type) ||
     photo.size > 20 * 1024 * 1024
@@ -699,6 +743,7 @@ async function selectPhoto(event: Event) {
     photoEntryNotice.value = 'photoError';
     return;
   }
+  beginHomeTask();
   photoEntryNotice.value = null;
   pendingPhoto.value = photo;
   home.value = false;
@@ -823,6 +868,8 @@ function speak() {
   startReading();
 }
 onBeforeUnmount(() => {
+  window.removeEventListener('pageshow', onPageShow);
+  clearTimeout(photoNoticeTimer);
   window.visualViewport?.removeEventListener('resize', updateKeyboardViewport);
   window.removeEventListener('resize', updateKeyboardViewport);
   document.removeEventListener('focusin', updateKeyboardViewport);
@@ -856,483 +903,496 @@ onBeforeUnmount(() => {
         <UiIcon name="close" />
       </button>
     </header>
-
-    <main id="main" ref="assistantBody" class="assistant-body">
-      <button v-if="mode === 'phone' && !home" class="phone-status-button" @click="openSettings">
-        {{ phoneState.ready ? t.phoneConnected : t.phoneStart }}
+    <div class="assistant-main-frame">
+      <button
+        v-if="home"
+        class="icon-button assistant-settings"
+        :aria-label="t.settings"
+        @click="openSettings"
+      >
+        <UiIcon name="settings" />
       </button>
-      <Transition name="view-fade" mode="out-in" @after-enter="onViewEntered">
-        <WelcomePanel
-          v-if="home"
-          :locale="locale"
-          :disabled="inputDisabled"
-          :has-task="hasConversation"
-          :pending-draft="!!state.draft"
-          :nearby-parking="realData && !!toolClient"
-          :nearby-parking-disabled="busy || !!state.draft"
-          :native="native || mode === 'phone'"
-          :model-needs-start="mode === 'phone' && !phoneState.ready"
-          :model-starting="phoneStarting"
-          :model-status="
-            phoneState.error ? t[`phoneError_${phoneState.error}`] : t[`phone_${phoneState.phase}`]
-          "
-          @request="pick"
-          @nearby-parking="pickNearbyParking"
-          @voice="startVoice"
-          @start-model="startPhone"
-          @resume="home = false"
-          @settings="openSettings"
-        />
+      <main id="main" ref="assistantBody" class="assistant-body">
+        <button v-if="mode === 'phone' && !home" class="phone-status-button" @click="openSettings">
+          {{ phoneState.ready ? t.phoneConnected : t.phoneStart }}
+        </button>
+        <Transition name="view-fade" mode="out-in" @after-enter="onViewEntered">
+          <WelcomePanel
+            v-if="home"
+            :locale="locale"
+            :disabled="inputDisabled"
+            :voice-disabled="busy || (!home && !!state.draft)"
+            :has-task="hasConversation"
+            :nearby-parking="realData && !!toolClient"
+            :nearby-parking-disabled="busy || (!home && !!state.draft)"
+            :native="native || mode === 'phone'"
+            :model-needs-start="mode === 'phone' && !phoneState.ready"
+            :model-starting="phoneStarting"
+            :model-status="
+              phoneState.error
+                ? t[`phoneError_${phoneState.error}`]
+                : t[`phone_${phoneState.phase}`]
+            "
+            @request="pick"
+            @nearby-parking="pickNearbyParking"
+            @voice="startVoice"
+            @start-model="startPhone"
+            @resume="home = false"
+          />
 
-        <div v-else class="conversation">
-          <div class="conversation-heading" :class="{ 'has-request': hasConversation }">
-            <h1>{{ taskTitle || t.today }}</h1>
-            <button class="icon-button" :aria-label="t.settings" @click="openSettings">
-              <UiIcon name="settings" />
-            </button>
-          </div>
-          <div v-if="!hasConversation && !voiceOpen" class="conversation-empty">
-            <p>{{ t.welcome }}</p>
-            <p class="small-note">{{ t.historyHint }}</p>
-          </div>
-          <div class="messages">
-            <template v-for="turn in turns" :key="turn.id">
-              <div v-if="turn.request" class="user-message">
-                <span class="sr-only">{{ t.you }}</span>
-                <p>{{ turn.request }}</p>
-              </div>
-              <article class="past-message" :aria-label="t.assistant">
-                <p v-if="turn.restored" class="small-note">{{ t.savedSummaryNote }}</p>
-                <p class="reply-bubble">{{ noticeText(turn.notice) }}</p>
-                <EmergencyCard v-if="turn.emergency" :kind="turn.emergency" :locale="locale" />
-                <div
-                  v-if="
-                    turn.restored &&
-                    turn.parking &&
-                    turn.id === turns.at(-1)?.id &&
-                    state.notice === 'welcome' &&
-                    !busy
-                  "
-                  class="parking-actions"
-                  role="group"
-                  :aria-label="t.parkingActions"
-                >
-                  <button class="outline-button" @click="searchParking(turn.parking)">
-                    {{ t.parkingSearchAgain }}
-                  </button>
-                  <button
-                    class="outline-button"
-                    @click="searchParking(turn.parking === 'disabled' ? 'pregnancy' : 'disabled')"
-                  >
-                    {{
-                      turn.parking === 'disabled'
-                        ? t.parkingSwitchPregnancy
-                        : t.parkingSwitchDisabled
-                    }}
-                  </button>
-                </div>
-                <ul v-if="turn.books.length" class="plain-list">
-                  <li v-for="book in turn.books" :key="book.id">
-                    <strong>{{ book.title[locale] }}</strong
-                    ><span>{{ book.author[locale] }}</span>
-                  </li>
-                </ul>
-                <ul v-if="turn.records.length" class="plain-list">
-                  <li v-for="record in turn.records" :key="record.id">
-                    <strong>{{ record.title[locale] }}</strong
-                    ><span v-if="record.description?.[locale]">{{
-                      record.description[locale]
-                    }}</span>
-                  </li>
-                </ul>
-                <template v-if="turn.bills">
-                  <p class="small-note">{{ t.billDemo }}</p>
-                  <ul class="plain-list">
-                    <li v-for="bill in turn.bills.records" :key="bill.id">
-                      {{ billCategories[bill.category].label[locale] }} · {{ bill.periodLabel }} ·
-                      {{ bill.amount }} TWD · {{ t[`billStatus_${bill.status}`] }}
-                    </li>
-                  </ul>
-                </template>
-                <p v-if="turn.navigation" class="small-note">
-                  {{ turn.navigation.title[locale] }}（{{ turn.navigation.where }}）
-                </p>
-                <p v-if="turn.failure?.hint" class="small-note">{{ turn.failure.hint }}</p>
-                <p v-if="turn.source && !turn.navigation" class="source-note">
-                  {{ turn.source.label }}：{{ turn.source.note }}
-                </p>
-                <p v-if="turn.reference" class="small-note">
-                  {{ turn.receiptBook?.[locale] }}・{{ t.reference }} {{ turn.reference }}
-                </p>
-                <details v-if="turn.traces.length" class="decision">
-                  <summary>{{ t.trace }}</summary>
-                  <ol class="trace" lang="en">
-                    <li v-for="event in turn.traces" :key="event.id">
-                      <code>{{ event.actor }} / {{ event.event }}</code
-                      ><span>{{ event.detail }}</span
-                      ><small>{{ event.elapsedMs }} ms</small>
-                    </li>
-                  </ol>
-                </details>
-              </article>
-            </template>
-
-            <p v-if="resumed" class="notice-box" role="status">{{ t.resumed }}</p>
-            <div v-if="lastRequest && turns.length" class="user-message">
-              <span class="sr-only">{{ t.you }}</span>
-              <p>{{ lastRequest }}</p>
+          <div v-else class="conversation">
+            <div class="conversation-heading" :class="{ 'has-request': hasConversation }">
+              <h1>{{ taskTitle || t.today }}</h1>
+              <button class="icon-button" :aria-label="t.settings" @click="openSettings">
+                <UiIcon name="settings" />
+              </button>
             </div>
-            <section
-              v-if="state.notice !== 'welcome' || busy"
-              ref="resultHeading"
-              class="assistant-message"
-              tabindex="-1"
-              :aria-label="t.assistant"
-              :aria-busy="busy"
-            >
-              <p :class="busy ? 'sr-only' : 'reply-bubble'" role="status" aria-live="polite">
-                {{ busy ? t[stage] : reply }}
-              </p>
-              <div v-if="busy" class="working">
-                <span class="working-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-                <button class="text-button" @click="runner.cancel()">{{ t.stop }}</button>
-              </div>
-              <template v-else>
-                <BillPanel
-                  v-if="state.domain === 'bills'"
-                  :state="state"
-                  :locale="locale"
-                  @select="pickBillCategory"
-                  @retry="billAction()"
-                />
-                <ul v-if="shownBooks.length && !state.draft && !state.receipt" class="result-list">
-                  <li v-for="book in shownBooks" :key="book.id" class="result-card">
-                    <span v-if="book.category[locale]" class="category">{{
-                      book.category[locale]
-                    }}</span>
-                    <h2>{{ book.title[locale] }}</h2>
-                    <p>{{ book.author[locale] }}</p>
-                    <button v-if="!toolClient" class="primary-button" @click="prepare(book.id)">
-                      {{ t.reserve }}
-                    </button>
-                    <button v-else class="outline-button" @click="showBookDetails(book.id)">
-                      {{ t.details }}
-                    </button>
-                  </li>
-                </ul>
-                <ul v-if="state.records.length" class="result-list">
-                  <li v-for="record in state.records" :key="record.id" class="result-card">
-                    <span v-if="record.category?.[locale]" class="category">{{
-                      record.category[locale]
-                    }}</span>
-                    <h2>{{ record.title[locale] }}</h2>
-                    <p v-if="record.description?.[locale]">{{ record.description[locale] }}</p>
-                    <dl v-if="record.fields?.length">
-                      <template v-for="field in record.fields" :key="field.label[locale]"
-                        ><dt>{{ field.label[locale] }}</dt>
-                        <dd>{{ field.value[locale] }}</dd></template
-                      >
-                    </dl>
-                    <button
-                      v-if="parkingPhone(record)"
-                      class="outline-button"
-                      :aria-label="t.callParking.replace('{name}', record.title[locale])"
-                      @click="openLink(`tel:${parkingPhone(record)}`)"
-                    >
-                      {{ t.callParkingButton }}
-                    </button>
-                    <template v-if="record.url">
-                      <div
-                        v-if="confirmingLink === record.id"
-                        class="leave-confirm"
-                        role="group"
-                        :aria-label="t.leaveTitle"
-                      >
-                        <p>{{ leaveQuestion(record) }}</p>
-                        <div class="action-row">
-                          <button class="primary-button" @click="goRecord(record.url)">
-                            {{ t.leaveGo }}
-                          </button>
-                          <button class="text-button" @click="confirmingLink = null">
-                            {{ t.leaveStay }}
-                          </button>
-                        </div>
-                      </div>
-                      <button v-else class="outline-button" @click="confirmingLink = record.id">
-                        {{
-                          record.url.startsWith('https://www.google.com/maps')
-                            ? t.openMap
-                            : t.openPage
-                        }}
-                      </button>
-                    </template>
-                  </li>
-                </ul>
-                <section
-                  v-if="
-                    parkingSearch &&
-                    state.domain === 'places' &&
-                    !busy &&
-                    (state.notice === 'results' ||
-                      state.notice === 'needLocation' ||
-                      (state.notice === 'empty' && !parkingSearch.area))
-                  "
-                  class="parking-actions"
-                  :aria-label="t.parkingActions"
-                >
-                  <p v-if="state.notice === 'results' && parkingSearch.area" class="small-note">
-                    {{ t.parkingAreaNote }}
-                  </p>
-                  <p v-if="state.notice === 'results' && !parkingSearch.area" class="small-note">
-                    {{ t.parkingDistanceNote }}
-                  </p>
-                  <p v-if="state.notice === 'empty' && !parkingSearch.area" class="small-note">
-                    {{
-                      t.parkingNoResults.replace('{radius}', String(parkingSearch.radius / 1000))
-                    }}
-                  </p>
-                  <button
-                    v-if="
-                      state.notice === 'empty' &&
-                      parkingSearch.radius === 1000 &&
-                      !parkingSearch.area
-                    "
-                    class="outline-button"
-                    @click="searchParking(parkingSearch.space, 3000, null, false)"
-                  >
-                    {{ t.parkingExpand }}
-                  </button>
-                  <button
-                    class="outline-button"
-                    @click="
-                      searchParking(
-                        parkingSearch.space === 'disabled' ? 'pregnancy' : 'disabled',
-                        1000,
-                        parkingSearch.area,
-                      )
-                    "
-                  >
-                    {{
-                      parkingSearch.space === 'disabled'
-                        ? t.parkingSwitchPregnancy
-                        : t.parkingSwitchDisabled
-                    }}
-                  </button>
-                  <button
-                    v-if="state.notice === 'needLocation'"
-                    class="outline-button"
-                    @click="searchParking(parkingSearch.space, parkingSearch.radius, null, false)"
-                  >
-                    {{ t.parkingRetryLocation }}
-                  </button>
+            <div v-if="!hasConversation && !voiceOpen" class="conversation-empty">
+              <p>{{ t.welcome }}</p>
+              <p class="small-note">{{ t.historyHint }}</p>
+            </div>
+            <div class="messages">
+              <template v-for="turn in turns" :key="turn.id">
+                <div v-if="turn.request" class="user-message">
+                  <span class="sr-only">{{ t.you }}</span>
+                  <p>{{ turn.request }}</p>
+                </div>
+                <article class="past-message" :aria-label="t.assistant">
+                  <p v-if="turn.restored" class="small-note">{{ t.savedSummaryNote }}</p>
+                  <p class="reply-bubble">{{ noticeText(turn.notice) }}</p>
+                  <EmergencyCard v-if="turn.emergency" :kind="turn.emergency" :locale="locale" />
                   <div
                     v-if="
-                      state.notice === 'needLocation' ||
-                      (state.notice === 'empty' &&
-                        parkingSearch.radius === 3000 &&
-                        !parkingSearch.area)
+                      turn.restored &&
+                      turn.parking &&
+                      turn.id === turns.at(-1)?.id &&
+                      state.notice === 'welcome' &&
+                      !busy
                     "
-                    class="parking-district"
+                    class="parking-actions"
+                    role="group"
+                    :aria-label="t.parkingActions"
                   >
-                    <label for="parking-district">{{ t.parkingChooseDistrict }}</label>
-                    <select id="parking-district" v-model="parkingDistrict">
-                      <option value="">{{ t.parkingDistrictPlaceholder }}</option>
-                      <option
-                        v-for="district in TAIPEI_DISTRICTS"
-                        :key="district"
-                        :value="district"
-                      >
-                        {{ district }}
-                      </option>
-                    </select>
+                    <button class="outline-button" @click="searchParking(turn.parking)">
+                      {{ t.parkingSearchAgain }}
+                    </button>
                     <button
                       class="outline-button"
-                      :disabled="!parkingDistrict"
+                      @click="searchParking(turn.parking === 'disabled' ? 'pregnancy' : 'disabled')"
+                    >
+                      {{
+                        turn.parking === 'disabled'
+                          ? t.parkingSwitchPregnancy
+                          : t.parkingSwitchDisabled
+                      }}
+                    </button>
+                  </div>
+                  <ul v-if="turn.books.length" class="plain-list">
+                    <li v-for="book in turn.books" :key="book.id">
+                      <strong>{{ book.title[locale] }}</strong
+                      ><span>{{ book.author[locale] }}</span>
+                    </li>
+                  </ul>
+                  <ul v-if="turn.records.length" class="plain-list">
+                    <li v-for="record in turn.records" :key="record.id">
+                      <strong>{{ record.title[locale] }}</strong
+                      ><span v-if="record.description?.[locale]">{{
+                        record.description[locale]
+                      }}</span>
+                    </li>
+                  </ul>
+                  <template v-if="turn.bills">
+                    <p class="small-note">{{ t.billDemo }}</p>
+                    <ul class="plain-list">
+                      <li v-for="bill in turn.bills.records" :key="bill.id">
+                        {{ billCategories[bill.category].label[locale] }} · {{ bill.periodLabel }} ·
+                        {{ bill.amount }} TWD · {{ t[`billStatus_${bill.status}`] }}
+                      </li>
+                    </ul>
+                  </template>
+                  <p v-if="turn.navigation" class="small-note">
+                    {{ turn.navigation.title[locale] }}（{{ turn.navigation.where }}）
+                  </p>
+                  <p v-if="turn.failure?.hint" class="small-note">{{ turn.failure.hint }}</p>
+                  <p v-if="turn.source && !turn.navigation" class="source-note">
+                    {{ turn.source.label }}：{{ turn.source.note }}
+                  </p>
+                  <p v-if="turn.reference" class="small-note">
+                    {{ turn.receiptBook?.[locale] }}・{{ t.reference }} {{ turn.reference }}
+                  </p>
+                  <details v-if="turn.traces.length" class="decision">
+                    <summary>{{ t.trace }}</summary>
+                    <ol class="trace" lang="en">
+                      <li v-for="event in turn.traces" :key="event.id">
+                        <code>{{ event.actor }} / {{ event.event }}</code
+                        ><span>{{ event.detail }}</span
+                        ><small>{{ event.elapsedMs }} ms</small>
+                      </li>
+                    </ol>
+                  </details>
+                </article>
+              </template>
+
+              <p v-if="resumed" class="notice-box" role="status">{{ t.resumed }}</p>
+              <div v-if="lastRequest && turns.length" class="user-message">
+                <span class="sr-only">{{ t.you }}</span>
+                <p>{{ lastRequest }}</p>
+              </div>
+              <section
+                v-if="state.notice !== 'welcome' || busy"
+                ref="resultHeading"
+                class="assistant-message"
+                tabindex="-1"
+                :aria-label="t.assistant"
+                :aria-busy="busy"
+              >
+                <p :class="busy ? 'sr-only' : 'reply-bubble'" role="status" aria-live="polite">
+                  {{ busy ? t[stage] : reply }}
+                </p>
+                <div v-if="busy" class="working">
+                  <span class="working-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                  <button class="text-button" @click="runner.cancel()">{{ t.stop }}</button>
+                </div>
+                <template v-else>
+                  <BillPanel
+                    v-if="state.domain === 'bills'"
+                    :state="state"
+                    :locale="locale"
+                    @select="pickBillCategory"
+                    @retry="billAction()"
+                  />
+                  <ul
+                    v-if="shownBooks.length && !state.draft && !state.receipt"
+                    class="result-list"
+                  >
+                    <li v-for="book in shownBooks" :key="book.id" class="result-card">
+                      <span v-if="book.category[locale]" class="category">{{
+                        book.category[locale]
+                      }}</span>
+                      <h2>{{ book.title[locale] }}</h2>
+                      <p>{{ book.author[locale] }}</p>
+                      <button v-if="!toolClient" class="primary-button" @click="prepare(book.id)">
+                        {{ t.reserve }}
+                      </button>
+                      <button v-else class="outline-button" @click="showBookDetails(book.id)">
+                        {{ t.details }}
+                      </button>
+                    </li>
+                  </ul>
+                  <ul v-if="state.records.length" class="result-list">
+                    <li v-for="record in state.records" :key="record.id" class="result-card">
+                      <span v-if="record.category?.[locale]" class="category">{{
+                        record.category[locale]
+                      }}</span>
+                      <h2>{{ record.title[locale] }}</h2>
+                      <p v-if="record.description?.[locale]">{{ record.description[locale] }}</p>
+                      <dl v-if="record.fields?.length">
+                        <template v-for="field in record.fields" :key="field.label[locale]"
+                          ><dt>{{ field.label[locale] }}</dt>
+                          <dd>{{ field.value[locale] }}</dd></template
+                        >
+                      </dl>
+                      <button
+                        v-if="parkingPhone(record)"
+                        class="outline-button"
+                        :aria-label="t.callParking.replace('{name}', record.title[locale])"
+                        @click="openLink(`tel:${parkingPhone(record)}`)"
+                      >
+                        {{ t.callParkingButton }}
+                      </button>
+                      <template v-if="record.url">
+                        <div
+                          v-if="confirmingLink === record.id"
+                          class="leave-confirm"
+                          role="group"
+                          :aria-label="t.leaveTitle"
+                        >
+                          <p>{{ leaveQuestion(record) }}</p>
+                          <div class="action-row">
+                            <button class="primary-button" @click="goRecord(record.url)">
+                              {{ t.leaveGo }}
+                            </button>
+                            <button class="text-button" @click="confirmingLink = null">
+                              {{ t.leaveStay }}
+                            </button>
+                          </div>
+                        </div>
+                        <button v-else class="outline-button" @click="confirmingLink = record.id">
+                          {{
+                            record.url.startsWith('https://www.google.com/maps')
+                              ? t.openMap
+                              : t.openPage
+                          }}
+                        </button>
+                      </template>
+                    </li>
+                  </ul>
+                  <section
+                    v-if="
+                      parkingSearch &&
+                      state.domain === 'places' &&
+                      !busy &&
+                      (state.notice === 'results' ||
+                        state.notice === 'needLocation' ||
+                        (state.notice === 'empty' && !parkingSearch.area))
+                    "
+                    class="parking-actions"
+                    :aria-label="t.parkingActions"
+                  >
+                    <p v-if="state.notice === 'results' && parkingSearch.area" class="small-note">
+                      {{ t.parkingAreaNote }}
+                    </p>
+                    <p v-if="state.notice === 'results' && !parkingSearch.area" class="small-note">
+                      {{ t.parkingDistanceNote }}
+                    </p>
+                    <p v-if="state.notice === 'empty' && !parkingSearch.area" class="small-note">
+                      {{
+                        t.parkingNoResults.replace('{radius}', String(parkingSearch.radius / 1000))
+                      }}
+                    </p>
+                    <button
+                      v-if="
+                        state.notice === 'empty' &&
+                        parkingSearch.radius === 1000 &&
+                        !parkingSearch.area
+                      "
+                      class="outline-button"
+                      @click="searchParking(parkingSearch.space, 3000, null, false)"
+                    >
+                      {{ t.parkingExpand }}
+                    </button>
+                    <button
+                      class="outline-button"
                       @click="
                         searchParking(
-                          parkingSearch.space,
-                          parkingSearch.radius,
-                          parkingDistrict,
-                          false,
+                          parkingSearch.space === 'disabled' ? 'pregnancy' : 'disabled',
+                          1000,
+                          parkingSearch.area,
                         )
                       "
                     >
-                      {{ t.parkingSearchDistrict }}
+                      {{
+                        parkingSearch.space === 'disabled'
+                          ? t.parkingSwitchPregnancy
+                          : t.parkingSwitchDisabled
+                      }}
                     </button>
-                  </div>
-                </section>
-                <ProfilePanel
-                  v-if="state.notice === 'profile'"
-                  :member="memberInfo"
-                  :profile="profile"
-                  :home-district="homeDistrict"
-                  :locale="locale"
-                />
-                <EmergencyCard
-                  v-if="state.notice === 'emergency' && state.emergency"
-                  :kind="state.emergency"
-                  :locale="locale"
-                />
-                <NavigationPanel
-                  v-if="state.navigation"
-                  :navigation="state.navigation"
-                  :source="state.source"
-                  :locale="locale"
-                  :request="lastRequest"
-                  :can-see-photos="canSeePhotos"
-                  :demo-mode="mode === 'demo'"
-                  :describe="(image: string) => runner.describePhoto(image, locale)"
-                  :cancel-describe="() => runner.cancelVision()"
-                  :fill-form="
-                    mode === 'demo'
-                      ? undefined
-                      : (spec: FormSpec, request: string, context: FormContext) =>
-                          runner.fillForm(spec, request, context)
-                  "
-                  :cancel-fill="() => runner.cancelForm()"
-                  :photo-file="pendingPhoto"
-                  @photo-consumed="pendingPhoto = null"
-                  @stay="stay"
-                />
-                <p v-if="state.failure?.hint" class="notice-box">{{ state.failure.hint }}</p>
-                <p v-if="state.source && !state.navigation" class="source-note">
-                  {{ state.source.label }}：{{ state.source.note }}
-                  <template v-if="state.source.truncated">{{
-                    t.truncated.replace('{total}', String(state.source.total))
-                  }}</template>
-                  <button
-                    v-if="
-                      state.lastTool === 'find_nearby_parking' &&
-                      state.source.url.startsWith('https://data.taipei/')
-                    "
-                    class="text-button"
-                    @click="openLink(state.source.url)"
-                  >
-                    {{ t.parkingSourceLink }}
-                  </button>
-                </p>
-                <button
-                  v-if="state.notice === 'error' && lastRequest"
-                  class="primary-button"
-                  @click="
-                    parkingSearch
-                      ? searchParking(
-                          parkingSearch.space,
-                          parkingSearch.radius,
-                          parkingSearch.area,
-                          false,
-                        )
-                      : submit(lastRequest)
-                  "
-                >
-                  {{ t.retry }}
-                </button>
-
-                <Transition name="content-fade" mode="out-in" @after-enter="focusResult">
-                  <section
-                    v-if="state.draft"
-                    key="review"
-                    class="result-card review-panel"
-                    aria-labelledby="review-title"
-                  >
-                    <span class="demo-badge">{{ t.demoBadge }}</span>
-                    <h2 id="review-title">{{ t.reviewTitle }}</h2>
-                    <dl>
-                      <dt>{{ t.book }}</dt>
-                      <dd>{{ activeBook?.title[locale] }}</dd>
-                    </dl>
-                    <label class="field-label" for="branch">{{ t.branch }}</label>
-                    <select id="branch" :value="state.draft.branchId" @change="updateBranch">
-                      <option v-for="branch in branches" :key="branch.id" :value="branch.id">
-                        {{ branch.name[locale] }}
-                      </option>
-                    </select>
-                    <p class="small-note">{{ t.simulated }}</p>
-                    <div class="action-row">
-                      <button class="primary-button" @click="confirm">{{ t.confirm }}</button
-                      ><button class="outline-button" @click="cancelDraft(state)">
-                        {{ t.cancel }}
+                    <button
+                      v-if="state.notice === 'needLocation'"
+                      class="outline-button"
+                      @click="searchParking(parkingSearch.space, parkingSearch.radius, null, false)"
+                    >
+                      {{ t.parkingRetryLocation }}
+                    </button>
+                    <div
+                      v-if="
+                        state.notice === 'needLocation' ||
+                        (state.notice === 'empty' &&
+                          parkingSearch.radius === 3000 &&
+                          !parkingSearch.area)
+                      "
+                      class="parking-district"
+                    >
+                      <label for="parking-district">{{ t.parkingChooseDistrict }}</label>
+                      <select id="parking-district" v-model="parkingDistrict">
+                        <option value="">{{ t.parkingDistrictPlaceholder }}</option>
+                        <option
+                          v-for="district in TAIPEI_DISTRICTS"
+                          :key="district"
+                          :value="district"
+                        >
+                          {{ district }}
+                        </option>
+                      </select>
+                      <button
+                        class="outline-button"
+                        :disabled="!parkingDistrict"
+                        @click="
+                          searchParking(
+                            parkingSearch.space,
+                            parkingSearch.radius,
+                            parkingDistrict,
+                            false,
+                          )
+                        "
+                      >
+                        {{ t.parkingSearchDistrict }}
                       </button>
                     </div>
                   </section>
-                  <section
-                    v-else-if="state.receipt"
-                    key="receipt"
-                    class="result-card receipt-panel"
-                    aria-labelledby="receipt-title"
-                  >
-                    <span class="receipt-check" aria-hidden="true"><UiIcon name="check" /></span>
-                    <h2 id="receipt-title">{{ t.receiptTitle }}</h2>
-                    <dl>
-                      <dt>{{ t.book }}</dt>
-                      <dd>{{ activeBook?.title[locale] }}</dd>
-                      <dt>{{ t.branch }}</dt>
-                      <dd>{{ activeBranch?.name[locale] }}</dd>
-                      <dt>{{ t.reference }}</dt>
-                      <dd class="receipt-reference">{{ state.receipt.reference }}</dd>
-                    </dl>
-                    <p class="small-note">{{ t.saved }}</p>
-                  </section>
-                </Transition>
-                <section
-                  v-if="choices && !(parkingSearch && state.notice === 'needLocation')"
-                  class="choices"
-                  :class="{ 'choices-ask': choices.kind === 'choose' }"
-                  aria-labelledby="choices-title"
-                >
-                  <h2 id="choices-title">{{ choices.prompt[locale] }}</h2>
-                  <div class="recovery-options">
+                  <ProfilePanel
+                    v-if="state.notice === 'profile'"
+                    :member="memberInfo"
+                    :profile="profile"
+                    :home-district="homeDistrict"
+                    :locale="locale"
+                  />
+                  <EmergencyCard
+                    v-if="state.notice === 'emergency' && state.emergency"
+                    :kind="state.emergency"
+                    :locale="locale"
+                  />
+                  <NavigationPanel
+                    v-if="state.navigation"
+                    :navigation="state.navigation"
+                    :source="state.source"
+                    :locale="locale"
+                    :request="lastRequest"
+                    :can-see-photos="canSeePhotos"
+                    :demo-mode="mode === 'demo'"
+                    :describe="(image: string) => runner.describePhoto(image, locale)"
+                    :cancel-describe="() => runner.cancelVision()"
+                    :fill-form="
+                      mode === 'demo'
+                        ? undefined
+                        : (spec: FormSpec, request: string, context: FormContext) =>
+                            runner.fillForm(spec, request, context)
+                    "
+                    :cancel-fill="() => runner.cancelForm()"
+                    :photo-file="pendingPhoto"
+                    @photo-consumed="pendingPhoto = null"
+                    @stay="stay"
+                  />
+                  <p v-if="state.failure?.hint" class="notice-box">{{ state.failure.hint }}</p>
+                  <p v-if="state.source && !state.navigation" class="source-note">
+                    {{ state.source.label }}：{{ state.source.note }}
+                    <template v-if="state.source.truncated">{{
+                      t.truncated.replace('{total}', String(state.source.total))
+                    }}</template>
                     <button
-                      v-for="choice in choices.options"
-                      :key="choice.request"
+                      v-if="
+                        state.lastTool === 'find_nearby_parking' &&
+                        state.source.url.startsWith('https://data.taipei/')
+                      "
+                      class="text-button"
+                      @click="openLink(state.source.url)"
+                    >
+                      {{ t.parkingSourceLink }}
+                    </button>
+                  </p>
+                  <button
+                    v-if="state.notice === 'error' && lastRequest"
+                    class="primary-button"
+                    @click="
+                      parkingSearch
+                        ? searchParking(
+                            parkingSearch.space,
+                            parkingSearch.radius,
+                            parkingSearch.area,
+                            false,
+                          )
+                        : submit(lastRequest)
+                    "
+                  >
+                    {{ t.retry }}
+                  </button>
+
+                  <Transition name="content-fade" mode="out-in" @after-enter="focusResult">
+                    <section
+                      v-if="state.draft"
+                      key="review"
+                      class="result-card review-panel"
+                      aria-labelledby="review-title"
+                    >
+                      <span class="demo-badge">{{ t.demoBadge }}</span>
+                      <h2 id="review-title">{{ t.reviewTitle }}</h2>
+                      <dl>
+                        <dt>{{ t.book }}</dt>
+                        <dd>{{ activeBook?.title[locale] }}</dd>
+                      </dl>
+                      <label class="field-label" for="branch">{{ t.branch }}</label>
+                      <select id="branch" :value="state.draft.branchId" @change="updateBranch">
+                        <option v-for="branch in branches" :key="branch.id" :value="branch.id">
+                          {{ branch.name[locale] }}
+                        </option>
+                      </select>
+                      <p class="small-note">{{ t.simulated }}</p>
+                      <div class="action-row">
+                        <button class="primary-button" @click="confirm">{{ t.confirm }}</button
+                        ><button class="outline-button" @click="cancelDraft(state)">
+                          {{ t.cancel }}
+                        </button>
+                      </div>
+                    </section>
+                    <section
+                      v-else-if="state.receipt"
+                      key="receipt"
+                      class="result-card receipt-panel"
+                      aria-labelledby="receipt-title"
+                    >
+                      <span class="receipt-check" aria-hidden="true"><UiIcon name="check" /></span>
+                      <h2 id="receipt-title">{{ t.receiptTitle }}</h2>
+                      <dl>
+                        <dt>{{ t.book }}</dt>
+                        <dd>{{ activeBook?.title[locale] }}</dd>
+                        <dt>{{ t.branch }}</dt>
+                        <dd>{{ activeBranch?.name[locale] }}</dd>
+                        <dt>{{ t.reference }}</dt>
+                        <dd class="receipt-reference">{{ state.receipt.reference }}</dd>
+                      </dl>
+                      <p class="small-note">{{ t.saved }}</p>
+                    </section>
+                  </Transition>
+                  <section
+                    v-if="choices && !(parkingSearch && state.notice === 'needLocation')"
+                    class="choices"
+                    :class="{ 'choices-ask': choices.kind === 'choose' }"
+                    aria-labelledby="choices-title"
+                  >
+                    <h2 id="choices-title">{{ choices.prompt[locale] }}</h2>
+                    <div class="recovery-options">
+                      <button
+                        v-for="choice in choices.options"
+                        :key="choice.request"
+                        class="outline-button"
+                        :disabled="inputDisabled"
+                        @click="pick(choice.request)"
+                      >
+                        {{ choice.label[locale] }}
+                      </button>
+                    </div>
+                  </section>
+                  <p v-if="leftFor" class="small-note" role="status">{{ t.leaveRequested }}</p>
+                  <div
+                    v-if="showSuggestions"
+                    class="recovery-options"
+                    role="group"
+                    :aria-label="t.quick"
+                  >
+                    <button
+                      v-for="suggestion in suggestions"
+                      :key="suggestion"
                       class="outline-button"
                       :disabled="inputDisabled"
-                      @click="pick(choice.request)"
+                      @click="pick(suggestion)"
                     >
-                      {{ choice.label[locale] }}
+                      {{ suggestion }}
                     </button>
                   </div>
-                </section>
-                <p v-if="leftFor" class="small-note" role="status">{{ t.leaveRequested }}</p>
-                <div
-                  v-if="showSuggestions"
-                  class="recovery-options"
-                  role="group"
-                  :aria-label="t.quick"
-                >
-                  <button
-                    v-for="suggestion in suggestions"
-                    :key="suggestion"
-                    class="outline-button"
-                    :disabled="inputDisabled"
-                    @click="pick(suggestion)"
-                  >
-                    {{ suggestion }}
+                  <button v-if="speechSupported" class="text-button read-button" @click="speak">
+                    <UiIcon name="sound" />{{ speaking ? t.stopRead : t.read }}
                   </button>
-                </div>
-                <button v-if="speechSupported" class="text-button read-button" @click="speak">
-                  <UiIcon name="sound" />{{ speaking ? t.stopRead : t.read }}
-                </button>
-                <p v-if="speechFailed" role="alert" class="small-note">{{ t.speechError }}</p>
-                <details v-if="state.traces.length" class="decision">
-                  <summary>{{ t.trace }}</summary>
-                  <ol class="trace" lang="en">
-                    <li v-for="event in state.traces" :key="event.id">
-                      <code>{{ event.actor }} / {{ event.event }}</code
-                      ><span>{{ event.detail }}</span
-                      ><small>{{ event.elapsedMs }} ms</small>
-                    </li>
-                  </ol>
-                </details>
-              </template>
-            </section>
+                  <p v-if="speechFailed" role="alert" class="small-note">{{ t.speechError }}</p>
+                  <details v-if="state.traces.length" class="decision">
+                    <summary>{{ t.trace }}</summary>
+                    <ol class="trace" lang="en">
+                      <li v-for="event in state.traces" :key="event.id">
+                        <code>{{ event.actor }} / {{ event.event }}</code
+                        ><span>{{ event.detail }}</span
+                        ><small>{{ event.elapsedMs }} ms</small>
+                      </li>
+                    </ol>
+                  </details>
+                </template>
+              </section>
+            </div>
+            <div v-if="busy || voiceOpen" class="townpass-watermark" aria-hidden="true">
+              <strong>城 市 通</strong><span>TOWN PASS</span>
+            </div>
           </div>
-          <div v-if="busy || voiceOpen" class="townpass-watermark" aria-hidden="true">
-            <strong>城 市 通</strong><span>TOWN PASS</span>
-          </div>
-        </div>
-      </Transition>
-    </main>
+        </Transition>
+      </main>
+    </div>
 
     <section v-if="voiceOpen" class="voice-dock" :aria-label="t.voiceLabel">
       <div class="voice-surface">
@@ -1351,11 +1411,22 @@ onBeforeUnmount(() => {
             {{ t.voiceFinish }}
           </button>
           <button
-            v-if="voiceStatus === 'error' || voiceStatus === 'permission'"
+            v-if="
+              voiceStatus === 'error' ||
+              voiceStatus === 'permission' ||
+              voiceStatus === 'modelUnavailable'
+            "
             class="voice-text-button"
             @click="startVoice"
           >
             {{ t.voiceRetry }}
+          </button>
+          <button
+            v-if="native && (voiceStatus === 'modelUnavailable' || voiceStatus === 'unavailable')"
+            class="voice-text-button"
+            @click="startSystemVoice"
+          >
+            {{ t.voiceSystem }}
           </button>
           <button class="voice-text-button" @click="typeInstead">{{ t.useKeyboard }}</button>
         </div>
@@ -1409,7 +1480,7 @@ onBeforeUnmount(() => {
           type="button"
           class="add-button"
           :aria-label="t.photoReport"
-          :disabled="busy || !!state.draft"
+          :disabled="busy || (!home && !!state.draft)"
           @click="requestPhoto"
         >
           <UiIcon name="plus" />
@@ -1425,19 +1496,19 @@ onBeforeUnmount(() => {
             rows="1"
             :disabled="inputDisabled"
             aria-describedby="input-help"
-            @focus="home = false"
+            @focus="openTextConversation"
             @keydown.enter.exact="onEnter"
           ></textarea>
-          <!-- 首頁已有語音大按鈕，麥克風只放在對話畫面，輸入框有字時換成送出鍵。 -->
           <button
             v-if="!home && !input.trim()"
             type="button"
-            class="send-button mic-button"
+            class="voice-input-button"
             :aria-label="t.voiceLabel"
-            :disabled="inputDisabled"
+            :disabled="busy || !!state.draft"
             @click="startVoice"
           >
-            <UiIcon name="mic" />
+            <UiIcon name="microphone" />
+            <span>{{ t.voiceShort }}</span>
           </button>
           <button
             type="submit"
@@ -1562,7 +1633,7 @@ onBeforeUnmount(() => {
             />{{ t.fieldAccessible }}</label
           >
         </section>
-        <section v-if="!native && mode !== 'phone'" class="settings-section">
+        <section class="settings-section">
           <button
             class="outline-button"
             :disabled="inputDisabled"

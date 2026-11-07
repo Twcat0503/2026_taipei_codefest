@@ -1,7 +1,15 @@
+import { createNativeVoiceInput } from './native-voice-input';
 import { hasNativeBridge, newNativeRequestId, postNative } from './native-bridge';
 
 export type VoiceStatus =
-  'idle' | 'starting' | 'listening' | 'unavailable' | 'permission' | 'error';
+  | 'idle'
+  | 'starting'
+  | 'listening'
+  | 'transcribing'
+  | 'modelUnavailable'
+  | 'unavailable'
+  | 'permission'
+  | 'error';
 
 type Recognition = {
   lang: string;
@@ -47,8 +55,8 @@ function parseSpeechEvent(raw: unknown, requestId: string): SpeechEvent | undefi
 }
 
 /**
- * Voice input. In the browser it uses the Web Speech API; inside the Town Pass app, where the
- * WebView has none, it asks the app to run Android's speech recognizer (`speech_start`).
+ * Local ASR in the WebView, with an explicit Android system-recognition alternative;
+ * standalone browsers keep their Web Speech API input.
  */
 export function createVoiceInput(
   onStatus: (status: VoiceStatus) => void,
@@ -59,11 +67,13 @@ export function createVoiceInput(
   let nativeSession:
     { requestId: string; receive: (event: { data?: unknown }) => void } | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const native = createNativeVoiceInput(onStatus, onText, onFinished);
   const endNative = (notify: boolean) => {
     const session = nativeSession;
     if (!session) return;
     nativeSession = undefined;
     window.removeEventListener('message', session.receive);
+    window.removeEventListener('pagehide', cancel);
     if (notify) postNative('speech_cancel', { requestId: session.requestId });
   };
   const startNative = (locale: string) => {
@@ -101,6 +111,7 @@ export function createVoiceInput(
     };
     nativeSession = { requestId, receive };
     window.addEventListener('message', receive);
+    window.addEventListener('pagehide', cancel);
     onStatus('starting');
     if (!postNative('speech_start', { requestId, language: locale === 'en' ? 'en-US' : 'zh-TW' })) {
       endNative(false);
@@ -113,6 +124,8 @@ export function createVoiceInput(
     }, 30000);
   };
   const cancel = () => {
+    window.removeEventListener('pagehide', cancel);
+    native.cancel();
     clearTimeout(timer);
     endNative(true);
     const previous = recognition;
@@ -130,7 +143,7 @@ export function createVoiceInput(
     start(locale: string) {
       cancel();
       if (hasNativeBridge()) {
-        startNative(locale);
+        native.start(locale);
         return;
       }
       const target = window as VoiceWindow;
@@ -186,7 +199,13 @@ export function createVoiceInput(
         onStatus('error');
       }
     },
+    startSystem(locale: string) {
+      cancel();
+      if (hasNativeBridge()) startNative(locale);
+      else onStatus('unavailable');
+    },
     finish() {
+      native.finish();
       if (nativeSession) postNative('speech_stop', { requestId: nativeSession.requestId });
       recognition?.stop();
     },

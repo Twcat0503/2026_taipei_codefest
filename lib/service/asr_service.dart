@@ -62,6 +62,20 @@ class AsrService {
 
   static const MethodChannel _channel = MethodChannel('town_pass/asr');
 
+  /// 僅在允許來源的 WebView 由使用者要求收音時，請 Android 顯示麥克風授權。
+  static Future<bool> requestMicrophonePermission() async {
+    try {
+      return await _channel
+              .invokeMethod<bool>('microphonePermission')
+              .timeout(const Duration(seconds: 60), onTimeout: () => false) ??
+          false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
   /// 啟動服務。模型不隨 APK 發佈，須事先放在 App 私有目錄（做法見 tools/asr-android/README.md）。
   /// 已在執行則直接回傳目前狀態。
   ///

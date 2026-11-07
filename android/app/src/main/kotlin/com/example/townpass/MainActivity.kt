@@ -1,5 +1,7 @@
 package com.example.townpass
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -27,6 +29,7 @@ class MainActivity : FlutterActivity() {
     private val worker: ExecutorService = Executors.newCachedThreadPool()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var ttsOwner: TtsOperations.Owner? = null
+    private var microphonePermissionResult: MethodChannel.Result? = null
     private var speechInput: SpeechInput? = null
 
     // 暫時的 workaround，對應 flutter_inappwebview issue #1694：
@@ -131,6 +134,7 @@ class MainActivity : FlutterActivity() {
     private fun configureAsrChannel(flutterEngine: FlutterEngine) {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "town_pass/asr").setMethodCallHandler { call, result ->
             when (call.method) {
+                "microphonePermission" -> requestMicrophonePermission(result)
                 "status" -> result.success(AsrServer.status().toMap())
                 "start" -> {
                     val config = AsrConfig(threads = call.argument<Int>("threads"))
@@ -146,6 +150,24 @@ class MainActivity : FlutterActivity() {
                 }
                 else -> result.notImplemented()
             }
+        }
+    }
+
+    private fun requestMicrophonePermission(result: MethodChannel.Result) {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            result.success(true)
+            return
+        }
+        if (microphonePermissionResult != null) {
+            result.success(false)
+            return
+        }
+        microphonePermissionResult = result
+        try {
+            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), MICROPHONE_PERMISSION_REQUEST)
+        } catch (_: Exception) {
+            microphonePermissionResult = null
+            result.success(false)
         }
     }
 
@@ -179,10 +201,17 @@ class MainActivity : FlutterActivity() {
         grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == MICROPHONE_PERMISSION_REQUEST) {
+            val pending = microphonePermissionResult
+            microphonePermissionResult = null
+            pending?.success(grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)
+        }
         speechInput?.onPermissionResult(requestCode, grantResults)
     }
 
     override fun onDestroy() {
+        microphonePermissionResult?.success(false)
+        microphonePermissionResult = null
         speechInput?.cancel()
         speechInput = null
         val observer = window.decorView.viewTreeObserver
@@ -201,6 +230,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private companion object {
+        const val MICROPHONE_PERMISSION_REQUEST = 7410
         const val PULL_TO_REFRESH_LAYOUT_CLASS =
             "com.pichillilorenzo.flutter_inappwebview_android.pull_to_refresh.PullToRefreshLayout"
     }
