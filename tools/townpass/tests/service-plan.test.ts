@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { planService } from "../src/registry/plan.js";
 import type { ServiceObservation } from "../src/registry/inspect.js";
 
@@ -89,14 +90,10 @@ describe("頁面計畫：模型只選擇觀測到的控制項", () => {
     });
   });
 
-  it("未列出的控制項不成為參數", () => {
-    const partial = { tools: [{ ...coursePlan.tools[0], controls: { "#count": "count" } }] };
-    const service = planService(courses).assemble(partial);
-    expect(Object.keys(service.tools[0]!.inputSchema.properties)).toEqual(["count"]);
-    expect(service.tools[0]!.execution).toMatchObject({ steps: [
-      { action: "fill", selector: "#count" },
-      { action: "click", selector: "#find-courses" },
-    ] });
+  it("每個觀測到的輸入控制項都必須有參數名稱，缺漏時拒絕", () => {
+    const { schema } = planService(courses);
+    expect(schema.safeParse({ tools: [{ ...coursePlan.tools[0], controls: { "#count": "count" } }] }).success).toBe(false);
+    expect(schema.safeParse({ tools: [{ ...coursePlan.tools[0], controls: {} }] }).success).toBe(false);
   });
 
   it("按鈕、結果區與選項值不能成為輸入控制項", () => {
@@ -126,9 +123,18 @@ describe("頁面計畫：模型只選擇觀測到的控制項", () => {
     expect(schema.safeParse({ tools: [coursePlan.tools[0]] }).success).toBe(true);
   });
 
-  it("沒有任何輸入控制項被列出時拒絕", () => {
-    const { assemble } = planService(courses);
-    expect(() => assemble({ tools: [{ ...coursePlan.tools[0], controls: {} }] })).toThrow(/至少需要一個輸入控制項/);
+  it("時間欄位的值是 HH:MM（HTML 格式），接受 14:30，拒絕其他字串", () => {
+    const observed: ServiceObservation = { kind: "page", url: courseUrl, title: "預約", elements: [
+      { selector: "#start", tag: "input", type: "time", label: "開始時間", required: true },
+      { selector: "#book", tag: "button", type: "submit", text: "預約" },
+      { selector: "#booked", tag: "output", text: "" },
+    ] };
+    const service = planService(observed).assemble({ tools: [{
+      name: "book_slot", description: "預約時段", controls: { "#start": "start" }, submit: "#book", resultSelector: "#booked",
+    }] });
+    const validate = z.fromJSONSchema(service.tools[0]!.inputSchema);
+    expect(validate.safeParse({ start: "14:30" }).success).toBe(true);
+    expect(validate.safeParse({ start: "2pm" }).success).toBe(false);
   });
 
   it("沒有可填寫的輸入控制項時，不呼叫模型，直接說明原因", () => {
@@ -156,7 +162,7 @@ describe("頁面計畫：模型只選擇觀測到的控制項", () => {
 
   it("同一參數名稱用在兩個控制項時拒絕", () => {
     const { assemble } = planService(courses);
-    const duplicateParameter = { tools: [{ ...coursePlan.tools[0], controls: { "#count": "value", "#district": "value" } }] };
+    const duplicateParameter = { tools: [{ ...coursePlan.tools[0], controls: { "#count": "value", "#district": "value", "#step-free": "stepFree" } }] };
     expect(() => assemble(duplicateParameter)).toThrow(/參數名稱重複/);
   });
 
