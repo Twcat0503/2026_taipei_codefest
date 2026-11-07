@@ -23,11 +23,11 @@ abstract final class TPAgentConfig {
 }
 
 const _copy = {
-  'zh': ('安心助手', '找服務、查圖書，一步一步完成', '示範體驗・送出前由你確認'),
+  'zh': ('安心助手', '找無障礙廁所與車位，帶你到官方服務', '官方資料・離開前由你確認'),
   'en': (
     'Care Assistant',
-    'Find services and books, one step at a time',
-    'Demo · You confirm important actions',
+    'Accessible toilets, parking and official services',
+    'Official data · You confirm before leaving',
   ),
 };
 
