@@ -143,6 +143,19 @@
 - 不在 source code、mock 資料或 PR 內文中硬編碼 key 值。
 - Commit 前檢查 diff 確認未夾帶機密；若不慎提交，立即撤銷該 key 並替換，不要只刪後續 commit。
 
+## 個人開發環境與內部文件
+
+- **個人開發環境不進 git**：以下屬個人環境或可重現的產物，一律不 commit。
+  - IDE／編輯器設定：`.idea/`、`.vscode/`、`*.iml`。
+  - 本機 SDK 與路徑設定：`.fvm/`、`**/android/local.properties`、`**/ios/Flutter/Generated.xcconfig`。
+  - 建置與快取：`.dart_tool/`、`build/`、`**/ios/Pods/`、`**/DerivedData/`、`.flutter-plugins*`。
+  - agent 工具產生的 worktree、暫存與個人設定：`.claude/worktrees/` 等（勿把整個工具目錄 commit）。
+  - 個人 shell／工具設定、本機除錯用檔案、截圖與錄影原檔。
+  - 上列多數已列於 `.gitignore`；新增這類檔案時同步補規則，或改用個人全域 gitignore。
+- **例外——團隊共用且可重現的設定要進 git**：`frontend/mise.toml`、`pnpm-lock.yaml`、`pubspec.lock`、`.fvmrc`、`.env.example` 等，讓其他人能重建相同環境。
+- **內部文件不進 git**：會議紀錄、個人筆記、內部草稿／簡報、選手手冊與主辦方附件、尚未公開的排程或廠商資料等，放團隊雲端硬碟或本機；repo 只放可公開的專案文件（`README.md`、`AGENTS.md`、`CONTRIBUTING.md`、`CODE_OF_CONDUCT.md`、`LICENSE`）。
+- 不確定某個檔案屬「團隊共用」或「個人／內部」時，先問維護者再 commit。
+
 ## 相依套件
 
 - 新增套件必須是**開源套件**（pub.dev／npm 上有明確授權），且授權需與 **AGPL-3.0** 相容（MIT、BSD、Apache-2.0 可；不相容授權（如 GPL-2.0-only、SSPL、各種 proprietary）不可用）。前端 `frontend/` 相依套件適用同一規則。
