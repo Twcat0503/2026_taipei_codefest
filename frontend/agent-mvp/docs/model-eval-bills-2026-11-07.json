@@ -1,0 +1,708 @@
+{
+  "generatedAt": "2026-11-07T07:45:57.028Z",
+  "model": "qwen3:1.7b",
+  "host": "Mac, not phone",
+  "results": [
+    {
+      "request": "幫我找圖書",
+      "expected": {
+        "request": "幫我找圖書",
+        "domain": "library",
+        "notice": "books",
+        "ids": ["book-01", "book-02", "book-03"]
+      },
+      "actual": {
+        "domain": "library",
+        "notice": "books",
+        "ids": ["book-01", "book-02", "book-03"],
+        "billQuery": null
+      },
+      "elapsedMs": 1493,
+      "traces": [
+        {
+          "id": 0,
+          "actor": "router",
+          "event": "started",
+          "detail": "Select one domain; original text retained.",
+          "elapsedMs": 0
+        },
+        {
+          "id": 1,
+          "actor": "router",
+          "event": "selected",
+          "detail": "library",
+          "elapsedMs": 744
+        },
+        {
+          "id": 2,
+          "actor": "mcp",
+          "event": "tools_listed",
+          "detail": "search_books",
+          "elapsedMs": 744
+        },
+        {
+          "id": 3,
+          "actor": "library",
+          "event": "tool_requested",
+          "detail": "search_books",
+          "elapsedMs": 1492
+        },
+        {
+          "id": 4,
+          "actor": "executor",
+          "event": "completed",
+          "detail": "search_books: 3 demo records",
+          "elapsedMs": 1493
+        }
+      ]
+    },
+    {
+      "request": "幫我找「一起慢慢走」",
+      "expected": {
+        "request": "幫我找「一起慢慢走」",
+        "domain": "library",
+        "notice": "books",
+        "ids": ["book-01"]
+      },
+      "actual": {
+        "domain": "library",
+        "notice": "books",
+        "ids": ["book-01"],
+        "billQuery": null
+      },
+      "elapsedMs": 1483,
+      "traces": [
+        {
+          "id": 0,
+          "actor": "router",
+          "event": "started",
+          "detail": "Select one domain; original text retained.",
+          "elapsedMs": 0
+        },
+        {
+          "id": 1,
+          "actor": "router",
+          "event": "selected",
+          "detail": "library",
+          "elapsedMs": 706
+        },
+        {
+          "id": 2,
+          "actor": "mcp",
+          "event": "tools_listed",
+          "detail": "search_books",
+          "elapsedMs": 707
+        },
+        {
+          "id": 3,
+          "actor": "library",
+          "event": "tool_requested",
+          "detail": "search_books",
+          "elapsedMs": 1482
+        },
+        {
+          "id": 4,
+          "actor": "executor",
+          "event": "completed",
+          "detail": "search_books: 1 demo records",
+          "elapsedMs": 1482
+        }
+      ]
+    },
+    {
+      "request": "找書「不存在的書」",
+      "expected": {
+        "request": "找書「不存在的書」",
+        "domain": "library",
+        "notice": "empty",
+        "ids": []
+      },
+      "actual": {
+        "domain": "library",
+        "notice": "empty",
+        "ids": [],
+        "billQuery": null
+      },
+      "elapsedMs": 1503,
+      "traces": [
+        {
+          "id": 0,
+          "actor": "router",
+          "event": "started",
+          "detail": "Select one domain; original text retained.",
+          "elapsedMs": 0
+        },
+        {
+          "id": 1,
+          "actor": "router",
+          "event": "selected",
+          "detail": "library",
+          "elapsedMs": 726
+        },
+        {
+          "id": 2,
+          "actor": "mcp",
+          "event": "tools_listed",
+          "detail": "search_books",
+          "elapsedMs": 726
+        },
+        {
+          "id": 3,
+          "actor": "library",
+          "event": "tool_requested",
+          "detail": "search_books",
+          "elapsedMs": 1502
+        },
+        {
+          "id": 4,
+          "actor": "executor",
+          "event": "completed",
+          "detail": "search_books: 0 demo records",
+          "elapsedMs": 1503
+        }
+      ]
+    },
+    {
+      "request": "有哪些服務？",
+      "expected": {
+        "request": "有哪些服務？",
+        "domain": "services",
+        "notice": "services",
+        "ids": []
+      },
+      "actual": {
+        "domain": "services",
+        "notice": "services",
+        "ids": [],
+        "billQuery": null
+      },
+      "elapsedMs": 1368,
+      "traces": [
+        {
+          "id": 0,
+          "actor": "router",
+          "event": "started",
+          "detail": "Select one domain; original text retained.",
+          "elapsedMs": 0
+        },
+        {
+          "id": 1,
+          "actor": "router",
+          "event": "selected",
+          "detail": "services",
+          "elapsedMs": 715
+        },
+        {
+          "id": 2,
+          "actor": "mcp",
+          "event": "tools_listed",
+          "detail": "search_services",
+          "elapsedMs": 715
+        },
+        {
+          "id": 3,
+          "actor": "services",
+          "event": "tool_requested",
+          "detail": "search_services",
+          "elapsedMs": 1368
+        },
+        {
+          "id": 4,
+          "actor": "executor",
+          "event": "completed",
+          "detail": "search_services: 1 demo records",
+          "elapsedMs": 1368
+        }
+      ]
+    },
+    {
+      "request": "我想查詢叫號服務",
+      "expected": {
+        "request": "我想查詢叫號服務",
+        "domain": "services",
+        "notice": "services",
+        "ids": []
+      },
+      "actual": {
+        "domain": "services",
+        "notice": "services",
+        "ids": [],
+        "billQuery": null
+      },
+      "elapsedMs": 1363,
+      "traces": [
+        {
+          "id": 0,
+          "actor": "router",
+          "event": "started",
+          "detail": "Select one domain; original text retained.",
+          "elapsedMs": 0
+        },
+        {
+          "id": 1,
+          "actor": "router",
+          "event": "selected",
+          "detail": "services",
+          "elapsedMs": 711
+        },
+        {
+          "id": 2,
+          "actor": "mcp",
+          "event": "tools_listed",
+          "detail": "search_services",
+          "elapsedMs": 711
+        },
+        {
+          "id": 3,
+          "actor": "services",
+          "event": "tool_requested",
+          "detail": "search_services",
+          "elapsedMs": 1363
+        },
+        {
+          "id": 4,
+          "actor": "executor",
+          "event": "completed",
+          "detail": "search_services: 1 demo records",
+          "elapsedMs": 1363
+        }
+      ]
+    },
+    {
+      "request": "Find books",
+      "expected": {
+        "request": "Find books",
+        "domain": "library",
+        "notice": "books",
+        "ids": ["book-01", "book-02", "book-03"]
+      },
+      "actual": {
+        "domain": "library",
+        "notice": "books",
+        "ids": ["book-01", "book-02", "book-03"],
+        "billQuery": null
+      },
+      "elapsedMs": 1466,
+      "traces": [
+        {
+          "id": 0,
+          "actor": "router",
+          "event": "started",
+          "detail": "Select one domain; original text retained.",
+          "elapsedMs": 0
+        },
+        {
+          "id": 1,
+          "actor": "router",
+          "event": "selected",
+          "detail": "library",
+          "elapsedMs": 734
+        },
+        {
+          "id": 2,
+          "actor": "mcp",
+          "event": "tools_listed",
+          "detail": "search_books",
+          "elapsedMs": 734
+        },
+        {
+          "id": 3,
+          "actor": "library",
+          "event": "tool_requested",
+          "detail": "search_books",
+          "elapsedMs": 1466
+        },
+        {
+          "id": 4,
+          "actor": "executor",
+          "event": "completed",
+          "detail": "search_books: 3 demo records",
+          "elapsedMs": 1466
+        }
+      ]
+    },
+    {
+      "request": "Find the book \"Walking Together\"",
+      "expected": {
+        "request": "Find the book \"Walking Together\"",
+        "domain": "library",
+        "notice": "books",
+        "ids": ["book-01"]
+      },
+      "actual": {
+        "domain": "library",
+        "notice": "books",
+        "ids": ["book-01"],
+        "billQuery": null
+      },
+      "elapsedMs": 1501,
+      "traces": [
+        {
+          "id": 0,
+          "actor": "router",
+          "event": "started",
+          "detail": "Select one domain; original text retained.",
+          "elapsedMs": 0
+        },
+        {
+          "id": 1,
+          "actor": "router",
+          "event": "selected",
+          "detail": "library",
+          "elapsedMs": 748
+        },
+        {
+          "id": 2,
+          "actor": "mcp",
+          "event": "tools_listed",
+          "detail": "search_books",
+          "elapsedMs": 748
+        },
+        {
+          "id": 3,
+          "actor": "library",
+          "event": "tool_requested",
+          "detail": "search_books",
+          "elapsedMs": 1501
+        },
+        {
+          "id": 4,
+          "actor": "executor",
+          "event": "completed",
+          "detail": "search_books: 1 demo records",
+          "elapsedMs": 1501
+        }
+      ]
+    },
+    {
+      "request": "我想看到我這期的帳單與繳費狀態",
+      "expected": {
+        "request": "我想看到我這期的帳單與繳費狀態",
+        "domain": "bills",
+        "notice": "billCategory",
+        "ids": []
+      },
+      "actual": {
+        "domain": "bills",
+        "notice": "billCategory",
+        "ids": [],
+        "billQuery": null
+      },
+      "elapsedMs": 1722,
+      "traces": [
+        {
+          "id": 0,
+          "actor": "router",
+          "event": "started",
+          "detail": "Select one domain; original text retained.",
+          "elapsedMs": 0
+        },
+        {
+          "id": 1,
+          "actor": "router",
+          "event": "selected",
+          "detail": "bills",
+          "elapsedMs": 724
+        },
+        {
+          "id": 2,
+          "actor": "skill",
+          "event": "loaded",
+          "detail": "bills.current@1",
+          "elapsedMs": 724
+        }
+      ]
+    },
+    {
+      "request": "查本期水費繳了沒",
+      "expected": {
+        "request": "查本期水費繳了沒",
+        "domain": "bills",
+        "notice": "bills",
+        "ids": []
+      },
+      "actual": {
+        "domain": "bills",
+        "notice": "bills",
+        "ids": [],
+        "billQuery": {
+          "category": "water",
+          "period": "current"
+        }
+      },
+      "elapsedMs": 1747,
+      "traces": [
+        {
+          "id": 0,
+          "actor": "router",
+          "event": "started",
+          "detail": "Select one domain; original text retained.",
+          "elapsedMs": 0
+        },
+        {
+          "id": 1,
+          "actor": "router",
+          "event": "selected",
+          "detail": "bills",
+          "elapsedMs": 726
+        },
+        {
+          "id": 2,
+          "actor": "skill",
+          "event": "loaded",
+          "detail": "bills.current@1",
+          "elapsedMs": 726
+        },
+        {
+          "id": 3,
+          "actor": "mcp",
+          "event": "tools_listed",
+          "detail": "list_bills",
+          "elapsedMs": 1745
+        },
+        {
+          "id": 4,
+          "actor": "bills",
+          "event": "tool_requested",
+          "detail": "list_bills",
+          "elapsedMs": 1745
+        },
+        {
+          "id": 5,
+          "actor": "executor",
+          "event": "completed",
+          "detail": "2 demo bills; no payment performed.",
+          "elapsedMs": 1747
+        }
+      ]
+    },
+    {
+      "request": "Show all my current bills and payment status",
+      "expected": {
+        "request": "Show all my current bills and payment status",
+        "domain": "bills",
+        "notice": "bills",
+        "ids": []
+      },
+      "actual": {
+        "domain": "bills",
+        "notice": "bills",
+        "ids": [],
+        "billQuery": {
+          "category": "all",
+          "period": "current"
+        }
+      },
+      "elapsedMs": 1698,
+      "traces": [
+        {
+          "id": 0,
+          "actor": "router",
+          "event": "started",
+          "detail": "Select one domain; original text retained.",
+          "elapsedMs": 0
+        },
+        {
+          "id": 1,
+          "actor": "router",
+          "event": "selected",
+          "detail": "bills",
+          "elapsedMs": 730
+        },
+        {
+          "id": 2,
+          "actor": "skill",
+          "event": "loaded",
+          "detail": "bills.current@1",
+          "elapsedMs": 730
+        },
+        {
+          "id": 3,
+          "actor": "mcp",
+          "event": "tools_listed",
+          "detail": "list_bills",
+          "elapsedMs": 1697
+        },
+        {
+          "id": 4,
+          "actor": "bills",
+          "event": "tool_requested",
+          "detail": "list_bills",
+          "elapsedMs": 1697
+        },
+        {
+          "id": 5,
+          "actor": "executor",
+          "event": "completed",
+          "detail": "4 demo bills; no payment performed.",
+          "elapsedMs": 1698
+        }
+      ]
+    },
+    {
+      "request": "幫我繳水費",
+      "expected": {
+        "request": "幫我繳水費",
+        "domain": "bills",
+        "notice": "billUnsupported",
+        "ids": []
+      },
+      "actual": {
+        "domain": "bills",
+        "notice": "billUnsupported",
+        "ids": [],
+        "billQuery": null
+      },
+      "elapsedMs": 1713,
+      "traces": [
+        {
+          "id": 0,
+          "actor": "router",
+          "event": "started",
+          "detail": "Select one domain; original text retained.",
+          "elapsedMs": 0
+        },
+        {
+          "id": 1,
+          "actor": "router",
+          "event": "selected",
+          "detail": "bills",
+          "elapsedMs": 729
+        },
+        {
+          "id": 2,
+          "actor": "skill",
+          "event": "loaded",
+          "detail": "bills.current@1",
+          "elapsedMs": 729
+        }
+      ]
+    },
+    {
+      "request": "查上期停車費",
+      "expected": {
+        "request": "查上期停車費",
+        "domain": "bills",
+        "notice": "billUnsupported",
+        "ids": []
+      },
+      "actual": {
+        "domain": "bills",
+        "notice": "billUnsupported",
+        "ids": [],
+        "billQuery": null
+      },
+      "elapsedMs": 1814,
+      "traces": [
+        {
+          "id": 0,
+          "actor": "router",
+          "event": "started",
+          "detail": "Select one domain; original text retained.",
+          "elapsedMs": 0
+        },
+        {
+          "id": 1,
+          "actor": "router",
+          "event": "selected",
+          "detail": "bills",
+          "elapsedMs": 775
+        },
+        {
+          "id": 2,
+          "actor": "skill",
+          "event": "loaded",
+          "detail": "bills.current@1",
+          "elapsedMs": 775
+        }
+      ]
+    },
+    {
+      "request": "請幫我寫一首詩",
+      "expected": {
+        "request": "請幫我寫一首詩",
+        "domain": "unsupported",
+        "notice": "unsupported",
+        "ids": []
+      },
+      "actual": {
+        "domain": "unsupported",
+        "notice": "unsupported",
+        "ids": [],
+        "billQuery": null
+      },
+      "elapsedMs": 724,
+      "traces": [
+        {
+          "id": 0,
+          "actor": "router",
+          "event": "started",
+          "detail": "Select one domain; original text retained.",
+          "elapsedMs": 0
+        },
+        {
+          "id": 1,
+          "actor": "router",
+          "event": "selected",
+          "detail": "unsupported",
+          "elapsedMs": 724
+        }
+      ]
+    },
+    {
+      "request": "bill category follow-up: 水費",
+      "actual": {
+        "domain": "bills",
+        "notice": "bills",
+        "billQuery": {
+          "category": "water",
+          "period": "current"
+        }
+      },
+      "traces": [
+        {
+          "id": 0,
+          "actor": "router",
+          "event": "started",
+          "detail": "Select one domain; original text retained.",
+          "elapsedMs": 0
+        },
+        {
+          "id": 1,
+          "actor": "router",
+          "event": "selected",
+          "detail": "bills",
+          "elapsedMs": 756
+        },
+        {
+          "id": 2,
+          "actor": "skill",
+          "event": "loaded",
+          "detail": "bills.current@1",
+          "elapsedMs": 756
+        },
+        {
+          "id": 3,
+          "actor": "mcp",
+          "event": "tools_listed",
+          "detail": "list_bills",
+          "elapsedMs": 1772
+        },
+        {
+          "id": 4,
+          "actor": "bills",
+          "event": "tool_requested",
+          "detail": "list_bills",
+          "elapsedMs": 1772
+        },
+        {
+          "id": 5,
+          "actor": "executor",
+          "event": "completed",
+          "detail": "2 demo bills; no payment performed.",
+          "elapsedMs": 1772
+        }
+      ]
+    }
+  ]
+}

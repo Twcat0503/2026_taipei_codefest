@@ -1,0 +1,11 @@
+/* Town Pass TPColors; darker primary700 is used for AA-readable controls. */
+:root {
+  --ink: #171b1d;
+  --muted: #5e6d76;
+  --border: #e3e7e9;
+  --teal: #356c77;
+  --deep: #22474e;
+  --pale: #edf8fa;
+  --cream: #fcf2df;
+  --amber-ink: #74521b;
+}
