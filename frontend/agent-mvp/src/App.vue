@@ -52,6 +52,7 @@ import { a11yState } from './platform/a11y';
 import { feedback, setVoiceFeedbackEnabled, voiceFeedbackEnabled } from './platform/feedback';
 import { hapticsEnabled, setHapticsEnabled } from './platform/haptics';
 import {
+  armNaturalVoiceAudio,
   naturalVoiceEnabled,
   prepareNaturalVoice,
   releaseNaturalVoice,
@@ -215,6 +216,8 @@ function setVoiceFeedback(event: Event) {
 }
 // 本機自然語音（BlueMagpie）：只在 App 內提供、預設關閉；無法使用時自動改用系統語音。
 const naturalVoice = ref(native && naturalVoiceEnabled());
+// WebView 預設要使用者手勢才能出聲，所以開著的話，第一次點擊或按鍵就先解鎖播放用的 <audio>。
+if (naturalVoice.value) armNaturalVoiceAudio();
 const shownBooks = computed(() => state.bookResults);
 const activeBook = computed(() =>
   state.bookResults.find((book) => book.id === (state.draft?.bookId ?? state.receipt?.bookId)),

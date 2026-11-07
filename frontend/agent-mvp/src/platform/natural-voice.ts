@@ -33,6 +33,12 @@ const MAX_SCALARS = 80;
 const MAX_BYTES = 320;
 /** A 44-byte WAV header plus 30 s of 48 kHz mono PCM16. */
 const MAX_CLIP_BYTES = 44 + 30 * 48000 * 2;
+/**
+ * What counts as the user's gesture for the audio unlock. A touch only counts when it ends, so
+ * `pointerup` as well as `pointerdown`, and a click from an accessibility service (TalkBack) comes
+ * as a `click` alone.
+ */
+const UNLOCK_EVENTS = ['pointerdown', 'pointerup', 'keydown', 'click'] as const;
 
 /** The natural voice is off unless the user turned it on. */
 export function naturalVoiceEnabled() {
@@ -169,6 +175,7 @@ export function prepareNaturalVoice(): Promise<boolean> {
   if (endpoint) return Promise.resolve(true);
   if (preparing) return preparing;
   if (!hasNativeBridge()) return Promise.resolve(false);
+  armNaturalVoiceAudio();
   const started = generation;
   serviceRequested = true;
   watchPageHide();
@@ -198,6 +205,7 @@ export function releaseNaturalVoice() {
   preparing = undefined;
   endpoint = undefined;
   stopNaturalVoice();
+  disarmNaturalVoiceAudio();
   if (!serviceRequested) return;
   serviceRequested = false;
   requestTts('tts_stop', CONTROL_TIMEOUT_MS).catch(() => {
@@ -310,6 +318,120 @@ export function segmentText(text: string): string[] {
   return segments;
 }
 
+// --- Audio element ---------------------------------------------------------------------------
+
+/**
+ * The one audio element every clip plays on. The app's WebView can require a user gesture before
+ * audio starts, and a clip is only ready after a network round trip, long after the tap; an
+ * automatic reading has no gesture at all. An element that a gesture has started once can be
+ * started again later, so the first interaction unlocks this one (`armNaturalVoiceAudio`) and each
+ * clip is played by swapping its `src`.
+ */
+let sharedAudio: HTMLAudioElement | undefined;
+/**
+ * Whoever uses the element right now: the reading whose clip plays, or an unlock attempt (which a
+ * clip takes over). The unlock leaves the element alone while a reading has it.
+ */
+let audioOwner: object | undefined;
+let audioUnlocked = false;
+let unlockArmed = false;
+
+function audioElement() {
+  sharedAudio ??= new Audio();
+  return sharedAudio;
+}
+
+/** Stops whatever the element plays and lets go of its media resource. */
+function resetAudio(audio: HTMLAudioElement) {
+  audio.onended = audio.onerror = null;
+  try {
+    audio.pause();
+    audio.removeAttribute('src');
+    audio.load();
+  } catch {
+    /* Releasing the media resource is best effort. */
+  }
+}
+
+/** 50 ms of silence (8 kHz, mono, 16 bit), built here so that no asset file is needed. */
+function silentWav() {
+  const samples = 400;
+  const bytes = new Uint8Array(44 + samples * 2);
+  const view = new DataView(bytes.buffer);
+  const write = (offset: number, text: string) => {
+    for (let i = 0; i < text.length; i += 1) view.setUint8(offset + i, text.charCodeAt(i));
+  };
+  write(0, 'RIFF');
+  view.setUint32(4, bytes.length - 8, true);
+  write(8, 'WAVEfmt ');
+  view.setUint32(16, 16, true); // Size of the format chunk.
+  view.setUint16(20, 1, true); // PCM.
+  view.setUint16(22, 1, true); // Mono.
+  view.setUint32(24, 8000, true); // Sample rate.
+  view.setUint32(28, 16000, true); // Bytes per second.
+  view.setUint16(32, 2, true); // Bytes per sample frame.
+  view.setUint16(34, 16, true); // Bits per sample.
+  write(36, 'data');
+  view.setUint32(40, samples * 2, true);
+  // The samples stay zero: silence.
+  return new Blob([bytes], { type: 'audio/wav' });
+}
+
+function markAudioUnlocked() {
+  audioUnlocked = true;
+  disarmNaturalVoiceAudio();
+}
+
+/**
+ * Starts the shared element on a silent clip and pauses it again, which unlocks it for the real
+ * clips. Leaves the element alone while a clip uses it (a playing clip shows that it may play). A
+ * refused attempt keeps the listeners, so the next interaction tries again.
+ */
+function unlockAudio() {
+  if (audioUnlocked || audioOwner) return;
+  const owner = {};
+  let audio: HTMLAudioElement | undefined;
+  let url: string | undefined;
+  const release = () => {
+    if (url !== undefined) URL.revokeObjectURL(url);
+    // A clip may have taken the element over meanwhile; it is theirs then.
+    if (audio && audioOwner === owner) {
+      audioOwner = undefined;
+      resetAudio(audio);
+    }
+  };
+  try {
+    audio = audioElement();
+    audioOwner = owner;
+    url = URL.createObjectURL(silentWav());
+    audio.src = url;
+    Promise.resolve(audio.play()).then(() => {
+      markAudioUnlocked();
+      release();
+    }, release);
+  } catch {
+    release();
+  }
+}
+
+/**
+ * Waits for the first interaction anywhere on the page and unlocks the shared audio element with
+ * it. The listeners are in the capture phase, so no handler of the page can swallow the event.
+ * Called when the natural voice is switched on or used; calling it again changes nothing.
+ */
+export function armNaturalVoiceAudio() {
+  if (audioUnlocked || unlockArmed || !hasNativeBridge()) return;
+  if (typeof window.addEventListener !== 'function') return;
+  unlockArmed = true;
+  for (const type of UNLOCK_EVENTS) window.addEventListener(type, unlockAudio, true);
+}
+
+function disarmNaturalVoiceAudio() {
+  if (!unlockArmed) return;
+  unlockArmed = false;
+  for (const type of UNLOCK_EVENTS) window.removeEventListener(type, unlockAudio, true);
+}
+
 // --- Reading ---------------------------------------------------------------------------------
 
 type Reading = {
@@ -380,7 +502,10 @@ async function synthesize(reading: Reading, service: Endpoint, input: string): P
   }
 }
 
-/** Plays one clip to its end. Always releases the object URL; rejects when playback fails or is stopped. */
+/**
+ * Plays one clip to its end on the shared element. Always releases the object URL; rejects when
+ * playback fails or is stopped.
+ */
 function play(reading: Reading, clip: Blob, rate: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(clip);
@@ -393,14 +518,8 @@ function play(reading: Reading, clip: Blob, rate: number): Promise<void> {
       clearTimeout(timer);
       if (reading.cancelPlayback === cancel) reading.cancelPlayback = undefined;
       if (audio) {
-        audio.onended = audio.onerror = null;
-        try {
-          audio.pause();
-          audio.removeAttribute('src');
-          audio.load();
-        } catch {
-          /* Releasing the media resource is best effort. */
-        }
+        audioOwner = undefined;
+        resetAudio(audio);
       }
       URL.revokeObjectURL(url);
       if (error) reject(error);
@@ -409,19 +528,23 @@ function play(reading: Reading, clip: Blob, rate: number): Promise<void> {
     const cancel = () => finish(new Error('NATURAL_VOICE_STOPPED'));
     reading.cancelPlayback = cancel;
     try {
-      audio = new Audio(url);
+      audio = audioElement();
+      // Takes the element over from an unlock attempt that is still under way.
+      audioOwner = reading;
+      audio.onended = () => finish();
+      audio.onerror = () => finish(new Error('NATURAL_VOICE_PLAYBACK_FAILED'));
+      audio.src = url;
       // The speed setting is relative to the voice's own pace, like `rate` of the system voice.
       const speed = Number.isFinite(rate) && rate > 0 ? Math.min(Math.max(rate, 0.5), 2) : 1;
       audio.defaultPlaybackRate = speed;
       audio.playbackRate = speed;
-      audio.onended = () => finish();
-      audio.onerror = () => finish(new Error('NATURAL_VOICE_PLAYBACK_FAILED'));
       timer = setTimeout(
         () => finish(new Error('NATURAL_VOICE_PLAYBACK_TIMEOUT')),
         PLAYBACK_TIMEOUT_MS,
       );
-      // Autoplay can be refused; the rejection is the failure.
-      Promise.resolve(audio.play()).catch(() =>
+      // A clip that plays shows that the element may play. Autoplay can be refused; the rejection
+      // is the failure.
+      Promise.resolve(audio.play()).then(markAudioUnlocked, () =>
         finish(new Error('NATURAL_VOICE_PLAYBACK_BLOCKED')),
       );
     } catch {

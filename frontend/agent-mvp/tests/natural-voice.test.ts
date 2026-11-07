@@ -72,11 +72,18 @@ async function setup({
   vi.stubGlobal('localStorage', storage);
 
   const bridgeListeners = new Set<BridgeListener>();
+  // Like the DOM: a listener is registered per type and capture flag, and removed with the same pair.
   const windowListeners = new Map<string, Set<WindowListener>>();
+  const slot = (type: string, capture: unknown) =>
+    `${type}|${capture === true ? 'capture' : 'bubble'}`;
+  const listenersOf = (type: string) => [
+    ...(windowListeners.get(slot(type, true)) ?? []),
+    ...(windowListeners.get(slot(type, false)) ?? []),
+  ];
   const native: { start: object | 'silent' } = { start: start ?? READY };
   const emitWindow = (name: string, data: unknown) => emitWindowRaw(JSON.stringify({ name, data }));
   const emitWindowRaw = (raw: unknown) => {
-    for (const listener of [...(windowListeners.get('message') ?? [])]) listener({ data: raw });
+    for (const listener of listenersOf('message')) listener({ data: raw });
   };
   const bridge: FlutterBridge = {
     postMessage: vi.fn((raw: string) => {
@@ -96,11 +103,12 @@ async function setup({
   };
   const fakeWindow = {
     flutterObject: bridge,
-    addEventListener: vi.fn((type: string, listener: WindowListener) => {
-      windowListeners.set(type, (windowListeners.get(type) ?? new Set()).add(listener));
+    addEventListener: vi.fn((type: string, listener: WindowListener, capture?: boolean) => {
+      const key = slot(type, capture);
+      windowListeners.set(key, (windowListeners.get(key) ?? new Set()).add(listener));
     }),
-    removeEventListener: vi.fn((type: string, listener: WindowListener) => {
-      windowListeners.get(type)?.delete(listener);
+    removeEventListener: vi.fn((type: string, listener: WindowListener, capture?: boolean) => {
+      windowListeners.get(slot(type, capture))?.delete(listener);
     }),
   };
   vi.stubGlobal('window', fakeWindow);
@@ -114,24 +122,55 @@ async function setup({
   });
   vi.stubGlobal('fetch', fetcher);
 
-  const audio = { blocked: false, instances: [] as FakeAudio[] };
+  const audio = {
+    blocked: false,
+    /** Every element the module created; it must never be more than one. */
+    instances: [] as FakeAudio[],
+    /** What each `play()` call started: the `src` of the element at that moment. */
+    played: [] as string[],
+    /** While set, `play()` stays pending, like a start the WebView has not answered yet. */
+    hold: false,
+    pending: undefined as { resolve: () => void; reject: (error: Error) => void } | undefined,
+    get element() {
+      return audio.instances[0]!;
+    },
+  };
   class FakeAudio {
-    src: string;
+    private source = '';
     playbackRate = 1;
     defaultPlaybackRate = 1;
     onended: (() => void) | null = null;
     onerror: (() => void) | null = null;
-    play = vi.fn(() =>
-      audio.blocked
-        ? Promise.reject(new DOMException('Not allowed', 'NotAllowedError'))
-        : Promise.resolve(),
-    );
+    play = vi.fn(() => {
+      audio.played.push(this.src);
+      if (audio.blocked) return Promise.reject(new DOMException('Not allowed', 'NotAllowedError'));
+      if (audio.hold)
+        return new Promise<void>((resolve, reject) => {
+          audio.pending = { resolve, reject };
+        });
+      return Promise.resolve();
+    });
     pause = vi.fn();
-    removeAttribute = vi.fn();
-    load = vi.fn();
-    constructor(src: string) {
-      this.src = src;
+    removeAttribute = vi.fn((name: string) => {
+      if (name === 'src') this.src = '';
+    });
+    // The load algorithm puts the playback rate back to the default.
+    load = vi.fn(() => {
+      this.playbackRate = this.defaultPlaybackRate;
+    });
+    constructor() {
       audio.instances.push(this);
+    }
+    get src() {
+      return this.source;
+    }
+    set src(value: string) {
+      this.source = value;
+      // Like the element: a new source runs the load algorithm, which interrupts a start that is
+      // still pending and puts the playback rate back to the default.
+      this.playbackRate = this.defaultPlaybackRate;
+      audio.pending?.reject(new DOMException('Interrupted by a new load request', 'AbortError'));
+      audio.pending = undefined;
     }
     end() {
       this.onended?.();
@@ -141,10 +180,11 @@ async function setup({
     }
   }
   vi.stubGlobal('Audio', FakeAudio);
-  const urls = { created: [] as string[], revoked: [] as string[] };
-  vi.spyOn(URL, 'createObjectURL').mockImplementation(() => {
+  const urls = { created: [] as string[], revoked: [] as string[], blobs: [] as Blob[] };
+  vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
     const url = `blob:fake/${urls.created.length}`;
     urls.created.push(url);
+    urls.blobs.push(blob as Blob);
     return url;
   });
   vi.spyOn(URL, 'revokeObjectURL').mockImplementation((url) => {
@@ -180,9 +220,12 @@ async function setup({
     emitBridge,
     emitWindow,
     emitWindowRaw,
-    listenerCount: (type: string) => windowListeners.get(type)?.size ?? 0,
+    listenerCount: (type: string) => listenersOf(type).length,
+    fireWindow: (type: string) => {
+      for (const listener of listenersOf(type)) listener({});
+    },
     firePageHide: () => {
-      for (const listener of [...(windowListeners.get('pagehide') ?? [])]) listener({});
+      for (const listener of listenersOf('pagehide')) listener({});
     },
     flush: () => vi.advanceTimersByTimeAsync(0),
     callbacks: () => ({ finished: vi.fn(), failed: vi.fn(), fallback: vi.fn() }),
@@ -616,8 +659,8 @@ describe('speaking with the natural voice', () => {
       voice: 'default',
       response_format: 'wav',
     });
-    expect(audio.instances).toHaveLength(1);
-    const clip = audio.instances[0]!;
+    expect(audio.played).toEqual([urls.created[0]]);
+    const clip = audio.element;
     expect(clip.src).toBe(urls.created[0]);
     expect(clip.play).toHaveBeenCalledTimes(1);
     // The reading speed setting applies to the clip.
@@ -630,7 +673,12 @@ describe('speaking with the natural voice', () => {
     expect(fallback).not.toHaveBeenCalled();
     expect(urls.revoked).toEqual(urls.created);
     expect(clip.pause).toHaveBeenCalled();
+    // The element lets go of the clip: no source and no handlers are left, and the media resource is
+    // unloaded (removing the attribute alone does not do that).
+    expect(clip.load).toHaveBeenCalled();
+    expect(clip.src).toBe('');
     expect(clip.onended).toBeNull();
+    expect(clip.onerror).toBeNull();
   });
 
   it.each([
@@ -646,7 +694,7 @@ describe('speaking with the natural voice', () => {
     const { finished, fallback } = callbacks();
     natural.speakNaturalVoice('你好', rate, finished, fallback);
     await flush();
-    expect(audio.instances[0]!.playbackRate).toBe(expected);
+    expect(audio.element.playbackRate).toBe(expected);
   });
 
   it('plays the segments in order and synthesizes the next one while a clip plays', async () => {
@@ -662,17 +710,17 @@ describe('speaking with the natural voice', () => {
     await flush();
     // The first clip plays; the second segment is already being synthesized, the third is not.
     expect(inputs()).toEqual(segments.slice(0, 2));
-    expect(audio.instances).toHaveLength(1);
-    audio.instances[0]!.end();
+    expect(audio.played).toHaveLength(1);
+    audio.element.end();
     await flush();
     expect(inputs()).toEqual(segments);
-    expect(audio.instances).toHaveLength(2);
+    expect(audio.played).toHaveLength(2);
     expect(urls.revoked).toEqual([urls.created[0]]);
-    audio.instances[1]!.end();
+    audio.element.end();
     await flush();
-    expect(audio.instances).toHaveLength(3);
+    expect(audio.played).toHaveLength(3);
     expect(finished).not.toHaveBeenCalled();
-    audio.instances[2]!.end();
+    audio.element.end();
     await flush();
     expect(finished).toHaveBeenCalledTimes(1);
     expect(fallback).not.toHaveBeenCalled();
@@ -698,7 +746,7 @@ describe('speaking with the natural voice', () => {
     await flush();
     expect(fallback).toHaveBeenCalledExactlyOnceWith('你好，請問有什麼事？');
     expect(finished).not.toHaveBeenCalled();
-    expect(audio.instances).toHaveLength(0);
+    expect(audio.played).toHaveLength(0);
     expect(urls.created).toEqual([]);
     // A bad clip says nothing about the key: the service stays ready.
     expect(natural.speakNaturalVoice('再試一次', 1, finished, fallback)).toBe(true);
@@ -712,7 +760,7 @@ describe('speaking with the natural voice', () => {
     const { finished, fallback } = callbacks();
     natural.speakNaturalVoice('你好', 1, finished, fallback);
     await flush();
-    expect(audio.instances).toHaveLength(1);
+    expect(audio.played).toHaveLength(1);
     expect(fallback).not.toHaveBeenCalled();
   });
 
@@ -728,12 +776,12 @@ describe('speaking with the natural voice', () => {
     await flush();
     // The failure is only noticed when the second clip would start; the first one plays on.
     expect(fallback).not.toHaveBeenCalled();
-    audio.instances[0]!.end();
+    audio.element.end();
     await flush();
     expect(fallback).toHaveBeenCalledExactlyOnceWith(`${segments[1]} ${segments[2]}`);
     expect(finished).not.toHaveBeenCalled();
     expect(fetcher).toHaveBeenCalledTimes(2);
-    expect(audio.instances).toHaveLength(1);
+    expect(audio.played).toHaveLength(1);
   });
 
   it('gives the whole text to the caller when the first segment fails', async () => {
@@ -845,7 +893,7 @@ describe('speaking with the natural voice', () => {
     await vi.advanceTimersByTimeAsync(60000);
     expect(finished).not.toHaveBeenCalled();
     expect(fallback).not.toHaveBeenCalled();
-    expect(audio.instances).toHaveLength(0);
+    expect(audio.played).toHaveLength(0);
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
@@ -859,7 +907,7 @@ describe('speaking with the natural voice', () => {
     const { finished, fallback } = callbacks();
     natural.speakNaturalVoice(threeSegments, 1, finished, fallback);
     await flush();
-    const clip = audio.instances[0]!;
+    const clip = audio.element;
     const prefetch = fetcher.mock.calls[1]![1].signal!;
     expect(prefetch.aborted).toBe(false);
     natural.stopNaturalVoice();
@@ -870,7 +918,7 @@ describe('speaking with the natural voice', () => {
     await vi.advanceTimersByTimeAsync(60000);
     expect(finished).not.toHaveBeenCalled();
     expect(fallback).not.toHaveBeenCalled();
-    expect(audio.instances).toHaveLength(1);
+    expect(audio.played).toHaveLength(1);
   });
 
   it('does not start a clip that arrives in the same moment as a stop', async () => {
@@ -891,7 +939,7 @@ describe('speaking with the natural voice', () => {
     const { finished, fallback } = callbacks();
     natural.speakNaturalVoice(threeSegments, 1, finished, fallback);
     await flush();
-    expect(audio.instances).toHaveLength(0);
+    expect(audio.played).toHaveLength(0);
     expect(urls.created).toEqual([]);
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(finished).not.toHaveBeenCalled();
@@ -931,11 +979,11 @@ describe('speaking with the natural voice', () => {
     await flush();
     natural.speakNaturalVoice('第二段', 1, second.finished, second.fallback);
     await flush();
-    expect(audio.instances).toHaveLength(2);
-    expect(audio.instances[0]!.pause).toHaveBeenCalled();
+    expect(audio.played).toHaveLength(2);
+    expect(audio.element.pause).toHaveBeenCalled();
     expect(urls.revoked).toEqual([urls.created[0]]);
-    audio.instances[0]!.end();
-    audio.instances[1]!.end();
+    audio.element.end();
+    audio.element.end();
     await flush();
     expect(first.finished).not.toHaveBeenCalled();
     expect(first.fallback).not.toHaveBeenCalled();
@@ -960,9 +1008,9 @@ describe('speaking with the natural voice', () => {
     const { finished, fallback } = callbacks();
     natural.speakNaturalVoice(threeSegments, 1, finished, fallback);
     await flush();
-    audio.instances[0]!.end();
+    audio.element.end();
     await flush();
-    audio.instances[1]!.fail();
+    audio.element.fail();
     await flush();
     expect(fallback).toHaveBeenCalledExactlyOnceWith(`${segments[1]} ${segments[2]}`);
     expect(finished).not.toHaveBeenCalled();
@@ -978,7 +1026,7 @@ describe('speaking with the natural voice', () => {
     expect(fallback).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
     expect(fallback).toHaveBeenCalledExactlyOnceWith('你好');
-    expect(audio.instances[0]!.pause).toHaveBeenCalled();
+    expect(audio.element.pause).toHaveBeenCalled();
     expect(urls.revoked).toEqual(urls.created);
   });
 
@@ -994,7 +1042,7 @@ describe('speaking with the natural voice', () => {
       vi.fn(),
     );
     await flush();
-    audio.instances[0]!.end();
+    audio.element.end();
     await flush();
   });
 
@@ -1012,7 +1060,7 @@ describe('speaking with the natural voice', () => {
     natural.speakNaturalVoice(threeSegments, 1, finished, fallback);
     await flush();
     for (let i = 0; i < 3; i += 1) {
-      audio.instances[i]!.end();
+      audio.element.end();
       await flush();
     }
     expect(finished).toHaveBeenCalledTimes(1);
@@ -1023,6 +1071,278 @@ describe('speaking with the natural voice', () => {
     expect(session.setItem).not.toHaveBeenCalled();
     expect(JSON.stringify(sent())).not.toContain(KEY);
     for (const spy of consoles) expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe('the shared audio element', () => {
+  const gestures = ['pointerdown', 'pointerup', 'keydown', 'click'];
+
+  it('plays every clip on one element, swapping the source and releasing each URL', async () => {
+    const { natural, ready, audio, urls, flush, callbacks } = await setup({ enabled: true });
+    await ready();
+    const { finished, fallback } = callbacks();
+    natural.speakNaturalVoice(threeSegments, 1, finished, fallback);
+    await flush();
+    for (let i = 0; i < 3; i += 1) {
+      audio.element.end();
+      await flush();
+    }
+    expect(finished).toHaveBeenCalledTimes(1);
+    expect(audio.instances).toHaveLength(1);
+    expect(urls.created).toHaveLength(3);
+    // Each clip started the element with its own URL, and every URL was released.
+    expect(audio.played).toEqual(urls.created);
+    expect(urls.revoked).toEqual(urls.created);
+  });
+
+  it('applies the speed of each reading to the shared element, whatever the clip before had', async () => {
+    const { natural, ready, audio, flush, callbacks } = await setup({ enabled: true });
+    await ready();
+    const speeds: number[] = [];
+    for (const rate of [0.7, 1.4, 1]) {
+      const { finished, fallback } = callbacks();
+      natural.speakNaturalVoice('你好', rate, finished, fallback);
+      await flush();
+      speeds.push(audio.element.playbackRate);
+      audio.element.end();
+      await flush();
+    }
+    expect(speeds).toEqual([0.7, 1.4, 1]);
+    expect(audio.instances).toHaveLength(1);
+  });
+
+  it('keeps the same element for the next reading', async () => {
+    const { natural, ready, audio, flush, callbacks } = await setup({ enabled: true });
+    await ready();
+    const first = callbacks();
+    const second = callbacks();
+    natural.speakNaturalVoice('第一段', 1, first.finished, first.fallback);
+    await flush();
+    const element = audio.element;
+    element.end();
+    await flush();
+    natural.speakNaturalVoice('第二段', 1, second.finished, second.fallback);
+    await flush();
+    element.end();
+    await flush();
+    expect(audio.instances).toHaveLength(1);
+    expect(audio.played).toHaveLength(2);
+    expect(first.finished).toHaveBeenCalledTimes(1);
+    expect(second.finished).toHaveBeenCalledTimes(1);
+  });
+
+  it('creates no element, and listens to nothing, until the natural voice is used', async () => {
+    const { natural, listenerCount, audio } = await setup({ enabled: true });
+    for (const type of gestures) expect(listenerCount(type)).toBe(0);
+    expect(audio.instances).toHaveLength(0);
+    natural.armNaturalVoiceAudio();
+    for (const type of gestures) expect(listenerCount(type)).toBe(1);
+    // Nothing is created before the first interaction either.
+    expect(audio.instances).toHaveLength(0);
+  });
+
+  it('arms when the service is prepared, once, and listens in the capture phase', async () => {
+    const { natural, ready, fakeWindow, listenerCount } = await setup({ enabled: true });
+    await ready();
+    natural.armNaturalVoiceAudio();
+    natural.armNaturalVoiceAudio();
+    for (const type of gestures) {
+      expect(listenerCount(type)).toBe(1);
+      // One registration per event, made in the capture phase.
+      expect(fakeWindow.addEventListener.mock.calls.filter(([name]) => name === type)).toEqual([
+        [type, expect.any(Function), true],
+      ]);
+    }
+  });
+
+  it('does not arm outside the app', async () => {
+    const { natural, audio, fakeWindow } = await setup({ enabled: true });
+    vi.stubGlobal('window', { addEventListener: fakeWindow.addEventListener });
+    expect(() => natural.armNaturalVoiceAudio()).not.toThrow();
+    expect(fakeWindow.addEventListener).not.toHaveBeenCalled();
+    expect(audio.instances).toHaveLength(0);
+  });
+
+  it.each(gestures)('unlocks the element at the first %s with a silent clip', async (type) => {
+    const { natural, audio, urls, fireWindow, listenerCount, flush } = await setup({
+      enabled: true,
+    });
+    natural.armNaturalVoiceAudio();
+    fireWindow(type);
+    await flush();
+    // The element was started on the silent clip, then paused and let go of.
+    expect(audio.instances).toHaveLength(1);
+    expect(audio.played).toEqual([urls.created[0]]);
+    expect(audio.element.pause).toHaveBeenCalled();
+    expect(audio.element.src).toBe('');
+    expect(urls.revoked).toEqual(urls.created);
+    // Done: nothing listens any more, and later interactions change nothing.
+    for (const other of gestures) expect(listenerCount(other)).toBe(0);
+    fireWindow(type);
+    await flush();
+    expect(audio.played).toHaveLength(1);
+  });
+
+  it('unlocks with a short silent WAV that is built in code', async () => {
+    const { natural, urls, fireWindow, flush } = await setup({ enabled: true });
+    natural.armNaturalVoiceAudio();
+    fireWindow('pointerdown');
+    await flush();
+    const blob = urls.blobs[0]!;
+    expect(blob.type).toBe('audio/wav');
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const view = new DataView(bytes.buffer);
+    const text = (from: number, to: number) => String.fromCharCode(...bytes.slice(from, to));
+    expect([text(0, 4), text(8, 12), text(12, 16), text(36, 40)]).toEqual([
+      'RIFF',
+      'WAVE',
+      'fmt ',
+      'data',
+    ]);
+    expect(view.getUint32(4, true)).toBe(bytes.length - 8);
+    expect(view.getUint32(16, true)).toBe(16);
+    expect(view.getUint16(20, true)).toBe(1); // PCM
+    expect(view.getUint16(22, true)).toBe(1); // mono
+    expect(view.getUint32(24, true) * 2).toBe(view.getUint32(28, true)); // 16 bit samples
+    expect(view.getUint16(32, true)).toBe(2);
+    expect(view.getUint16(34, true)).toBe(16);
+    expect(view.getUint32(40, true)).toBe(bytes.length - 44);
+    expect(bytes.slice(44).every((byte) => byte === 0)).toBe(true);
+    // A short clip: well under 100 ms.
+    expect((bytes.length - 44) / 2 / view.getUint32(24, true)).toBeLessThan(0.1);
+    expect(bytes.length).toBeLessThan(4000);
+  });
+
+  it('keeps listening after a refused attempt, and tries again at the next interaction', async () => {
+    const { natural, audio, urls, fireWindow, listenerCount, flush } = await setup({
+      enabled: true,
+    });
+    natural.armNaturalVoiceAudio();
+    audio.blocked = true;
+    fireWindow('pointerdown');
+    await flush();
+    expect(audio.played).toHaveLength(1);
+    // The refused attempt let go of the element and its URL, and nothing is unlocked yet.
+    expect(audio.element.src).toBe('');
+    expect(urls.revoked).toEqual(urls.created);
+    for (const type of gestures) expect(listenerCount(type)).toBe(1);
+    audio.blocked = false;
+    fireWindow('pointerup');
+    await flush();
+    expect(audio.played).toHaveLength(2);
+    for (const type of gestures) expect(listenerCount(type)).toBe(0);
+  });
+
+  it('does not start a second attempt while one is under way', async () => {
+    const { natural, audio, fireWindow, listenerCount, flush } = await setup({ enabled: true });
+    natural.armNaturalVoiceAudio();
+    audio.hold = true;
+    fireWindow('pointerdown');
+    fireWindow('pointerup');
+    fireWindow('click');
+    await flush();
+    expect(audio.played).toHaveLength(1);
+    expect(audio.element.pause).not.toHaveBeenCalled();
+    audio.pending!.resolve();
+    await flush();
+    expect(audio.element.pause).toHaveBeenCalled();
+    expect(audio.played).toHaveLength(1);
+    for (const type of gestures) expect(listenerCount(type)).toBe(0);
+  });
+
+  it('leaves the element alone when an interaction comes while a clip is starting on it', async () => {
+    const { natural, ready, audio, urls, fireWindow, listenerCount, flush, callbacks } =
+      await setup({ enabled: true });
+    await ready();
+    audio.hold = true;
+    const { finished, fallback } = callbacks();
+    natural.speakNaturalVoice('你好', 1, finished, fallback);
+    await flush();
+    expect(audio.played).toEqual([urls.created[0]]);
+    fireWindow('pointerdown');
+    await flush();
+    // No second source, no second start: the clip keeps the element.
+    expect(audio.played).toEqual([urls.created[0]]);
+    expect(audio.element.src).toBe(urls.created[0]);
+    audio.pending!.resolve();
+    await flush();
+    // The clip started, which is proof enough that the element may play.
+    for (const type of gestures) expect(listenerCount(type)).toBe(0);
+    audio.element.end();
+    await flush();
+    expect(finished).toHaveBeenCalledTimes(1);
+    expect(fallback).not.toHaveBeenCalled();
+  });
+
+  it('lets a clip take the element from an attempt that is still under way', async () => {
+    const { natural, ready, audio, urls, fireWindow, listenerCount, flush, callbacks } =
+      await setup({ enabled: true });
+    await ready();
+    audio.hold = true;
+    fireWindow('pointerdown');
+    expect(audio.played).toEqual([urls.created[0]]);
+    audio.hold = false;
+    const { finished, fallback } = callbacks();
+    natural.speakNaturalVoice('你好', 1, finished, fallback);
+    await flush();
+    // The clip started on the same element. The interrupted attempt did not fail the clip, and did
+    // not reset the element under it; only its own URL was released.
+    expect(audio.instances).toHaveLength(1);
+    expect(audio.played).toEqual([urls.created[0], urls.created[1]]);
+    expect(audio.element.src).toBe(urls.created[1]);
+    expect(urls.revoked).toEqual([urls.created[0]]);
+    expect(fallback).not.toHaveBeenCalled();
+    for (const type of gestures) expect(listenerCount(type)).toBe(0);
+    audio.element.end();
+    await flush();
+    expect(finished).toHaveBeenCalledTimes(1);
+    expect(urls.revoked).toEqual(urls.created);
+  });
+
+  it('stops listening when the natural voice is released, and listens again when it is used', async () => {
+    const { natural, ready, audio, fireWindow, listenerCount, flush } = await setup({
+      enabled: true,
+    });
+    await ready();
+    natural.releaseNaturalVoice();
+    for (const type of gestures) expect(listenerCount(type)).toBe(0);
+    fireWindow('pointerdown');
+    await flush();
+    expect(audio.instances).toHaveLength(0);
+    await natural.prepareNaturalVoice();
+    for (const type of gestures) expect(listenerCount(type)).toBe(1);
+  });
+
+  it('does not listen again once the element is unlocked', async () => {
+    const { natural, ready, audio, fakeWindow, fireWindow, listenerCount, flush } = await setup({
+      enabled: true,
+    });
+    const registrations = () =>
+      fakeWindow.addEventListener.mock.calls.filter(([type]) => gestures.includes(type)).length;
+    await ready();
+    expect(registrations()).toBe(gestures.length);
+    fireWindow('click');
+    await flush();
+    expect(audio.played).toHaveLength(1);
+    natural.releaseNaturalVoice();
+    await natural.prepareNaturalVoice();
+    natural.armNaturalVoiceAudio();
+    for (const type of gestures) expect(listenerCount(type)).toBe(0);
+    expect(registrations()).toBe(gestures.length);
+  });
+
+  it('survives an element that cannot be created', async () => {
+    const { natural, ready, fireWindow, listenerCount, flush } = await setup({ enabled: true });
+    await ready();
+    vi.stubGlobal('Audio', undefined);
+    expect(() => fireWindow('pointerdown')).not.toThrow();
+    await flush();
+    // Nothing was unlocked, so the next interaction may try again.
+    for (const type of gestures) expect(listenerCount(type)).toBe(1);
+    const { finished, fallback } = { finished: vi.fn(), fallback: vi.fn() };
+    natural.speakNaturalVoice('你好', 1, finished, fallback);
+    await flush();
+    expect(fallback).toHaveBeenCalledExactlyOnceWith('你好');
   });
 });
 
@@ -1038,10 +1358,10 @@ describe('read-aloud with the natural voice', () => {
     speech.readAloud('你好，請問有什麼事？', zh, 0.9, finished, failed);
     await flush();
     expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(audio.instances).toHaveLength(1);
+    expect(audio.played).toHaveLength(1);
     expect(speaks()).toEqual([]);
     expect(finished).not.toHaveBeenCalled();
-    audio.instances[0]!.end();
+    audio.element.end();
     await flush();
     expect(finished).toHaveBeenCalledTimes(1);
     expect(failed).not.toHaveBeenCalled();
@@ -1104,7 +1424,7 @@ describe('read-aloud with the natural voice', () => {
     speech.readAloud('你好', zh, 1, next.finished, next.failed);
     await flush();
     expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(audio.instances).toHaveLength(1);
+    expect(audio.played).toHaveLength(1);
     expect(speaks()).toHaveLength(1);
   });
 
@@ -1117,7 +1437,7 @@ describe('read-aloud with the natural voice', () => {
     const { finished, failed } = callbacks();
     speech.readAloud(threeSegments, zh, 0.7, finished, failed);
     await flush();
-    audio.instances[0]!.end();
+    audio.element.end();
     await flush();
     expect(speaks()).toEqual([
       {
@@ -1202,6 +1522,52 @@ describe('read-aloud with the natural voice', () => {
     expect(failed).not.toHaveBeenCalled();
   });
 
+  it('reads with the system voice when the element refuses to play, and recovers after an interaction', async () => {
+    const {
+      speech,
+      ready,
+      speaks,
+      emitBridge,
+      audio,
+      urls,
+      fetcher,
+      fireWindow,
+      listenerCount,
+      flush,
+      callbacks,
+    } = await setup({ enabled: true });
+    await ready();
+    audio.blocked = true;
+    const first = callbacks();
+    speech.readAloud('你好', zh, 1, first.finished, first.failed);
+    await flush();
+    // The clip was refused: the system voice reads the text, and the reading is not over yet.
+    expect(speaks().map((message) => message.data.text)).toEqual(['你好']);
+    expect(first.finished).not.toHaveBeenCalled();
+    const requestId = speaks()[0]!.data.requestId;
+    emitBridge('tts', { requestId, event: 'start' });
+    emitBridge('tts', { requestId, event: 'done' });
+    expect(first.finished).toHaveBeenCalledTimes(1);
+    expect(first.failed).not.toHaveBeenCalled();
+    // The next interaction unlocks the element: the refused clip did not leave it marked as in use.
+    audio.blocked = false;
+    fireWindow('pointerup');
+    await flush();
+    expect(audio.played).toEqual([urls.created[0], urls.created[1]]);
+    expect(listenerCount('pointerup')).toBe(0);
+    // From then on the natural voice plays.
+    const second = callbacks();
+    speech.readAloud('你好', zh, 1, second.finished, second.failed);
+    await flush();
+    expect(speaks()).toHaveLength(1);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(audio.played).toHaveLength(3);
+    audio.element.end();
+    await flush();
+    expect(second.finished).toHaveBeenCalledTimes(1);
+    expect(second.failed).not.toHaveBeenCalled();
+  });
+
   it('finishes a natural reading once when stopReading stops it, with nothing on the bridge', async () => {
     const { speech, ready, server, fetcher, sent, callbacks, flush } = await setup({
       enabled: true,
@@ -1233,11 +1599,11 @@ describe('read-aloud with the natural voice', () => {
     speech.readAloud('你好', zh, 1, finished, failed);
     await flush();
     speech.stopReading();
-    expect(audio.instances[0]!.pause).toHaveBeenCalled();
+    expect(audio.element.pause).toHaveBeenCalled();
     expect(urls.revoked).toEqual(urls.created);
     expect(finished).toHaveBeenCalledTimes(1);
     // A late event of the stopped clip changes nothing.
-    audio.instances[0]!.end();
+    audio.element.end();
     await flush();
     expect(finished).toHaveBeenCalledTimes(1);
     expect(failed).not.toHaveBeenCalled();
@@ -1249,7 +1615,7 @@ describe('read-aloud with the natural voice', () => {
     const { finished, failed } = callbacks();
     speech.readAloud('你好', zh, 1, finished, failed);
     await flush();
-    audio.instances[0]!.end();
+    audio.element.end();
     await flush();
     expect(finished).toHaveBeenCalledTimes(1);
     const before = sent().length;
@@ -1272,11 +1638,11 @@ describe('read-aloud with the natural voice', () => {
     speech.readAloud('second', 'en', 1, second.finished, second.failed);
     expect(first.finished).toHaveBeenCalledTimes(1);
     expect(first.failed).not.toHaveBeenCalled();
-    expect(audio.instances[0]!.pause).toHaveBeenCalled();
+    expect(audio.element.pause).toHaveBeenCalled();
     expect(speaks().map((message) => message.data.text)).toEqual(['second']);
     expect(sentNamed('tts').map((message) => message.data.action)).toEqual(['speak']);
     // A late event of the replaced clip changes nothing; the new reading ends on its own events.
-    audio.instances[0]!.end();
+    audio.element.end();
     await flush();
     expect(first.finished).toHaveBeenCalledTimes(1);
     expect(second.finished).not.toHaveBeenCalled();
@@ -1312,7 +1678,7 @@ describe('read-aloud with the natural voice', () => {
     expect(first.finished).toHaveBeenCalledTimes(1);
     emitBridge('tts', { requestId: firstId, event: 'stopped' });
     emitBridge('tts', { requestId: firstId, event: 'done' });
-    audio.instances[0]!.end();
+    audio.element.end();
     await flush();
     expect(first.finished).toHaveBeenCalledTimes(1);
     expect(first.failed).not.toHaveBeenCalled();
@@ -1329,13 +1695,13 @@ describe('read-aloud with the natural voice', () => {
     await flush();
     speech.readAloud('第二段', zh, 1, second.finished, second.failed);
     await flush();
-    expect(audio.instances).toHaveLength(2);
-    expect(audio.instances[0]!.pause).toHaveBeenCalled();
+    expect(audio.played).toHaveLength(2);
+    expect(audio.element.pause).toHaveBeenCalled();
     // The replaced reading ended the moment the new one began; the new one is still going.
     expect(first.finished).toHaveBeenCalledTimes(1);
     expect(second.finished).not.toHaveBeenCalled();
-    audio.instances[0]!.end();
-    audio.instances[1]!.end();
+    audio.element.end();
+    audio.element.end();
     await flush();
     expect(first.finished).toHaveBeenCalledTimes(1);
     expect(first.failed).not.toHaveBeenCalled();
