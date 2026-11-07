@@ -118,7 +118,9 @@ a {
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 100dvh;
+  /* 開發看板（src/dev/hud.ts，?hud=1）固定在最上方，把高度寫進 --dev-hud-height 讓頁面讓位。 */
+  height: calc(100dvh - var(--dev-hud-height, 0px));
+  margin-top: var(--dev-hud-height, 0px);
   margin-inline: auto;
   background: var(--paper);
 }
@@ -410,8 +412,22 @@ a {
   max-width: 2%;
 }
 .voice-wave.is-active > span {
-  animation: voice-pulse var(--bar-duration) ease-in-out var(--bar-delay) infinite alternate;
+  animation: voice-pulse 0.75s ease-in-out var(--bar-delay) infinite alternate;
 }
+.continue-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: calc(100% - 2.75rem);
+  margin: 0.5rem 1.375rem 1rem;
+  color: var(--teal);
+  text-decoration: underline;
+}
+.continue-button svg {
+  transform: rotate(90deg);
+}
+
 /* Conversation, choices and verified results share the Figma bubble language. */
 .conversation {
   display: flex;
@@ -645,72 +661,6 @@ dd {
 .action-row > button {
   flex: 1 1 120px;
 }
-/* 離開助手前的確認：官方入口卡片與結果卡片內的確認區 */
-.navigation-card {
-  border-color: var(--teal);
-  border-width: 2px;
-}
-.navigation-card h2 {
-  font-size: 1.125rem;
-}
-.navigation-card .result-card p,
-.navigation-card p {
-  color: var(--ink);
-}
-.prefill {
-  display: grid;
-  gap: 0.35rem;
-  width: 100%;
-  padding: 0.75rem;
-  border-radius: 10px;
-  background: var(--pale);
-}
-.prefill textarea {
-  width: 100%;
-  font-size: 1rem;
-  line-height: 1.5;
-}
-.prefill input:not([type='checkbox']) {
-  width: 100%;
-  font-size: 1.125rem;
-  letter-spacing: 0.05em;
-}
-.field-error {
-  color: #a1260d;
-  font-weight: 600;
-}
-.check {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 48px;
-}
-.check input {
-  width: 1.25rem;
-  height: 1.25rem;
-}
-.remembered {
-  display: grid;
-  gap: 0.35rem;
-}
-.remembered h2 {
-  font-size: 1rem;
-  font-weight: 600;
-}
-.leave-confirm {
-  display: grid;
-  gap: 0.35rem;
-  width: 100%;
-  padding: 0.75rem;
-  border-radius: 10px;
-  background: var(--pale);
-}
-.leave-confirm p {
-  color: var(--ink);
-  font-weight: 600;
-}
-
-/* 按鈕 */
 .primary-button,
 .outline-button {
   display: inline-flex;
@@ -757,59 +707,6 @@ dd {
   background: var(--pale);
   font-size: 0.875rem;
 }
-/* 緊急狀況：大而明顯的撥號按鈕 */
-.emergency-card {
-  border: 2px solid #a1260d;
-}
-.emergency-card h2 {
-  font-size: 1.125rem;
-  color: var(--ink);
-}
-.emergency-call {
-  background: #a1260d;
-  border-color: #a1260d;
-  min-height: 56px;
-  font-size: 1.125rem;
-}
-
-/* 回答下方的選項：補資料用的選擇題，或下一步建議 */
-.choices {
-  display: grid;
-  gap: 0.5rem;
-  width: 100%;
-}
-.choices h2 {
-  color: var(--muted);
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-.choices-ask h2 {
-  color: var(--ink);
-  font-size: 1rem;
-}
-.choices .suggestions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-.choices .suggestions button {
-  min-height: 48px;
-  padding: 0.65rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  color: var(--deep);
-  background: var(--bubble);
-  text-align: left;
-}
-.choices .suggestions button:hover:not(:disabled) {
-  background: var(--pale);
-}
-.choices-ask .suggestions button {
-  border-color: var(--teal);
-  border-width: 2px;
-  font-weight: 600;
-}
-
 .demo-badge {
   justify-self: start;
   padding: 0.125rem 0.625rem;
@@ -1180,6 +1077,111 @@ dd {
   height: var(--bar-ratio);
 }
 
+/* 前往確認卡：報案表單（有話要說）、會員資料帶入、水號 */
+.navigation-card {
+  border-color: var(--teal);
+}
+.navigation-card dl,
+.report-form dl {
+  margin: 0;
+}
+.report-form,
+.prefill {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 1rem;
+  border-radius: 1.25rem;
+  background: var(--pale);
+}
+.report-form .field-label,
+.prefill .field-label {
+  margin-top: 0.25rem;
+  color: var(--deep);
+}
+.report-form textarea {
+  width: 100%;
+  min-height: 6rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--muted);
+  border-radius: 0.75rem;
+  background: var(--paper);
+  line-height: 1.5;
+  resize: vertical;
+}
+.report-form a {
+  color: var(--teal);
+}
+.report-photo {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+}
+.photo-button {
+  gap: 0.5rem;
+  cursor: pointer;
+}
+.photo-preview {
+  width: 100%;
+  max-height: 14rem;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--paper);
+}
+.field-error {
+  color: #a1260d;
+  font-weight: 600;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: var(--touch-target);
+}
+.check input {
+  width: 1.25rem;
+  min-height: 0;
+  height: 1.25rem;
+}
+
+/* 離開助手前的確認、緊急撥號、回答下方的選項 */
+.leave-confirm {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-radius: 1.25rem;
+  background: var(--pale);
+}
+.leave-confirm p {
+  font-weight: 600;
+}
+.emergency-card {
+  border: 2px solid #a1260d;
+}
+.emergency-call {
+  min-height: 56px;
+  border-color: #a1260d;
+  background: #a1260d;
+  font-size: 1.125rem;
+}
+.emergency-call:hover:not(:disabled) {
+  background: #801d0a;
+}
+.choices {
+  display: grid;
+  gap: 0.5rem;
+}
+.choices h2 {
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.choices-ask h2 {
+  color: var(--ink);
+  font-size: 1rem;
+}
+
 /* In-place feedback: no translating, lifting or scaling interactive controls. */
 button,
 a,
@@ -1284,10 +1286,10 @@ button:active:not(:disabled) {
 }
 @keyframes voice-pulse {
   from {
-    transform: scaleY(0.25);
+    transform: scaleY(0.45);
   }
   to {
-    transform: scaleY(1.15);
+    transform: scaleY(1);
   }
 }
 @media (max-width: 389px) {

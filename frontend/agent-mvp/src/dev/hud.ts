@@ -268,6 +268,9 @@ function replaceContent(html: string): void {
   const hadFocus = document.activeElement?.hasAttribute('data-hud-toggle') ?? false;
   overlay.innerHTML = html;
   if (hadFocus) overlay.querySelector<HTMLElement>('[data-hud-toggle]')?.focus();
+  // 沒有 ResizeObserver 的環境，改在每次重畫後同步高度。
+  if (typeof ResizeObserver === 'undefined')
+    document.documentElement.style.setProperty('--dev-hud-height', `${overlay.offsetHeight}px`);
 }
 
 function scheduleRender(): void {
@@ -329,5 +332,12 @@ export function mountDevHud(): void {
     setResources,
   };
   render();
+  // 看板固定在最上方；把它的高度寫進 --dev-hud-height，頁面（style.css）據此讓位，
+  // 不會被蓋住。展開／收合、內容換行造成的高度變化都會跟著更新。
+  const target = overlay;
+  const syncHeight = () =>
+    document.documentElement.style.setProperty('--dev-hud-height', `${target.offsetHeight}px`);
+  syncHeight();
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(syncHeight).observe(target);
   void trackBattery();
 }

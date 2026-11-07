@@ -19,6 +19,14 @@ export type Message = {
     function: { name: string; arguments: string };
   }[];
 };
+/** A single photo plus the skill's prompt, for the optional multimodal step. */
+export type VisionRequest = {
+  /** A small image data URL (re-encoded in `platform/image.ts`). */
+  image: string;
+  system: string;
+  instruction: string;
+  signal: AbortSignal;
+};
 export interface ModelAdapter {
   mode: 'demo' | 'local' | 'phone';
   requestTimeoutMs?: number;
@@ -27,6 +35,11 @@ export interface ModelAdapter {
     tools: ToolDefinition[];
     signal: AbortSignal;
   }): Promise<{ calls: ToolCall[]; content?: string }>;
+  /**
+   * Optional: look at one photo and return the model's raw text (the skill parses and validates
+   * it). Only adapters whose model is multimodal implement this; callers check for it first.
+   */
+  vision?(input: VisionRequest): Promise<string>;
 }
 export type Trace = {
   id: number;

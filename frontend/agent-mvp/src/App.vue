@@ -6,6 +6,19 @@ import { withDemoBills } from './agent/tool-client';
 import PhoneModelPanel from './components/PhoneModelPanel.vue';
 import { PhoneModel, type PhoneState } from './agent/phone-model';
 import UiIcon from './components/UiIcon.vue';
+import NavigationPanel from './components/NavigationPanel.vue';
+import EmergencyCard from './components/EmergencyCard.vue';
+import ProfilePanel from './components/ProfilePanel.vue';
+import { followUps } from './agent/follow-ups';
+import { serviceOrigin } from './platform/service-navigation';
+import {
+  forgetWaterNumber,
+  formatWaterNumber,
+  loadProfile,
+  TAIPEI_DISTRICTS,
+  updateProfile,
+} from './platform/profile';
+import { readMember, type Member } from './platform/member';
 import WelcomePanel from './components/WelcomePanel.vue';
 import VoiceWave from './components/VoiceWave.vue';
 import { messages } from './i18n';
@@ -19,7 +32,6 @@ import {
   type TaskState,
 } from './agent/types';
 import { AgentRunner } from './agent/runner';
-import { followUps } from './agent/follow-ups';
 import { createAgentToolClient } from '../../../tools/townpass/src/agent-client';
 import { DemoModel, LocalModel } from './agent/model';
 import { cancelDraft, changeBranch, confirmReservation, prepareReservation } from './agent/tools';
@@ -36,33 +48,6 @@ import {
 import { canReadAloud, readAloud, stopReading } from './platform/speech';
 import { getLocation, openLink } from './platform/location';
 import { createVoiceInput, type VoiceStatus } from './platform/voice-input';
-import { serviceOrigin } from './platform/service-navigation';
-import { PREFILL_FORM_PATH, PREFILL_SLOTS } from './agent/prefill';
-import { draftReport, type ReportDraft } from './agent/skills/report-draft';
-import {
-  forgetWaterNumber,
-  formatWaterNumber,
-  loadProfile,
-  normalizeWaterNumber,
-  rememberWaterNumber,
-} from './platform/profile';
-import { maskIdNo, maskPhone, readMember, type Member } from './platform/member';
-import { TAIPEI_DISTRICTS, updateProfile } from './platform/profile';
-import { EMERGENCY_NUMBERS } from './agent/skills/emergency';
-
-const EMERGENCY_TEXT = {
-  fire: 'emergencyFire',
-  medical: 'emergencyMedical',
-  violence: 'emergencyViolence',
-  police: 'emergencyPolice',
-  mental: 'emergencyMental',
-} as const;
-const CALL_LABEL: Record<string, 'call119' | 'call110' | 'call113' | 'call1925'> = {
-  '119': 'call119',
-  '110': 'call110',
-  '113': 'call113',
-  '1925': 'call1925',
-};
 
 const locale = ref<Locale>(
   getPreference('tp-language', 'zh-Hant-TW') === 'en' ? 'en' : 'zh-Hant-TW',
@@ -134,20 +119,58 @@ let adapter: ModelAdapter =
           import.meta.env.VITE_MODEL_PROTOCOL === 'tools' ? 'tools' : 'json-schema',
         )
       : new DemoModel();
-// 預設只用真實資料：官方即時／開放資料與官方入口，不拿模擬資料回答使用者。
-// 開發時 VITE_TOOL_SOURCE=townpass-demo 可加回示範站資料與示範帳單，=demo 則為完全虛構的資料。
+// 預設只用真實資料：台北通官方工具與開放資料（includeDemo: false）。帳單、前往確認卡與水號帶入
+// 都走這條路；示範帳單面板（withDemoBills）會攔下繳費需求，所以只在示範資料模式提供。
+// VITE_TOOL_SOURCE=townpass-demo 加回示範站模擬資料與示範帳單，=demo 為完全虛構的資料。
 const toolSource = import.meta.env.VITE_TOOL_SOURCE;
-const realData = toolSource !== 'demo' && toolSource !== 'townpass-demo';
 const toolClient =
   toolSource === 'demo'
     ? undefined
     : toolSource === 'townpass-demo'
       ? withDemoBills(createAgentToolClient({ getLocation }), billReadTool)
       : createAgentToolClient({ getLocation, includeDemo: false });
+const realData = toolSource !== 'demo' && toolSource !== 'townpass-demo';
 let runner = new AgentRunner(adapter, state, toolClient);
-// Town Pass member data, read once from the app (memory only) for choices, drafts and the profile card.
+// 台北通會員資料：只在 App 內讀一次、只留在記憶體，供選項、草稿與「我的資料」使用。
 const memberInfo = ref<Member | null>(null);
 if (window.flutterObject) void readMember().then((m) => (memberInfo.value = m));
+// 民眾要求助手記住的資料（只存在這支手機）。
+const profile = ref(loadProfile());
+const homeDistrict = computed(() => profile.value.homeDistrict ?? memberInfo.value?.district);
+watch(
+  () => profile.value.preferAccessible,
+  (on) => (runner.preferences.accessible = Boolean(on)),
+  { immediate: true },
+);
+function setHomeDistrict(event: Event) {
+  updateProfile({ homeDistrict: (event.target as HTMLSelectElement).value || undefined });
+  profile.value = loadProfile();
+}
+function setPreferAccessible(event: Event) {
+  updateProfile({ preferAccessible: (event.target as HTMLInputElement).checked });
+  profile.value = loadProfile();
+}
+function forgetWater() {
+  forgetWaterNumber();
+  profile.value = loadProfile();
+}
+// 離開助手一律要第二次、明確的點選。
+const confirmingLink = ref<string | null>(null);
+const leftFor = ref(false);
+const hostOf = (url: string) => (url.startsWith('tel:') ? url.slice(4) : new URL(url).host);
+const leaveQuestion = (record: TaskState['records'][number]) =>
+  record.url?.startsWith(`${serviceOrigin}/`)
+    ? t.value.leaveAskApp.replace('{name}', record.title[locale.value])
+    : t.value.leaveAsk.replace('{host}', hostOf(record.url ?? ''));
+function goRecord(url: string) {
+  openLink(url);
+  leftFor.value = true;
+  confirmingLink.value = null;
+}
+// 示範（規則模擬）模式沒有真正的視覺模型；本機與手機模型才送照片。
+const canSeePhotos = computed(
+  () => mode.value === 'local' || (mode.value === 'phone' && phoneState.value.ready),
+);
 const speechSupported = ref(canReadAloud());
 const speaking = ref(false);
 const speechFailed = ref(false);
@@ -159,6 +182,7 @@ const activeBook = computed(() =>
 const activeBranch = computed(() =>
   branches.find((branch) => branch.id === state.receipt?.branchId),
 );
+// 真實資料模式的「不支援／沒有結果」要提到官方資料，不能暗示示範內容。
 const noticeText = (notice: TaskState['notice']) =>
   realData && notice === 'unsupported'
     ? t.value.unsupportedReal
@@ -166,6 +190,10 @@ const noticeText = (notice: TaskState['notice']) =>
       ? t.value.emptyReal
       : t.value[notice];
 const reply = computed(() => noticeText(state.notice));
+// 回答下方的選項：補資料用的選擇題（行政區、帳單種類），或下一步建議。
+const choices = computed(() =>
+  busy.value || state.draft ? null : followUps(state, { homeDistrict: homeDistrict.value }),
+);
 const suggestions = computed(() =>
   realData
     ? [
@@ -174,166 +202,12 @@ const suggestions = computed(() =>
         t.value.petitionSuggestion,
         t.value.paySuggestion,
         t.value.counter,
-        t.value.bookSuggestion,
         t.value.disabledSuggestion,
-        t.value.browseServices,
       ]
-    : [
-        t.value.browseBills,
-        t.value.browseBooks,
-        t.value.browseServices,
-        t.value.counter,
-        t.value.feeSuggestion,
-        t.value.youbikeSuggestion,
-        t.value.perkSuggestion,
-      ],
+    : [t.value.browseBooks, t.value.browseServices],
 );
-// Leaving the assistant always needs a second, explicit tap.
-const confirmingLink = ref<string | null>(null);
-const leftFor = ref<string | null>(null);
-const hostOf = (url: string) => (url.startsWith('tel:') ? url.slice(4) : new URL(url).host);
-// In-app Town Pass pages are named by service, not by the demo host they happen to load from.
-const leaveQuestion = (record: TaskState['records'][number]) =>
-  record.url?.startsWith(`${serviceOrigin}/`)
-    ? t.value.leaveAskApp.replace('{name}', record.title[locale.value])
-    : t.value.leaveAsk.replace('{host}', hostOf(record.url ?? ''));
-// Details the assistant fills in for the destination, so people do not type them again.
-const profile = ref(loadProfile());
-const member = ref<Member | 'loading' | 'unavailable' | null>(null);
-const waterInput = ref('');
-const rememberWater = ref(true);
-const editingWater = ref(false);
-const waterError = ref(false);
-const slots = computed(() => (state.navigation ? (PREFILL_SLOTS[state.navigation.id] ?? []) : []));
-const draft = reactive<ReportDraft>({ title: '', description: '', location: '' });
-const draftError = ref(false);
-// A new card (even for the same service) starts from the new request.
-watch(
-  () => state.navigation,
-  async () => {
-    Object.assign(
-      draft,
-      slots.value.some((slot) => slot.source === 'draft')
-        ? draftReport(lastRequest.value, memberInfo.value?.address)
-        : { title: '', description: '', location: '' },
-    );
-    draftError.value = false;
-    waterInput.value = '';
-    editingWater.value = false;
-    waterError.value = false;
-    member.value = null;
-    if (!slots.value.some((slot) => slot.source === 'member')) return;
-    member.value = 'loading';
-    member.value = (await readMember()) ?? 'unavailable';
-  },
-);
-function goNavigation() {
-  if (!state.navigation) return;
-  const prefill: Record<string, string> = {};
-  for (const slot of slots.value) {
-    if (slot.field === 'water_number') {
-      const typed = waterInput.value.trim();
-      if (typed) {
-        const digits = normalizeWaterNumber(typed);
-        if (!digits) {
-          waterError.value = true;
-          return;
-        }
-        prefill.water_number = digits;
-        if (rememberWater.value) {
-          rememberWaterNumber(digits);
-          profile.value = loadProfile();
-        }
-      } else if (profile.value.waterNumber && !editingWater.value)
-        prefill.water_number = profile.value.waterNumber;
-    } else if (slot.source === 'draft') {
-      const value = draft[slot.field as keyof ReportDraft].trim();
-      if (value) prefill[slot.field] = value;
-    } else if (typeof member.value === 'object' && member.value) {
-      const value = memberField(member.value, slot.field);
-      if (value) prefill[slot.field] = value;
-    }
-  }
-  const formPath = PREFILL_FORM_PATH[state.navigation.id];
-  if (formPath) {
-    if (slots.value.some((slot) => slot.source === 'draft')) {
-      // The report form requires a subject and a description; an empty draft opens the list.
-      if (Boolean(prefill.title) !== Boolean(prefill.description)) {
-        draftError.value = true;
-        return;
-      }
-      if (prefill.title) {
-        go(`${serviceOrigin}${formPath}`, prefill);
-        return;
-      }
-    } else if (Object.keys(prefill).length) {
-      // Something to fill in: open the form itself instead of the service home.
-      go(`${serviceOrigin}${formPath}`, prefill);
-      return;
-    }
-  }
-  go(state.navigation.url, prefill);
-}
-function forgetWater() {
-  forgetWaterNumber();
-  profile.value = loadProfile();
-}
-function go(url: string, prefill?: Record<string, string>) {
-  openLink(url, prefill);
-  leftFor.value = url;
-  confirmingLink.value = null;
-}
-function stay() {
-  if (state.navigation) {
-    state.navigation = null;
-    state.notice = 'navigationDeclined';
-  }
-  confirmingLink.value = null;
-}
 const inputDisabled = computed(
   () => busy.value || !!state.draft || (mode.value === 'phone' && !phoneState.value.ready),
-);
-// Tap-to-answer choices: missing details (district, bill type) or what to do next.
-const homeDistrict = computed(() => profile.value.homeDistrict ?? memberInfo.value?.district);
-const choices = computed(() =>
-  busy.value || state.draft ? null : followUps(state, { homeDistrict: homeDistrict.value }),
-);
-/** Member values a form field can take; sensitive ones are masked wherever they are shown. */
-function memberField(m: Member, field: string) {
-  return field === 'tax_id'
-    ? m.idNo
-    : field === 'mobile_number'
-      ? m.phone
-      : field === 'mail'
-        ? m.email
-        : undefined;
-}
-const shownMemberField = (m: Member, field: string) => {
-  const value = memberField(m, field);
-  if (!value) return '';
-  return field === 'tax_id'
-    ? maskIdNo(value)
-    : field === 'mobile_number'
-      ? maskPhone(value)
-      : value;
-};
-const MEMBER_LABEL: Record<string, 'prefillIdNo' | 'prefillPhone' | 'prefillMail'> = {
-  tax_id: 'prefillIdNo',
-  mobile_number: 'prefillPhone',
-  mail: 'prefillMail',
-};
-function setHomeDistrict(event: Event) {
-  updateProfile({ homeDistrict: (event.target as HTMLSelectElement).value || undefined });
-  profile.value = loadProfile();
-}
-function setPreferAccessible(event: Event) {
-  updateProfile({ preferAccessible: (event.target as HTMLInputElement).checked });
-  profile.value = loadProfile();
-}
-watch(
-  () => profile.value.preferAccessible,
-  (on) => (runner.preferences.accessible = Boolean(on)),
-  { immediate: true },
 );
 const showSuggestions = computed(
   () =>
@@ -481,6 +355,7 @@ async function focusInput() {
   requestInput.value?.focus();
 }
 function openSettings() {
+  profile.value = loadProfile();
   const dialog = preferencesDialog.value;
   if (!dialog) return;
   dialog.inert = false;
@@ -532,6 +407,9 @@ async function submit(text = input.value) {
     await focusResult();
     return;
   }
+  profile.value = loadProfile();
+  confirmingLink.value = null;
+  leftFor.value = false;
   stopReading();
   speaking.value = false;
   voice.cancel();
@@ -540,8 +418,6 @@ async function submit(text = input.value) {
   archiveTurn();
   lastRequest.value = text.trim();
   input.value = '';
-  confirmingLink.value = null;
-  leftFor.value = null;
   resumed.value = false;
   busy.value = true;
   await focusResult();
@@ -617,10 +493,17 @@ function reset() {
   resumed.value = false;
   lastRequest.value = '';
   input.value = '';
+  runner.cancelVision();
   cancelVoice();
   input.value = '';
   home.value = true;
   closeSettings();
+}
+function stay() {
+  if (state.navigation) {
+    state.navigation = null;
+    state.notice = 'navigationDeclined';
+  }
 }
 async function applyConfig() {
   if (busy.value) return;
@@ -699,7 +582,7 @@ function speak() {
               `${record.title[locale.value]}. ${record.description?.[locale.value] ?? ''}`,
           ),
         ].join('。');
-  // Screen-reader and TTS users hear the choices too, not just sighted users.
+  // 螢幕閱讀與朗讀的使用者也要聽得到選項。
   const choiceText = choices.value
     ? `${choices.value.prompt[locale.value]}：${choices.value.options.map((o) => o.label[locale.value]).join('、')}`
     : '';
@@ -792,9 +675,6 @@ onBeforeUnmount(() => {
               <article class="past-message" :aria-label="t.assistant">
                 <p v-if="turn.restored" class="small-note">{{ t.savedSummaryNote }}</p>
                 <p class="reply-bubble">{{ noticeText(turn.notice) }}</p>
-                <p v-if="turn.navigation" class="source-note">
-                  {{ turn.navigation.title[locale] }}（{{ turn.navigation.where }}）
-                </p>
                 <ul v-if="turn.books.length" class="plain-list">
                   <li v-for="book in turn.books" :key="book.id">
                     <strong>{{ book.title[locale] }}</strong
@@ -818,8 +698,11 @@ onBeforeUnmount(() => {
                     </li>
                   </ul>
                 </template>
+                <p v-if="turn.navigation" class="small-note">
+                  {{ turn.navigation.title[locale] }}（{{ turn.navigation.where }}）
+                </p>
                 <p v-if="turn.failure?.hint" class="small-note">{{ turn.failure.hint }}</p>
-                <p v-if="turn.source" class="source-note">
+                <p v-if="turn.source && !turn.navigation" class="source-note">
                   {{ turn.source.label }}：{{ turn.source.note }}
                 </p>
                 <p v-if="turn.reference" class="small-note">
@@ -903,10 +786,12 @@ onBeforeUnmount(() => {
                       >
                         <p>{{ leaveQuestion(record) }}</p>
                         <div class="action-row">
-                          <button class="primary-button" @click="go(record.url)">
+                          <button class="primary-button" @click="goRecord(record.url)">
                             {{ t.leaveGo }}
                           </button>
-                          <button class="text-button" @click="stay">{{ t.leaveStay }}</button>
+                          <button class="text-button" @click="confirmingLink = null">
+                            {{ t.leaveStay }}
+                          </button>
                         </div>
                       </div>
                       <button v-else class="outline-button" @click="confirmingLink = record.id">
@@ -919,175 +804,31 @@ onBeforeUnmount(() => {
                     </template>
                   </li>
                 </ul>
-                <section
+                <ProfilePanel
                   v-if="state.notice === 'profile'"
-                  class="result-card"
-                  aria-labelledby="profile-title"
-                >
-                  <h2 id="profile-title">{{ t.profileMember }}</h2>
-                  <dl v-if="memberInfo">
-                    <template v-if="memberInfo.realName"
-                      ><dt>{{ t.fieldName }}</dt>
-                      <dd>{{ memberInfo.realName }}</dd></template
-                    >
-                    <template v-if="memberInfo.phone"
-                      ><dt>{{ t.fieldPhone }}</dt>
-                      <dd>{{ maskPhone(memberInfo.phone) }}</dd></template
-                    >
-                    <template v-if="memberInfo.email"
-                      ><dt>{{ t.fieldEmail }}</dt>
-                      <dd>{{ memberInfo.email }}</dd></template
-                    >
-                    <template v-if="memberInfo.birthday"
-                      ><dt>{{ t.fieldBirthday }}</dt>
-                      <dd>{{ memberInfo.birthday }}</dd></template
-                    >
-                    <template v-if="memberInfo.address"
-                      ><dt>{{ t.fieldAddress }}</dt>
-                      <dd>{{ memberInfo.address }}</dd></template
-                    >
-                    <dt>{{ t.fieldIdNo }}</dt>
-                    <dd>{{ maskIdNo(memberInfo.idNo) }}</dd>
-                  </dl>
-                  <p v-else class="small-note">{{ t.profileNoMember }}</p>
-                  <h2>{{ t.profileRemembered }}</h2>
-                  <dl>
-                    <dt>{{ t.rememberedWater }}</dt>
-                    <dd>
-                      {{ profile.waterNumber ? formatWaterNumber(profile.waterNumber) : t.notSet }}
-                    </dd>
-                    <dt>{{ t.fieldHome }}</dt>
-                    <dd>{{ homeDistrict ?? t.notSet }}</dd>
-                    <dt>{{ t.fieldAccessible }}</dt>
-                    <dd>{{ profile.preferAccessible ? t.yes : t.no }}</dd>
-                  </dl>
-                  <p class="small-note">{{ t.profileNote }}</p>
-                </section>
-                <section
+                  :member="memberInfo"
+                  :profile="profile"
+                  :home-district="homeDistrict"
+                  :locale="locale"
+                />
+                <EmergencyCard
                   v-if="state.notice === 'emergency' && state.emergency"
-                  class="result-card emergency-card"
-                  aria-labelledby="emergency-title"
-                >
-                  <h2 id="emergency-title">{{ t[EMERGENCY_TEXT[state.emergency]] }}</h2>
-                  <div class="action-row">
-                    <button
-                      v-for="number in EMERGENCY_NUMBERS[state.emergency]"
-                      :key="number"
-                      class="primary-button emergency-call"
-                      @click="openLink(`tel:${number}`)"
-                    >
-                      {{ t[CALL_LABEL[number]!] }}
-                    </button>
-                  </div>
-                  <p class="small-note">{{ t.emergencyNote }}</p>
-                </section>
-                <section
+                  :kind="state.emergency"
+                  :locale="locale"
+                />
+                <NavigationPanel
                   v-if="state.navigation"
-                  class="result-card navigation-card"
-                  aria-labelledby="navigation-title"
-                >
-                  <span class="category">{{ state.navigation.provider }}</span>
-                  <h2 id="navigation-title">{{ state.navigation.title[locale] }}</h2>
-                  <p v-if="state.navigation.description?.[locale]">
-                    {{ state.navigation.description[locale] }}
-                  </p>
-                  <dl>
-                    <dt>
-                      {{ state.navigation.url.startsWith('tel:') ? t.leaveCall : t.leaveSite }}
-                    </dt>
-                    <dd>{{ state.navigation.where }}</dd>
-                  </dl>
-                  <div v-if="slots.some((slot) => slot.source === 'draft')" class="prefill">
-                    <p class="field-label">{{ t.draftIntro }}</p>
-                    <label class="field-label" for="draft-title">{{ t.draftTitle }}</label>
-                    <input
-                      id="draft-title"
-                      v-model="draft.title"
-                      maxlength="40"
-                      autocomplete="off"
-                    />
-                    <label class="field-label" for="draft-description">{{
-                      t.draftDescription
-                    }}</label>
-                    <textarea
-                      id="draft-description"
-                      v-model="draft.description"
-                      maxlength="500"
-                      rows="3"
-                    ></textarea>
-                    <label class="field-label" for="draft-location">{{ t.draftLocation }}</label>
-                    <input
-                      id="draft-location"
-                      v-model="draft.location"
-                      maxlength="100"
-                      autocomplete="off"
-                      :placeholder="t.draftLocationHint"
-                    />
-                    <p v-if="draftError" role="alert" class="field-error">
-                      {{ t.draftIncomplete }}
-                    </p>
-                  </div>
-                  <div v-else-if="slots.length" class="prefill">
-                    <template v-for="slot in slots" :key="slot.field">
-                      <template v-if="slot.field === 'water_number'">
-                        <template v-if="profile.waterNumber && !editingWater">
-                          <dl>
-                            <dt>{{ t.prefillWater }}</dt>
-                            <dd>{{ formatWaterNumber(profile.waterNumber) }}</dd>
-                          </dl>
-                          <button class="text-button" @click="editingWater = true">
-                            {{ t.prefillWaterChange }}
-                          </button>
-                        </template>
-                        <template v-else>
-                          <label class="field-label" for="water-number">{{
-                            t.prefillWaterAsk
-                          }}</label>
-                          <p id="water-hint" class="small-note">{{ t.prefillWaterHint }}</p>
-                          <input
-                            id="water-number"
-                            v-model="waterInput"
-                            inputmode="numeric"
-                            autocomplete="off"
-                            maxlength="14"
-                            aria-describedby="water-hint"
-                            :aria-invalid="waterError"
-                            @input="waterError = false"
-                          />
-                          <p v-if="waterError" role="alert" class="field-error">
-                            {{ t.prefillWaterInvalid }}
-                          </p>
-                          <label class="check"
-                            ><input v-model="rememberWater" type="checkbox" />{{
-                              t.prefillRemember
-                            }}</label
-                          >
-                        </template>
-                      </template>
-                      <template v-else>
-                        <dl
-                          v-if="
-                            typeof member === 'object' && member && memberField(member, slot.field)
-                          "
-                        >
-                          <dt>{{ t[MEMBER_LABEL[slot.field]!] }}</dt>
-                          <dd>{{ shownMemberField(member, slot.field) }}</dd>
-                        </dl>
-                        <p v-else-if="member === 'unavailable'" class="small-note">
-                          {{ t.prefillNoMember }}
-                        </p>
-                      </template>
-                    </template>
-                  </div>
-                  <p class="small-note">{{ state.source?.note || t.leaveNote }}</p>
-                  <div class="action-row">
-                    <button class="primary-button" @click="goNavigation">
-                      {{ state.navigation.url.startsWith('tel:') ? t.leaveDial : t.leaveGo }}
-                    </button>
-                    <button class="text-button" @click="stay">{{ t.leaveStay }}</button>
-                  </div>
-                </section>
-                <p v-if="leftFor" class="small-note" role="status">{{ t.leaveRequested }}</p>
+                  :navigation="state.navigation"
+                  :source="state.source"
+                  :locale="locale"
+                  :request="lastRequest"
+                  :can-see-photos="canSeePhotos"
+                  :demo-mode="mode === 'demo'"
+                  :describe="(image: string) => runner.describePhoto(image, locale)"
+                  :cancel-describe="() => runner.cancelVision()"
+                  :photo-file="null"
+                  @stay="stay"
+                />
                 <p v-if="state.failure?.hint" class="notice-box">{{ state.failure.hint }}</p>
                 <p v-if="state.source && !state.navigation" class="source-note">
                   {{ state.source.label }}：{{ state.source.note }}
@@ -1156,10 +897,11 @@ onBeforeUnmount(() => {
                   aria-labelledby="choices-title"
                 >
                   <h2 id="choices-title">{{ choices.prompt[locale] }}</h2>
-                  <div class="suggestions">
+                  <div class="recovery-options">
                     <button
                       v-for="choice in choices.options"
                       :key="choice.request"
+                      class="outline-button"
                       :disabled="inputDisabled"
                       @click="submit(choice.request)"
                     >
@@ -1167,6 +909,7 @@ onBeforeUnmount(() => {
                     </button>
                   </div>
                 </section>
+                <p v-if="leftFor" class="small-note" role="status">{{ t.leaveRequested }}</p>
                 <div
                   v-if="showSuggestions"
                   class="recovery-options"
@@ -1332,8 +1075,41 @@ onBeforeUnmount(() => {
             </select></label
           >
           <p v-else class="small-note">{{ t.speechUnavailable }}</p>
+        </section>
+        <section class="settings-section remembered" aria-labelledby="remembered-title">
+          <h3 id="remembered-title">{{ t.rememberedTitle }}</h3>
+          <p v-if="!profile.waterNumber" class="small-note">{{ t.rememberedNone }}</p>
+          <div v-else class="action-row">
+            <span>{{ t.rememberedWater }} {{ formatWaterNumber(profile.waterNumber) }}</span>
+            <button class="text-button" @click="forgetWater">{{ t.rememberedDelete }}</button>
+          </div>
+          <label
+            >{{ t.fieldHome
+            }}<select
+              :value="profile.homeDistrict ?? ''"
+              :aria-label="t.fieldHome"
+              @change="setHomeDistrict"
+            >
+              <option value="">
+                {{
+                  memberInfo?.district
+                    ? `${t.homeFromMember}（${memberInfo.district}）`
+                    : t.homeUnset
+                }}
+              </option>
+              <option v-for="d in TAIPEI_DISTRICTS" :key="d" :value="d">{{ d }}</option>
+            </select></label
+          >
+          <label class="check"
+            ><input
+              type="checkbox"
+              :checked="profile.preferAccessible"
+              @change="setPreferAccessible"
+            />{{ t.fieldAccessible }}</label
+          >
+        </section>
+        <section v-if="!native && mode !== 'phone'" class="settings-section">
           <button
-            v-if="!native && mode !== 'phone'"
             class="outline-button"
             :disabled="inputDisabled"
             @click="
@@ -1343,30 +1119,6 @@ onBeforeUnmount(() => {
           >
             {{ t.voiceLabel }}
           </button>
-        </section>
-        <section class="remembered" aria-labelledby="remembered-title">
-          <h2 id="remembered-title">{{ t.rememberedTitle }}</h2>
-          <p v-if="!profile.waterNumber" class="small-note">{{ t.rememberedNone }}</p>
-          <div v-else class="action-row">
-            <span>{{ t.rememberedWater }} {{ formatWaterNumber(profile.waterNumber) }}</span>
-            <button class="text-button" @click="forgetWater">{{ t.rememberedDelete }}</button>
-          </div>
-          <label class="field-label" for="home-district">{{ t.fieldHome }}</label>
-          <select id="home-district" :value="profile.homeDistrict ?? ''" @change="setHomeDistrict">
-            <option value="">
-              {{
-                memberInfo?.district ? `${t.homeFromMember}（${memberInfo.district}）` : t.homeUnset
-              }}
-            </option>
-            <option v-for="d in TAIPEI_DISTRICTS" :key="d" :value="d">{{ d }}</option>
-          </select>
-          <label class="check"
-            ><input
-              type="checkbox"
-              :checked="profile.preferAccessible"
-              @change="setPreferAccessible"
-            />{{ t.fieldAccessible }}</label
-          >
         </section>
         <details class="developer-panel">
           <summary>{{ t.developer }}</summary>

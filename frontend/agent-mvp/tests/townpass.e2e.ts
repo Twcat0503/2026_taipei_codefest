@@ -193,7 +193,9 @@ test('a citizen report is drafted from what was said and opens the form filled i
   await send(page, '大安區和平東路二段100號前的路燈不亮好幾天了，我要陳情');
   await expect(page.getByRole('heading', { name: '有話要說' })).toBeVisible();
   await expect(page.getByLabel('案件主旨')).toHaveValue('路燈故障');
-  await expect(page.getByLabel(/描述/)).toHaveValue('大安區和平東路二段100號前的路燈不亮好幾天了');
+  await expect(page.getByLabel(/^描述（/)).toHaveValue(
+    '大安區和平東路二段100號前的路燈不亮好幾天了',
+  );
   await expect(page.getByLabel(/發生地點/)).toHaveValue('大安區和平東路二段100號前');
   expect(
     (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
@@ -218,6 +220,74 @@ test('a citizen report is drafted from what was said and opens the form filled i
       },
     },
   });
+});
+
+test('a photo is described only inside the editable report form, never submitted automatically', async ({
+  page,
+}) => {
+  let visionCalls = 0;
+  await page.route('http://127.0.0.1:11434/v1/chat/completions', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'content-type',
+          'Access-Control-Allow-Methods': 'POST,OPTIONS',
+        },
+      });
+      return;
+    }
+    const body = route.request().postDataJSON();
+    const isVision = Array.isArray(body.messages?.[1]?.content);
+    if (isVision) {
+      visionCalls++;
+      expect(body.messages[1].content[1].type).toBe('image_url');
+      expect(body.messages[1].content[1].image_url.url).toMatch(/^data:image\/jpeg;base64,/);
+    }
+    await route.fulfill({
+      contentType: 'application/json',
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      json: {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify(
+                isVision
+                  ? { subject: '樹倒', description: '照片可見路邊樹木倒下。' }
+                  : { name: 'select_agent', arguments: { domain: 'services' } },
+              ),
+            },
+          },
+        ],
+      },
+    });
+  });
+  await page.getByRole('button', { name: '設定', exact: true }).click();
+  await page.getByText('開發者檢視與接點設定', { exact: true }).click();
+  await page.getByLabel('模型來源').selectOption('local');
+  await page.getByRole('button', { name: '套用接點', exact: true }).click();
+  await page.getByRole('button', { name: '關閉設定', exact: true }).click();
+  await send(page, '路燈壞了我要陳情');
+  await expect(page.getByRole('heading', { name: '有話要說', exact: true })).toBeVisible();
+  await expect(page.getByText('加照片幫我描述', { exact: true })).toBeVisible();
+  await page.locator('#report-photo-input').setInputFiles({
+    name: 'street.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==',
+      'base64',
+    ),
+  });
+  await expect(page.locator('#draft-description')).toHaveValue(/照片可見路邊樹木倒下/);
+  expect(visionCalls).toBe(1);
+  expect(
+    (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
+      .violations,
+  ).toEqual([]);
+  await expect(page.getByRole('button', { name: '前往', exact: true })).toBeVisible();
+  expect(await posted(page)).toBeNull();
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('data:image/jpeg');
 });
 
 test('police report opens the contact form with the member phone and email filled in', async ({

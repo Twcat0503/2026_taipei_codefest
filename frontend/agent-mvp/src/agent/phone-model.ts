@@ -1,6 +1,6 @@
 import { NativeLlmBridge, type LlmBridge } from '../platform/llm-bridge';
 import { LocalModel, validateEndpoint } from './model';
-import type { ModelAdapter } from './types';
+import type { ModelAdapter, VisionRequest } from './types';
 
 export type PhonePhase = 'idle' | 'downloading' | 'starting' | 'running' | 'stopping' | 'error';
 export type PhoneState = {
@@ -195,6 +195,37 @@ export class PhoneModel implements ModelAdapter {
     this.inference.add(controller);
     try {
       const result = await this.transport.complete({ ...input, signal: controller.signal });
+      controller.signal.throwIfAborted();
+      if (generation !== this.generation) throw new Error('PHONE_SESSION_CHANGED');
+      return result;
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === 'MODEL_HTTP_401' &&
+        generation === this.generation
+      ) {
+        this.forget();
+        this.set({ phase: 'error', ready: false, error: 'auth' });
+      }
+      throw error;
+    } finally {
+      this.inference.delete(controller);
+      input.signal.removeEventListener('abort', cancel);
+    }
+  }
+  async vision(input: VisionRequest): Promise<string> {
+    input.signal.throwIfAborted();
+    if (!this.transport?.vision || !this.current.ready) throw new Error('PHONE_NOT_READY');
+    const controller = new AbortController();
+    const generation = this.generation;
+    const cancel = () => {
+      controller.abort();
+      void this.stop().catch(() => {});
+    };
+    input.signal.addEventListener('abort', cancel, { once: true });
+    this.inference.add(controller);
+    try {
+      const result = await this.transport.vision({ ...input, signal: controller.signal });
       controller.signal.throwIfAborted();
       if (generation !== this.generation) throw new Error('PHONE_SESSION_CHANGED');
       return result;
