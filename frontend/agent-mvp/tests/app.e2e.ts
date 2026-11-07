@@ -389,6 +389,14 @@ test('welcome, settings and composer reflow at 200% in both orientations', async
         )
         .toBe(true);
       expect(await page.locator('.composer-box').isVisible()).toBe(true);
+      const plus = await page
+        .getByRole('button', {
+          name: locale === 'en' ? 'Add a photo to help describe' : '加照片幫我描述',
+        })
+        .boundingBox();
+      const composer = await page.locator('.composer-box').boundingBox();
+      expect(Math.abs(plus!.height - composer!.height)).toBeLessThanOrEqual(1);
+      expect(Math.abs(plus!.y - composer!.y)).toBeLessThanOrEqual(1);
       expect(
         await page
           .locator('.voice-label')
@@ -510,6 +518,13 @@ test('native model setup stays in settings and does not push the home off screen
     .toBe(true);
   await expect(page.getByRole('button', { name: '啟動手機模型', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: '開始語音輸入', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: '加照片幫我描述', exact: true }).click();
+  await expect(page.getByText('請先啟動手機模型，再用照片辨識。', { exact: true })).toBeVisible();
+  expect(
+    await page
+      .locator('#assistant-photo-input')
+      .evaluate((input: HTMLInputElement) => input.files?.length),
+  ).toBe(0);
   await page.getByRole('button', { name: '設定', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(
@@ -517,4 +532,23 @@ test('native model setup stays in settings and does not push the home off screen
   ).toBeEnabled();
   await page.getByRole('button', { name: '關閉設定', exact: true }).click();
   await expect(page.getByRole('heading', { name: '歡迎使用', exact: true })).toBeVisible();
+});
+
+test('the plus shortcut only accepts photos when a model can describe them', async ({ page }) => {
+  const plus = page.getByRole('button', { name: '加照片幫我描述', exact: true });
+  await expect(plus).toBeVisible();
+  await expect(page.locator('#assistant-photo-input')).toHaveAttribute(
+    'accept',
+    'image/jpeg,image/png,image/webp',
+  );
+  await plus.click();
+  await expect(
+    page.getByText('規則模擬模式不會辨識照片；請切換到手機或本機模型。', { exact: true }),
+  ).toBeVisible();
+  expect(
+    await page
+      .locator('#assistant-photo-input')
+      .evaluate((input: HTMLInputElement) => input.files?.length),
+  ).toBe(0);
+  await expect(page.locator('.navigation-card')).toHaveCount(0);
 });

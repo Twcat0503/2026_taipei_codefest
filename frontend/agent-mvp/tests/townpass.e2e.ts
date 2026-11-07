@@ -225,7 +225,7 @@ test('a citizen report is drafted from what was said and opens the form filled i
   });
 });
 
-test('a photo is described only inside the editable report form, never submitted automatically', async ({
+test('the plus photo shortcut creates an editable report, never submitting automatically', async ({
   page,
 }) => {
   let visionCalls = 0;
@@ -271,10 +271,11 @@ test('a photo is described only inside the editable report form, never submitted
   await page.getByLabel('模型來源').selectOption('local');
   await page.getByRole('button', { name: '套用接點', exact: true }).click();
   await page.getByRole('button', { name: '關閉設定', exact: true }).click();
-  await send(page, '路燈壞了我要陳情');
-  await expect(page.getByRole('heading', { name: '有話要說', exact: true })).toBeVisible();
-  await expect(page.getByText('加照片幫我描述', { exact: true })).toBeVisible();
-  await page.locator('#report-photo-input').setInputFiles({
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: '加照片幫我描述', exact: true }).click();
+  await (
+    await chooser
+  ).setFiles({
     name: 'street.png',
     mimeType: 'image/png',
     buffer: Buffer.from(
@@ -282,6 +283,7 @@ test('a photo is described only inside the editable report form, never submitted
       'base64',
     ),
   });
+  await expect(page.getByRole('heading', { name: '有話要說', exact: true })).toBeVisible();
   await expect(page.locator('#draft-description')).toHaveValue(/照片可見路邊樹木倒下/);
   expect(visionCalls).toBe(1);
   expect(

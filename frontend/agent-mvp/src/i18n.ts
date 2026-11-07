@@ -244,6 +244,7 @@ const zh = {
   draftLocationHint: '例如：和平東路二段 100 號前',
   draftIncomplete: '主旨和描述都要填，或兩個都清空、到頁面再寫。',
   photoAdd: '加照片幫我描述',
+  photoPicker: '選擇要描述的照片',
   photoHint:
     '可以拍現場或選一張照片，我會看照片幫你描述問題。照片只用來幫你描述，不會自動上傳；到表單後可自行附加。',
   photoBusy: '正在看照片…',
@@ -543,6 +544,7 @@ const en: Record<keyof typeof zh, string> = {
   draftIncomplete:
     'Fill in both subject and description, or clear both and write them on the page.',
   photoAdd: 'Add a photo to help describe',
+  photoPicker: 'Choose a photo to describe',
   photoHint:
     'Take or choose a photo of the scene and I will describe the problem for you. The photo is only used to help you describe it; it is not uploaded automatically — you can attach it yourself on the form.',
   photoBusy: 'Looking at the photo…',
