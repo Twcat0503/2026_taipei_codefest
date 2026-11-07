@@ -1,18 +1,23 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+
+async function chooseService(page: Page, name: string) {
+  await page.getByLabel(/^(你想要做什麼？|What would you like help with\?)$/).fill(name);
+  await page.getByRole('button', { name: /^(送出需求|Send request)$/ }).click();
+}
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
-  await page.getByText('設定', { exact: true }).click();
+  await page.getByRole('button', { name: '設定', exact: true }).click();
   await page.getByText('開發者檢視與接點設定', { exact: true }).click();
   await page.getByLabel('模型來源').selectOption('demo');
   await page.getByRole('button', { name: '套用接點', exact: true }).click();
   await page.getByText('開發者檢視與接點設定', { exact: true }).click();
-  await page.getByText('設定', { exact: true }).click();
+  await page.getByRole('button', { name: '關閉設定', exact: true }).click();
 });
 
 test('book search, editable confirmation, reload, receipt and reset', async ({ page }) => {
-  await page.getByRole('button', { name: '幫我找圖書', exact: true }).click();
+  await chooseService(page, '幫我找圖書');
   await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '預約這本書', exact: true }).first().click();
   await page.getByLabel('取書館', { exact: true }).selectOption('demo-community');
@@ -35,7 +40,7 @@ test('accessible initial page and enlarged bilingual layouts', async ({ page }) 
     .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
     .analyze();
   expect(audit.violations).toEqual([]);
-  await page.getByText('設定', { exact: true }).click();
+  await page.getByRole('button', { name: '設定', exact: true }).click();
   await page.getByLabel('字級', { exact: true }).selectOption('1.5');
   await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
@@ -47,8 +52,8 @@ test('accessible initial page and enlarged bilingual layouts', async ({ page }) 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
-  await page.getByText('Settings', { exact: true }).click();
-  await page.getByRole('button', { name: 'Find sample books', exact: true }).click();
+  await page.getByRole('button', { name: 'Close settings', exact: true }).click();
+  await chooseService(page, 'Find sample books');
   await expect(page.getByRole('heading', { name: 'Walking Together', exact: true })).toBeVisible();
 });
 
@@ -63,10 +68,24 @@ test('unknown requests and cancelled drafts never produce receipts', async ({ pa
   await expect(page.getByText(/^DEMO-/)).toHaveCount(0);
 });
 
+test('a greeting receives a helpful answer without a model or tool lookup', async ({ page }) => {
+  const calls: string[] = [];
+  page.on('request', (request) => {
+    if (['fetch', 'xhr'].includes(request.resourceType())) calls.push(request.url());
+  });
+  await chooseService(page, '你好');
+  await expect(page.locator('section.assistant-message')).toContainText(
+    '你好！你可以直接說想找什麼服務',
+  );
+  await expect(page.getByRole('button', { name: '幫我找圖書', exact: true })).toBeVisible();
+  expect(calls).toEqual([]);
+  await expect(page.getByText(/^DEMO-/)).toHaveCount(0);
+});
+
 test('bill clarification, statuses, browser navigation and no persistent account data', async ({
   page,
 }) => {
-  await page.getByRole('button', { name: '我想看到我這期的帳單與繳費狀態', exact: true }).click();
+  await chooseService(page, '我想看到我這期的帳單與繳費狀態');
   await expect(
     page.getByRole('group', { name: '你想查哪一種帳單？也可以選擇全部。' }),
   ).toBeVisible();
@@ -87,9 +106,9 @@ test('bill clarification, statuses, browser navigation and no persistent account
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
-  await page.getByText('設定', { exact: true }).click();
+  await page.getByRole('button', { name: '設定', exact: true }).click();
   await page.getByLabel('語言', { exact: true }).selectOption('en');
-  await page.getByText('Settings', { exact: true }).click();
+  await page.getByRole('button', { name: 'Close settings', exact: true }).click();
   await expect(page.getByText('Not yet confirmed', { exact: true })).toBeVisible();
   await page.evaluate(() => {
     document.documentElement.style.fontSize = '200%';
@@ -197,15 +216,22 @@ test('phone model startup, authenticated structured calls, and stop', async ({ p
       }),
     });
   });
-  await page.getByText('設定', { exact: true }).click();
+  await page.getByRole('button', { name: '設定', exact: true }).click();
   await page.getByText('開發者檢視與接點設定', { exact: true }).click();
   await page.getByLabel('模型來源').selectOption('phone');
   await page.getByRole('button', { name: '套用接點', exact: true }).click();
   await page.getByText('開發者檢視與接點設定', { exact: true }).click();
-  await page.getByText('設定', { exact: true }).click();
-  await expect(page.getByRole('button', { name: '送出需求', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: '關閉設定', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: '送出需求', exact: true, includeHidden: true }),
+  ).toBeDisabled();
   await page.getByRole('button', { name: '啟動手機模型', exact: true }).click();
-  await expect(page.getByText('已連接手機模型，可以提出需求。', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '開始語音輸入', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: '設定', exact: true }).click();
+  await expect(
+    page.getByRole('dialog').getByText('已連接手機模型，可以提出需求。', { exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: '關閉設定', exact: true }).click();
   await page.getByLabel('你想要做什麼？', { exact: true }).fill('查本期水費繳費狀態');
   await page.getByRole('button', { name: '送出需求', exact: true }).click();
   await expect(page.getByRole('heading', { name: '水費 · 示範帳單 1' })).toBeVisible();
@@ -216,7 +242,277 @@ test('phone model startup, authenticated structured calls, and stop', async ({ p
     (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
       .violations,
   ).toEqual([]);
+  await page.getByRole('button', { name: '設定', exact: true }).click();
   await page.getByRole('button', { name: '停止並釋放模型', exact: true }).click();
   await expect(page.getByText('模型尚未啟動。', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: '送出需求', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: '關閉設定', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: '送出需求', exact: true, includeHidden: true }),
+  ).toBeDisabled();
+});
+
+test('home navigation preserves a draft and settings return keyboard focus', async ({ page }) => {
+  const settings = page.getByRole('button', { name: '設定', exact: true });
+  await settings.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(settings).toBeFocused();
+
+  await chooseService(page, '幫我找圖書');
+  await page.getByRole('button', { name: '預約這本書', exact: true }).first().click();
+  await page.getByLabel('取書館', { exact: true }).selectOption('demo-community');
+  await page.getByRole('button', { name: '回到安心助手首頁', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '歡迎使用', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '繼續目前的需求', exact: true }).click();
+  await expect(page.getByLabel('取書館', { exact: true })).toHaveValue('demo-community');
+  await expect(page.getByLabel('你想要做什麼？', { exact: true })).toBeDisabled();
+  await expect(page.getByText(/^DEMO-/)).toHaveCount(0);
+});
+
+test('unavailable voice input has a working text fallback', async ({ page }) => {
+  await page.evaluate(() => {
+    Object.defineProperty(window, 'SpeechRecognition', { configurable: true, value: undefined });
+    Object.defineProperty(window, 'webkitSpeechRecognition', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+  await page.getByRole('button', { name: '開始語音輸入', exact: true }).click();
+  await expect(page.getByText(/^這個環境尚未提供語音輸入/)).toBeVisible();
+  await page.getByRole('button', { name: '改用文字輸入', exact: true }).click();
+  const input = page.getByLabel('你想要做什麼？', { exact: true });
+  await expect(input).toBeFocused();
+  await input.fill('幫我找圖書');
+  await input.press('Enter');
+  await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toBeVisible();
+});
+
+test('recognized voice is editable and never submits automatically', async ({ page }) => {
+  await page.evaluate(() => {
+    class RecognitionFixture {
+      onstart: (() => void) | null = null;
+      onend: (() => void) | null = null;
+      onresult: ((event: { results: { transcript: string }[][] }) => void) | null = null;
+      start() {
+        this.onstart?.();
+        setTimeout(() => {
+          this.onresult?.({ results: [[{ transcript: '幫我找圖書' }]] });
+          this.onend?.();
+        }, 50);
+      }
+      stop() {}
+      abort() {}
+    }
+    Object.defineProperty(window, 'SpeechRecognition', {
+      configurable: true,
+      value: RecognitionFixture,
+    });
+  });
+  await page.getByRole('button', { name: '開始語音輸入', exact: true }).click();
+  const input = page.getByLabel('你想要做什麼？', { exact: true });
+  await expect(input).toHaveValue('幫我找圖書');
+  await expect(input).toBeFocused();
+  await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toHaveCount(0);
+  await input.fill('找「一起慢慢走」');
+  await page.getByRole('button', { name: '送出需求', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('找「一起慢慢走」');
+});
+
+test('microphone denial stays visible and cancellation keeps the conversation usable', async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    class DeniedRecognition {
+      onerror: ((event: { error: string }) => void) | null = null;
+      onend: (() => void) | null = null;
+      start() {
+        setTimeout(() => {
+          this.onerror?.({ error: 'not-allowed' });
+          this.onend?.();
+        }, 10);
+      }
+      abort() {}
+    }
+    Object.defineProperty(window, 'SpeechRecognition', {
+      configurable: true,
+      value: DeniedRecognition,
+    });
+  });
+  await page.getByRole('button', { name: '開始語音輸入', exact: true }).click();
+  await expect(page.getByText(/^尚未取得麥克風權限/)).toBeVisible();
+  await page.getByRole('button', { name: '取消語音輸入', exact: true }).click();
+  await page.getByLabel('你想要做什麼？', { exact: true }).fill('幫我找圖書');
+  await page.getByRole('button', { name: '送出需求', exact: true }).click();
+  await page.getByRole('button', { name: '停止處理', exact: true }).click();
+  await expect(page.getByText('已停止這次操作。你可以重新開始。', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '確認示範預約', exact: true })).toHaveCount(0);
+});
+
+test('welcome, settings and composer reflow at 200% in both orientations', async ({ page }) => {
+  for (const locale of ['zh-Hant-TW', 'en']) {
+    await page.getByRole('button', { name: /^(設定|Settings)$/ }).click();
+    await page.getByLabel(/^(語言|Language)$/).selectOption(locale);
+    await page.getByRole('button', { name: /^(關閉設定|Close settings)$/ }).click();
+    for (const viewport of [
+      { width: 320, height: 740 },
+      { width: 844, height: 390 },
+      { width: 1440, height: 900 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      expect(
+        await page
+          .locator('.assistant-body')
+          .evaluate((element) => element.scrollWidth <= element.clientWidth),
+      ).toBe(true);
+      await expect
+        .poll(() =>
+          page
+            .locator('.welcome-panel')
+            .evaluate((element) => element.scrollHeight <= element.clientHeight + 1),
+        )
+        .toBe(true);
+      await expect
+        .poll(() =>
+          page
+            .locator('.welcome-suggestions > button, .voice-launch')
+            .evaluateAll((elements) =>
+              elements.every((element) => element.scrollHeight <= element.clientHeight + 1),
+            ),
+        )
+        .toBe(true);
+      expect(await page.locator('.composer-box').isVisible()).toBe(true);
+      expect(
+        await page
+          .locator('.voice-label')
+          .evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
+      ).toBe(true);
+      await expect(page.locator('.suggestion-previous, .suggestion-next')).toHaveCount(0);
+      await page.getByRole('button', { name: /^(設定|Settings)$/ }).click();
+      expect(
+        await page
+          .getByRole('dialog')
+          .evaluate((element) => element.scrollWidth <= element.clientWidth),
+      ).toBe(true);
+      await page.getByRole('button', { name: /^(關閉設定|Close settings)$/ }).click();
+    }
+  }
+});
+
+test('the app fills the viewport and only conversation content scrolls', async ({ page }) => {
+  for (const viewport of [
+    { width: 393, height: 727 },
+    { width: 420, height: 856 },
+    { width: 1440, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect
+      .poll(() =>
+        page
+          .locator('.assistant-shell')
+          .evaluate((element) => ({ width: element.clientWidth, height: element.clientHeight })),
+      )
+      .toEqual(viewport);
+    await expect
+      .poll(() =>
+        page
+          .locator('.welcome-panel')
+          .evaluate((element) => element.scrollHeight <= element.clientHeight + 1),
+      )
+      .toBe(true);
+    await page.mouse.wheel(0, 500);
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    expect(await page.locator('.assistant-body').evaluate((element) => element.scrollTop)).toBe(0);
+    const voice = await page
+      .getByRole('button', { name: '開始語音輸入', exact: true })
+      .boundingBox();
+    const composer = await page.locator('.composer-dock').boundingBox();
+    expect(voice!.y + voice!.height).toBeLessThanOrEqual(composer!.y + 1);
+  }
+  await page.setViewportSize({ width: 393, height: 727 });
+  await chooseService(page, '幫我找圖書');
+  await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toBeVisible();
+  const before = await page.locator('.composer-dock').boundingBox();
+  await page
+    .locator('.assistant-body')
+    .evaluate((element) => (element.scrollTop = element.scrollHeight));
+  expect(
+    await page.locator('.assistant-body').evaluate((element) => element.scrollTop),
+  ).toBeGreaterThan(0);
+  expect(await page.locator('.composer-dock').boundingBox()).toEqual(before);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+});
+
+test('an existing session uses the same home layout at small and large text sizes', async ({
+  page,
+}) => {
+  await chooseService(page, '幫我找圖書');
+  await page.getByRole('button', { name: '預約這本書', exact: true }).first().click();
+  await page.getByLabel('取書館', { exact: true }).selectOption('demo-community');
+  await page.reload();
+  await page.getByRole('button', { name: '回到安心助手首頁', exact: true }).click();
+  for (const viewport of [
+    { width: 320, height: 568 },
+    { width: 393, height: 727 },
+    { width: 844, height: 390 },
+    { width: 1440, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport);
+    for (const size of [100, 200]) {
+      await page.evaluate((value) => (document.documentElement.style.fontSize = `${value}%`), size);
+      await expect
+        .poll(() =>
+          page
+            .locator('.welcome-panel')
+            .evaluate((element) => element.scrollHeight <= element.clientHeight + 1),
+        )
+        .toBe(true);
+      await expect
+        .poll(() =>
+          page
+            .locator('.welcome-suggestions > button, .voice-launch')
+            .evaluateAll((elements) =>
+              elements.every((element) => element.scrollHeight <= element.clientHeight + 1),
+            ),
+        )
+        .toBe(true);
+      expect(await page.locator('.composer-box').isVisible()).toBe(true);
+    }
+  }
+  await page.getByRole('button', { name: '繼續確認目前需求', exact: true }).click();
+  await expect(page.getByLabel('取書館', { exact: true })).toHaveValue('demo-community');
+  await expect(page.getByLabel('你想要做什麼？', { exact: true })).toBeDisabled();
+  await expect(page.getByText(/^DEMO-/)).toHaveCount(0);
+});
+
+test('native model setup stays in settings and does not push the home off screen', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    window.flutterObject = { postMessage() {}, addEventListener() {}, removeEventListener() {} };
+  });
+  await page.setViewportSize({ width: 393, height: 727 });
+  await page.reload();
+  await expect(page.locator('.chat-header')).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page
+        .locator('.welcome-panel')
+        .evaluate((element) => element.scrollHeight <= element.clientHeight + 1),
+    )
+    .toBe(true);
+  await expect(page.getByRole('button', { name: '啟動手機模型', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '開始語音輸入', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: '設定', exact: true }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(
+    page.getByRole('dialog').getByRole('button', { name: '啟動手機模型', exact: true }),
+  ).toBeEnabled();
+  await page.getByRole('button', { name: '關閉設定', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '歡迎使用', exact: true })).toBeVisible();
 });

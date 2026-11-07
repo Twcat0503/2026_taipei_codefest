@@ -5,11 +5,11 @@ test.beforeEach(async ({ page }) => {
   // This server uses the real tool adapter in its default real-data mode; only HTTP
   // responses and location are fixtures. Toilets come from the bundled official snapshot.
   await page.goto('/');
-  await page.getByText('設定', { exact: true }).click();
+  await page.getByRole('button', { name: '設定', exact: true }).click();
   await page.getByText('開發者檢視與接點設定', { exact: true }).click();
   await page.getByLabel('模型來源').selectOption('demo');
   await page.getByRole('button', { name: '套用接點', exact: true }).click();
-  await page.getByText('設定', { exact: true }).click();
+  await page.getByRole('button', { name: '關閉設定', exact: true }).click();
 });
 
 const send = async (page: Page, text: string) => {
@@ -122,10 +122,38 @@ test('live YouBike results offer the Town Pass map instead of Google Maps', asyn
   });
 });
 
+test('disaster requests consistently offer the official service and never a local mock', async ({
+  page,
+}) => {
+  for (const request of ['通報災情', '我要通報災情', '淹水了要通報災情']) {
+    await send(page, request);
+    const card = page.locator('.navigation-card');
+    await expect(card.getByRole('heading', { name: '災情通報', exact: true })).toBeVisible();
+    await expect(card).toContainText('台北通');
+    await expect(page.getByRole('button', { name: '前往', exact: true })).toBeVisible();
+    await expect(page.getByText('前端示範 · 不會定位、判讀照片或送出通報')).toHaveCount(0);
+    await page.getByRole('button', { name: '先不要', exact: true }).click();
+    await expect(card).toHaveCount(0);
+  }
+});
+
+test('greeting and urgent requests have distinct, actionable responses', async ({ page }) => {
+  await send(page, '你好');
+  await expect(page.locator('section.assistant-message')).toContainText(
+    '你好！你可以直接說想找什麼服務',
+  );
+  await expect(page.locator('.navigation-card')).toHaveCount(0);
+  await send(page, '失火了！');
+  await expect(page.getByRole('heading', { name: /119/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /119/ })).toBeVisible();
+  await expect(page.locator('.navigation-card')).toHaveCount(0);
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('失火了');
+});
+
 test('water fee asks for the account number once, then fills it in', async ({ page }) => {
   await stubBridge(page);
   await send(page, '我要繳水費');
-  await expect(page.getByRole('heading', { name: '繳水費' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '繳水費', exact: true })).toBeVisible();
   await page.getByLabel('你的水號是？').fill('1-23-456789');
   await page.getByRole('button', { name: '前往', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('10 碼');
@@ -152,7 +180,7 @@ test('water fee asks for the account number once, then fills it in', async ({ pa
   await expect(card.getByLabel('你的水號是？')).toHaveCount(0);
 
   // People can see and delete what is remembered.
-  await page.getByText('設定', { exact: true }).click();
+  await page.getByRole('button', { name: '設定', exact: true }).click();
   await expect(page.locator('.remembered')).toContainText('1-23-456789-0');
   await page.getByRole('button', { name: '刪除', exact: true }).click();
   await expect(page.locator('.remembered')).toContainText('目前沒有記住任何資料');
