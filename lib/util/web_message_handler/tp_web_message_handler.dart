@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:town_pass/gen/assets.gen.dart';
 import 'package:town_pass/service/account_service.dart';
+import 'package:town_pass/service/asr_service.dart';
 import 'package:town_pass/service/device_service.dart';
 import 'package:town_pass/service/geo_locator_service.dart';
 import 'package:town_pass/service/llm_service.dart';
@@ -18,6 +19,7 @@ import 'package:town_pass/util/tp_button.dart';
 import 'package:town_pass/util/tp_dialog.dart';
 import 'package:town_pass/util/tp_route.dart';
 import 'package:town_pass/util/tp_text.dart';
+import 'package:town_pass/util/web_message_handler/local_ai_origin.dart';
 import 'package:town_pass/util/web_message_handler/tp_web_message_reply.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -375,7 +377,10 @@ String? _originOf(WebUri? uri) {
   }
 }
 
-Map<String, Object?> _llmReply(Object? request, Map<String, Object?> response) {
+Map<String, Object?> _localAiReply(
+  Object? request,
+  Map<String, Object?> response,
+) {
   final id = request is Map ? request['requestId'] : null;
   return {...response, if (id is String && id.length <= 64) 'requestId': id};
 }
@@ -396,7 +401,7 @@ class LlmStartMessageHandler extends TPWebMessageHandler {
     if (!isMainFrame || !isLlmOriginAllowed(_originOf(sourceOrigin))) {
       onReply?.call(
         replyWebMessage(
-          data: _llmReply(message, {
+          data: _localAiReply(message, {
             'phase': 'error',
             'running': false,
             'error': 'origin_not_allowed',
@@ -408,7 +413,7 @@ class LlmStartMessageHandler extends TPWebMessageHandler {
     final status = await LlmService.start();
     onReply?.call(
       replyWebMessage(
-        data: _llmReply(message, status.toJson(includeKey: true)),
+        data: _localAiReply(message, status.toJson(includeKey: true)),
       ),
     );
   }
@@ -429,7 +434,7 @@ class LlmStopMessageHandler extends TPWebMessageHandler {
     if (!isMainFrame || !isLlmOriginAllowed(_originOf(sourceOrigin))) {
       onReply?.call(
         replyWebMessage(
-          data: _llmReply(message, {
+          data: _localAiReply(message, {
             'phase': 'error',
             'running': false,
             'error': 'origin_not_allowed',
@@ -439,7 +444,9 @@ class LlmStopMessageHandler extends TPWebMessageHandler {
       return;
     }
     final status = await LlmService.stop();
-    onReply?.call(replyWebMessage(data: _llmReply(message, status.toJson())));
+    onReply?.call(
+      replyWebMessage(data: _localAiReply(message, status.toJson())),
+    );
   }
 }
 
@@ -458,7 +465,7 @@ class LlmStatusMessageHandler extends TPWebMessageHandler {
     if (!isMainFrame || !isLlmOriginAllowed(_originOf(sourceOrigin))) {
       onReply?.call(
         replyWebMessage(
-          data: _llmReply(message, {
+          data: _localAiReply(message, {
             'phase': 'error',
             'running': false,
             'error': 'origin_not_allowed',
@@ -468,6 +475,103 @@ class LlmStatusMessageHandler extends TPWebMessageHandler {
       return;
     }
     final status = await LlmService.status();
-    onReply?.call(replyWebMessage(data: _llmReply(message, status.toJson())));
+    onReply?.call(
+      replyWebMessage(data: _localAiReply(message, status.toJson())),
+    );
+  }
+}
+
+/// 啟動本機 ASR 服務。只有允許的來源可以取得 API key；網頁不能設定 threads。
+class AsrStartMessageHandler extends TPWebMessageHandler {
+  @override
+  String get name => 'asr_start';
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
+    if (!isMainFrame || !isLocalAiOriginAllowed(_originOf(sourceOrigin))) {
+      onReply?.call(
+        replyWebMessage(
+          data: _localAiReply(message, {
+            'phase': 'error',
+            'running': false,
+            'error': 'origin_not_allowed',
+          }),
+        ),
+      );
+      return;
+    }
+    final status = await AsrService.start();
+    onReply?.call(
+      replyWebMessage(
+        data: _localAiReply(message, status.toJson(includeKey: true)),
+      ),
+    );
+  }
+}
+
+/// 停止本機 ASR 服務，不回傳 API key。
+class AsrStopMessageHandler extends TPWebMessageHandler {
+  @override
+  String get name => 'asr_stop';
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
+    if (!isMainFrame || !isLocalAiOriginAllowed(_originOf(sourceOrigin))) {
+      onReply?.call(
+        replyWebMessage(
+          data: _localAiReply(message, {
+            'phase': 'error',
+            'running': false,
+            'error': 'origin_not_allowed',
+          }),
+        ),
+      );
+      return;
+    }
+    final status = await AsrService.stop();
+    onReply?.call(
+      replyWebMessage(data: _localAiReply(message, status.toJson())),
+    );
+  }
+}
+
+/// 查詢本機 ASR 狀態，不回傳 API key。
+class AsrStatusMessageHandler extends TPWebMessageHandler {
+  @override
+  String get name => 'asr_status';
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
+    if (!isMainFrame || !isLocalAiOriginAllowed(_originOf(sourceOrigin))) {
+      onReply?.call(
+        replyWebMessage(
+          data: _localAiReply(message, {
+            'phase': 'error',
+            'running': false,
+            'error': 'origin_not_allowed',
+          }),
+        ),
+      );
+      return;
+    }
+    final status = await AsrService.status();
+    onReply?.call(
+      replyWebMessage(data: _localAiReply(message, status.toJson())),
+    );
   }
 }

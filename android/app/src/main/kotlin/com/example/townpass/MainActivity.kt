@@ -2,6 +2,8 @@ package com.example.townpass
 
 import android.os.Handler
 import android.os.Looper
+import com.example.townpass.asr.AsrConfig
+import com.example.townpass.asr.AsrServer
 import com.example.townpass.llm.LlmConfig
 import com.example.townpass.llm.LlmServer
 import io.flutter.embedding.android.FlutterActivity
@@ -17,6 +19,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        configureAsrChannel(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "town_pass/llm").setMethodCallHandler { call, result ->
             when (call.method) {
                 "status" -> result.success(LlmServer.status().toMap())
@@ -40,6 +43,26 @@ class MainActivity : FlutterActivity() {
                         val status = LlmServer.stop(applicationContext)
                         mainHandler.post { result.success(status.toMap()) }
                     }
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun configureAsrChannel(flutterEngine: FlutterEngine) {
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "town_pass/asr").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "status" -> result.success(AsrServer.status().toMap())
+                "start" -> {
+                    val config = AsrConfig(threads = call.argument<Int>("threads"))
+                    worker.execute {
+                        val status = AsrServer.start(applicationContext, config)
+                        mainHandler.post { result.success(status.toMap()) }
+                    }
+                }
+                "stop" -> worker.execute {
+                    val status = AsrServer.stop(applicationContext)
+                    mainHandler.post { result.success(status.toMap()) }
                 }
                 else -> result.notImplemented()
             }
