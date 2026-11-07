@@ -14,17 +14,17 @@
 
 呼叫形式是 `window.flutterObject.postMessage(JSON.stringify({ name, data }))`，不是 HTTP API。回傳透過 WebMessageListener；實作在 `lib/util/web_message_handler/`。
 
-| `name`                     | 能力                              | 限制                                                      |
-| -------------------------- | --------------------------------- | --------------------------------------------------------- |
-| `location`                 | 讀取裝置位置                      | 需要使用者定位權限，可能回空結果                          |
-| `deviceinfo`               | 讀取裝置資訊                      | 回傳原生裝置資料；Agent 目前不需要也不讀取                |
-| `qr_code_scan`             | 開啟掃碼頁並回傳結果              | 相機與使用者操作，不是背景自主掃碼                        |
-| `open_link`                | 沿用 App route 開啟網頁／本地頁面 | 開頁不等於取得該服務 API 或完成交易                       |
-| `launch_map`               | 交給系統開啟地圖 URI              | 取決於手機可處理 URI 的應用程式                           |
-| `phone_call` / `1999agree` | 開啟系統撥號流程                  | 會產生外部操作；不可直接交給 LLM 自主呼叫                 |
-| `notify`                   | 顯示本機通知、部分示範訂閱狀態    | 不是遠端訂閱服務 API                                      |
-| `userinfo`                 | 讀取 AccountService 的帳戶        | **目前來源是 assets/mock_data/account，不是正式登入身分** |
-| `tts` / `share`            | 最新 App 已新增原生朗讀／分享     | 本 MVP Vue 尚未接入，不能宣稱畫面已可使用                 |
+| `name`                     | 能力                              | 限制                                                        |
+| -------------------------- | --------------------------------- | ----------------------------------------------------------- |
+| `location`                 | 讀取裝置位置                      | 需要使用者定位權限，可能回空結果                            |
+| `deviceinfo`               | 讀取裝置資訊                      | 回傳原生裝置資料；Agent 目前不需要也不讀取                  |
+| `qr_code_scan`             | 開啟掃碼頁並回傳結果              | 相機與使用者操作，不是背景自主掃碼                          |
+| `open_link`                | 沿用 App route 開啟網頁／本地頁面 | 開頁不等於取得該服務 API 或完成交易                         |
+| `launch_map`               | 交給系統開啟地圖 URI              | 取決於手機可處理 URI 的應用程式                             |
+| `phone_call` / `1999agree` | 開啟系統撥號流程                  | 會產生外部操作；不可直接交給 LLM 自主呼叫                   |
+| `notify`                   | 顯示本機通知、部分示範訂閱狀態    | 不是遠端訂閱服務 API                                        |
+| `userinfo`                 | 讀取 AccountService 的帳戶        | **目前來源是 assets/mock_data/account，不是正式登入身分**   |
+| `tts` / `share`            | 最新 App 已新增原生朗讀／分享     | `tts` 已由 `speech.ts` 接入（待實機驗證）；`share` 尚未接入 |
 
 Agent 沒有呼叫位置、相機、電話或 userinfo，沒有讀取個資。要讓 Agent 使用其中一項，應由 MCP 隊友提供受控工具，再加白名單、最小資料欄位與必要確認。
 

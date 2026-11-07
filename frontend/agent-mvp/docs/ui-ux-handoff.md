@@ -82,7 +82,7 @@ mise exec -- pnpm dev
 - 不在 component 內直接 fetch LLM／MCP，不擴大工具權限；呼叫現有 runner 與操作函式。
 - 保留標籤、語意化按鈕、可見焦點、狀態通知、48dp 觸控目標，繁中與英文的 200% 字級不截斷或橫向溢出。
 - UI 字串放字典檔；只保存必要偏好與示範進度，不保存對話或敏感個資。
-- 最新 App 已提供 `tts`／`share` bridge；MVP Vue 尚未接上，不能只因瀏覽器朗讀成功就標示 App 也支援。無障礙支援須有文字替代。
+- App 內朗讀已接上 `tts` bridge（`src/platform/speech.ts`），震動、螢幕閱讀器播報與系統無障礙設定見 [無障礙文件](accessibility.md)；`share` 尚未接上。實機驗證前不能只因瀏覽器朗讀成功就標示 App 也支援。無障礙支援須有文字替代。
 
 ## 提交驗收
 

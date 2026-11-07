@@ -4,6 +4,8 @@
 
 UI／UX 隊友請先看 [交接文件與流程圖](docs/ui-ux-handoff.md)，可不用模型與 Flutter 直接修改介面。
 
+無障礙基礎層（螢幕閱讀器播報、震動回饋、App 內朗讀、系統無障礙設定）見 [無障礙文件](docs/accessibility.md)，介面設計完成後呼叫 `feedback()` 即可。
+
 本工作區負責 **agent orchestration 與無障礙操作介面**。**LLM 推論與 MCP 由隊友實作**；這裡的 Ollama adapter 和 DemoMcpClient 是聯調替身，不是團隊的正式模型或 MCP server。
 
 帳單 skill、MCP 契約與驗收矩陣見 [帳單交接文件](docs/skills/bills.md)。目前可查本期示範帳單、補問類型、保留四種繳費狀態並開啟登記的開發範本入口；尚未接正式帳務或登入。
@@ -109,7 +111,7 @@ adb shell am start -a android.intent.action.VIEW -d http://127.0.0.1:5173 com.an
 
 模型候選為 Qwen3 1.7B Q4_K_M，已下載檔案 1,359,293,444 bytes（約 1.36 GB）。檔案大小不是執行期 RAM；本次未驗證 Tensor G5 加速、Android runtime 或持續推論效能。官方模型卡為 [Qwen/Qwen3-1.7B](https://huggingface.co/Qwen/Qwen3-1.7B)，Apache-2.0；Android runtime 可供隊友參考 [llama.cpp Android 文件](https://github.com/ggml-org/llama.cpp/blob/master/docs/android.md)。測試接點遵循 [Ollama OpenAI compatibility](https://docs.ollama.com/api/openai-compatibility)。
 
-嵌入 TownPass 時沿用既有 `TPWebView`，正式版部署 HTTPS 靜態站，不將 dist 放 Flutter assets。已在開發版 App 的「首頁」及「服務」頁加入「安心助手」入口，沿用 TPWebView；未新增 native bridge。已偵測 `window.flutterObject`：WebView 不使用 browser speechSynthesis；目前顯示朗讀未提供；最新 App 已有 tts handler，Vue adapter 尚待串接。獨立瀏覽器可朗讀，聲音是否離線取決於系統語音引擎；沒有自製 ASR，可用手機鍵盤語音輸入。
+嵌入 TownPass 時沿用既有 `TPWebView`，正式版部署 HTTPS 靜態站，不將 dist 放 Flutter assets。已在開發版 App 的「首頁」及「服務」頁加入「安心助手」入口，沿用 TPWebView；未新增 native bridge。已偵測 `window.flutterObject`：WebView 不使用 browser speechSynthesis，App 內朗讀改走原生 `tts` bridge（開始／完成／停止／錯誤生命週期見 [無障礙文件](docs/accessibility.md)），尚待實機驗證。獨立瀏覽器可朗讀，聲音是否離線取決於系統語音引擎；沒有自製 ASR，可用手機鍵盤語音輸入。
 
 ## 驗證與限制
 
