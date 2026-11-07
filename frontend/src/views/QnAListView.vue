@@ -51,7 +51,7 @@ const onPanelExpandClick = (id: string) => {
         {{ category }}
       </button>
     </div>
-    <h5 class="text-primary-500 mb-10 text-[32px] font-bold title">
+    <h5 class="text-primary-500 mb-10 text-[2rem] font-bold title">
       {{ currentCategoryItem?.name }}常見問題
     </h5>
     <div class="w-full flex flex-col overflow-y-auto">

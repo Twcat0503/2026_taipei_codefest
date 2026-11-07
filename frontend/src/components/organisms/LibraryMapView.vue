@@ -4,6 +4,7 @@ import LibraryList from '@/components/organisms/LibraryListView.vue';
 import LibraryDetail from '@/components/organisms/LibraryDetailView.vue';
 import MessageModal from '@/components/molecules/MessageModal.vue';
 import { useGoogleMapsStore } from '@/stores/googleMaps';
+import MapUnavailableNotice from '@/components/molecules/MapUnavailableNotice.vue';
 import { onMounted, ref, watch } from 'vue';
 import greenDotIconUrl from '/public/images/map/youbike/mappin-green.svg';
 import defaultFocusIconUrl from '/public/images/map/icon_mappin-garbagetruck-green-pressed.svg';
@@ -32,6 +33,8 @@ const filteredLibraryList = ref<Library[]>([]);
 const selectedLibrary = ref<Library | null>(null);
 
 let isMapReady = ref(false);
+/** 沒有 API key 或地圖載入失敗 */
+const isMapFailed = ref(false);
 
 let map: any = null;
 /** 使用者定位 */
@@ -63,63 +66,69 @@ const setMapHeight = () => {
  * @param lng 經度
  */
 const initMap = (lat: number, lng: number) => {
-  googleMapsStore.loader.load().then(async () => {
-    const { Map } = (await google.maps.importLibrary('maps')) as google.maps.MapsLibrary;
+  googleMapsStore.loader
+    .load()
+    .then(async () => {
+      const { Map } = (await google.maps.importLibrary('maps')) as google.maps.MapsLibrary;
 
-    map = new Map(document.getElementById('map') as HTMLElement, {
-      // 設定地圖的中心點經緯度位置
-      center: { lat, lng },
-      // 設定地圖縮放比例 0-20
-      zoom: 13,
-      // 限制使用者能縮放地圖的最大比例
-      maxZoom: 20,
-      // 限制使用者能縮放地圖的最小比例
-      minZoom: 3,
-      // 設定是否呈現右下角街景小人
-      streetViewControl: false,
-      // 設定是否讓使用者可以切換地圖樣式：一般、衛星圖等
-      mapTypeControl: false,
-      fullscreenControl: false,
-      zoomControl: false,
-      // 替換成您的 MAP ID
-      mapId: ''
+      map = new Map(document.getElementById('map') as HTMLElement, {
+        // 設定地圖的中心點經緯度位置
+        center: { lat, lng },
+        // 設定地圖縮放比例 0-20
+        zoom: 13,
+        // 限制使用者能縮放地圖的最大比例
+        maxZoom: 20,
+        // 限制使用者能縮放地圖的最小比例
+        minZoom: 3,
+        // 設定是否呈現右下角街景小人
+        streetViewControl: false,
+        // 設定是否讓使用者可以切換地圖樣式：一般、衛星圖等
+        mapTypeControl: false,
+        fullscreenControl: false,
+        zoomControl: false,
+        // 替換成您的 MAP ID
+        mapId: ''
+      });
+
+      // init marker
+      marker = new google.maps.Marker({
+        position: {
+          lat,
+          lng
+        },
+        map,
+        title: 'your location',
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          fillColor: '#4285F4',
+          fillOpacity: 1,
+          scale: 8, // 控制大小
+          strokeColor: 'white',
+          strokeWeight: 2
+        }
+      });
+
+      // get current location
+      getPositionClick();
+
+      // 在地圖的dragend事件上使用該函數
+      map.addListener('dragend', function () {
+        updateMarkers();
+      });
+
+      // // 在地圖的zoom_changed事件上使用該函數
+      map.addListener('zoom_changed', function () {
+        updateMarkers();
+      });
+
+      isMapReady.value = true;
+      setMapHeight();
+      window.addEventListener('resize', setMapHeight);
+    })
+    .catch((error) => {
+      console.error('Failed to load Google Maps:', error);
+      isMapFailed.value = true;
     });
-
-    // init marker
-    marker = new google.maps.Marker({
-      position: {
-        lat,
-        lng
-      },
-      map,
-      title: 'your location',
-      icon: {
-        path: google.maps.SymbolPath.CIRCLE,
-        fillColor: '#4285F4',
-        fillOpacity: 1,
-        scale: 8, // 控制大小
-        strokeColor: 'white',
-        strokeWeight: 2
-      }
-    });
-
-    // get current location
-    getPositionClick();
-
-    // 在地圖的dragend事件上使用該函數
-    map.addListener('dragend', function () {
-      updateMarkers();
-    });
-
-    // // 在地圖的zoom_changed事件上使用該函數
-    map.addListener('zoom_changed', function () {
-      updateMarkers();
-    });
-
-    isMapReady.value = true;
-    setMapHeight();
-    window.addEventListener('resize', setMapHeight);
-  });
 };
 
 const getPositionClick = () => {
@@ -267,6 +276,10 @@ const clearMarkers = () => {
 
 onMounted(() => {
   searchLibraryList.value = libraryList.value;
+  if (!googleMapsStore.isMapAvailable) {
+    isMapFailed.value = true;
+    return;
+  }
   initMap(currentLocation.value.lat, currentLocation.value.lng);
 });
 
@@ -281,7 +294,11 @@ watch(searchLibraryList, updateMarkers);
     >
       <!-- 地圖 -->
       <div class="relative flex-1">
-        <div class="google-map" id="map"></div>
+        <MapUnavailableNotice
+          v-if="isMapFailed"
+          detail="圖書館分館仍可在「分館與站點」列表查看。"
+        />
+        <div v-else class="google-map" id="map"></div>
         <div v-if="isMapReady" class="gps" @click="getPositionClick">
           <img src="@/assets/images/gps.png" width="20" alt="" />
         </div>

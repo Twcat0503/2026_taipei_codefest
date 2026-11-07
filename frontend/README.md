@@ -53,7 +53,7 @@ pnpm test           # Vitest 單次執行；pnpm test:watch 為監看模式
 
 ## 已知事項
 
-- 地圖功能使用 Google Maps，`src/stores/googleMaps.ts` 的 `apiKey` 目前是空字串。要啟用時，改成讀取 Vite 環境變數，並把 key 名稱登記到 `.env.example`；key 本身不進 git。
+- 地圖功能使用 Google Maps，key 由 `VITE_GOOGLE_MAPS_API_KEY` 提供（名稱登記在 `.env.example`，值放 `.env.local`，不進 git）；沒有 key 時地圖區塊顯示「地圖暫時無法使用」。
 - `pnpm build` 會提醒主要 bundle 超過 500 kB，之後可以用動態 import 拆分。
 - 範本釘的 vue-tsc 2.0.11 跑 type-check 時會印出 `languageId not found`，但 exit code 仍是 0；之後升級套件時一併確認。
 - `pnpm lint` 目前有 35 個 `no-unused-vars` warning（上游遺留），不影響 CI。

@@ -271,6 +271,14 @@ const activeRecord = computed(() =>
         </div>
       </template>
     </ServiceTabsView>
+    <footer class="px-4 pb-6 pt-2">
+      <RouterLink
+        :to="{ name: 'about' }"
+        class="inline-flex min-h-12 items-center text-sm text-primary-700 underline"
+      >
+        資料來源與授權
+      </RouterLink>
+    </footer>
   </main>
 </template>
 

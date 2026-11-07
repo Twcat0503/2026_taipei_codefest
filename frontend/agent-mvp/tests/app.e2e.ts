@@ -59,6 +59,31 @@ test('accessible initial page and enlarged bilingual layouts', async ({ page }) 
   await expect(page.getByRole('heading', { name: 'Walking Together', exact: true })).toBeVisible();
 });
 
+test('system high contrast keeps the chat UI at WCAG AA with visible edges', async ({ page }) => {
+  await page.emulateMedia({ contrast: 'more' });
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-a11y-contrast', 'true');
+  const scan = async () =>
+    (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
+      .violations;
+  expect(await scan()).toEqual([]);
+  await chooseService(page, '幫我找圖書');
+  await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toBeVisible();
+  expect(await scan()).toEqual([]);
+  // The chat surfaces use the lighter high-contrast tokens and get a border-coloured edge.
+  const bubble = page.locator('section.assistant-message .reply-bubble');
+  await expect(bubble).toHaveCSS('background-color', 'rgb(238, 241, 242)');
+  await expect(bubble).toHaveCSS('box-shadow', 'rgb(125, 139, 146) 0px 0px 0px 1px inset');
+  // The first request is the heading; the second one shows as a user bubble.
+  await chooseService(page, '你好');
+  await expect(page.locator('section.assistant-message')).toContainText('你好！');
+  expect(await scan()).toEqual([]);
+  await expect(page.locator('.user-message').last()).toHaveCSS(
+    'background-color',
+    'rgb(205, 235, 240)',
+  );
+});
+
 test('unknown requests and cancelled drafts never produce receipts', async ({ page }) => {
   await page.getByLabel('你想要做什麼？', { exact: true }).fill('幫我寫一首詩');
   await page.getByRole('button', { name: '送出需求', exact: true }).click();
