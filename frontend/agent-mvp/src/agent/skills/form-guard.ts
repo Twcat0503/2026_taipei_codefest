@@ -26,11 +26,12 @@ const DISTRICT_NAMES = DISTRICTS.map(([zh]) => zh);
 
 /** Sentences that talk to the assistant instead of describing the task. */
 const INSTRUCTION =
-  /忽略|無視|不要理會|不用理會|系統提示|ignore|disregard|(?:previous|above|prior) instructions|system prompt/i;
+  /忽略|無視|不要理會|不用理會|系統提示|忘(?:記|掉)(?:你)?(?:之前|前面|所有)|(?:你的|之前的?|所有的?)(?:規則|限制|指令)|管理員指令|以下是.{0,6}指令|ignore|disregard|forget (?:your|all|previous)|(?:previous|above|prior) instructions|system prompt|admin(?:istrator)? (?:command|instruction)/i;
 
 /** Drops sentences that try to instruct the assistant; the rest is the task. */
 export function sanitizeRequest(request: string): { text: string; removed: number } {
-  const sentences = request.split(/(?<=[。！？!?\n])/);
+  // English sentences end with ". " too.
+  const sentences = request.split(/(?<=[。！？!?\n]|\.\s)/);
   const kept = sentences.filter((sentence) => !INSTRUCTION.test(sentence));
   return { text: kept.join('').trim(), removed: sentences.length - kept.length };
 }

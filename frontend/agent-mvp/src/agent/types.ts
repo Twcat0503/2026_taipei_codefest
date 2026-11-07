@@ -93,6 +93,10 @@ export type TaskState = {
   navigation: Navigation | null;
   /** The last tool that produced this answer; drives the follow-up choices. */
   lastTool: string | null;
+  /** The last place lookup, so 「那廁所呢」「換成大安區」 can follow it. Kept across turns. */
+  lastPlace: { tool: string; area?: string; nearMe?: boolean; accessible?: boolean } | null;
+  /** The last service page offered, so 「好，帶我去那個頁面」 opens it. Kept across turns. */
+  lastDestination: string | null;
   /** Set when the request sounds like an emergency; the UI offers call buttons. */
   emergency: import('./skills/emergency').EmergencyKind | null;
   draft: Draft | null;
@@ -134,6 +138,8 @@ export const initialState = (): TaskState => ({
   pendingLocation: null,
   navigation: null,
   lastTool: null,
+  lastPlace: null,
+  lastDestination: null,
   emergency: null,
   draft: null,
   receipt: null,

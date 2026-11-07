@@ -871,6 +871,21 @@ const { values } = await fillFormGuarded(model, TOUR_FORM, 原話, {
             <td class="n"><strong>60%</strong></td>
           </tr>
           <tr>
+            <td>多輪對話（「那廁所呢」「換成大安區」）</td>
+            <td class="n">38%（Mac）</td>
+            <td class="n"><strong>81%</strong></td>
+          </tr>
+          <tr>
+            <td>超出範圍與注入（被帶走的題數）</td>
+            <td class="n">3 題（Mac）</td>
+            <td class="n"><span class="pill good">0 題</span></td>
+          </tr>
+          <tr>
+            <td>圖書館關鍵字</td>
+            <td class="n">75%（Mac）</td>
+            <td class="n">80%</td>
+          </tr>
+          <tr>
             <td>附近無障礙設施（GPS）</td>
             <td class="n">69%（第一批）</td>
             <td class="n"><span class="pill good">91%</span></td>
@@ -886,6 +901,12 @@ const { values } = await fillFormGuarded(model, TOUR_FORM, 原話, {
       <li>
         附近設施：沒說地點就用手機 GPS（實測精度約 15
         公尺），地標換算成行政區，無障礙要原話有提才加。
+      </li>
+      <li>
+        多輪對話：記住上一次的地點查詢和推薦的服務頁，「那廁所呢」「好，帶我去那個頁面」接得上。
+      </li>
+      <li>
+        注入：路由前先刪掉含指令的句子，夾帶的「改開別的頁面」一題都沒成功。多輪、注入、圖書館這三項的補強是看過結果才做的，數字偏樂觀。
       </li>
       <li>手機長時間跑推論時，鎖螢幕、切 App、畫面轉向或過熱都會讓系統停掉模型。</li>
     </ul>

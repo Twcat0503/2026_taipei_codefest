@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AgentRunner } from '../src/agent/runner';
+import { AgentRunner, followUpPlace } from '../src/agent/runner';
 import { initialState, type ModelAdapter, type ToolCall } from '../src/agent/types';
 import { DemoToolClient, type ToolClient } from '../src/agent/tool-client';
 import { domainTools } from '../src/agent/tools';
@@ -165,5 +165,51 @@ describe('routing words people use', () => {
     ['我上個月的費用有沒有繳成功', 'fee_history'],
   ])('%s → %s', (text, id) => {
     expect(destinationFor(text)).toBe(id);
+  });
+});
+
+describe('place follow-ups', () => {
+  const parking = { tool: 'find_nearby_parking', area: '中正區', accessible: false };
+  it.each([
+    ['那廁所呢', parking, '中正區的廁所'],
+    ['換成大安區', parking, '大安區的停車場'],
+    ['要有無障礙的', parking, '中正區的無障礙停車場'],
+    ['那我現在這邊呢', parking, '附近的停車場'],
+    ['What about YouBike there?', parking, '中正區的YouBike 站'],
+  ])('%s → %s', (text, last, expected) => {
+    expect(followUpPlace(text, last)).toBe(expected);
+  });
+
+  it('leaves full new requests alone', () => {
+    expect(followUpPlace('我想繳上個月的停車費，帳單在這裡', parking)).toBeNull();
+    expect(followUpPlace('台北車站附近的無障礙廁所在哪裡', parking)).toBeNull();
+  });
+});
+
+describe('pointing back at the last page', () => {
+  it('opens the page offered in the previous turn', async () => {
+    const state = initialState();
+    const calls: ToolCall[] = [];
+    const tools = placeTools(calls);
+    const model: ModelAdapter = {
+      mode: 'local',
+      async complete({ tools: offered }) {
+        if (offered[0]?.function.name === 'select_agent')
+          return { calls: [{ id: 'r', name: 'select_agent', arguments: { domain: 'services' } }] };
+        return {
+          calls: [
+            {
+              id: 'n',
+              name: 'open_official_service',
+              arguments: { destination: 'services_maternity' },
+            },
+          ],
+        };
+      },
+    };
+    const runner = new AgentRunner(model, state, tools);
+    state.lastDestination = 'services_maternity';
+    await runner.run('那幫我打開那個').catch(() => {});
+    expect(calls.at(-1)?.arguments.destination).toBe('services_maternity');
   });
 });

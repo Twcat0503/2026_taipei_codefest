@@ -29,6 +29,7 @@ import { EMERGENCY_CASES } from './emergency-cases';
 import { EMERGENCY_CASES_2 } from './emergency-cases-2';
 import { PLACES_CASES } from './places-cases';
 import { PLACES_CASES_2 } from './places-cases-2';
+import { LIBRARY_CASES, SCOPE_CASES, TURNS_CASES } from './conversation-cases';
 
 const SET = process.env.FEATURE_EVAL_SET || 'routing';
 const MODEL_NAME = process.env.MODEL_NAME || 'qwen3:1.7b';
@@ -320,6 +321,108 @@ if (SET === 'places' || SET === 'places2')
           elapsedMs,
         });
       }
+    });
+
+// ---------- library keyword, two-turn conversations, scope and injection ----------
+
+/** What one runner turn ended in: a destination, a place tool, 'unsupported', 'emergency' or ''. */
+function outcomeOf(state: ReturnType<typeof initialState>, calls: ToolCall[]): string {
+  if (state.emergency) return 'emergency';
+  if (state.navigation?.id) return state.navigation.id;
+  const place = calls.filter((c) => PLACE_TOOLS.includes(c.name)).at(-1);
+  if (place) return place.name;
+  const read = calls.find((call) => call.name !== 'open_official_service');
+  if (read) return TOOL_DESTINATION[read.name] ?? read.name;
+  return state.domain === 'unsupported' || state.notice === 'unsupported' ? 'unsupported' : '';
+}
+
+if (SET === 'library')
+  for (const item of LIBRARY_CASES)
+    test(`library · ${item.request}`, async () => {
+      const start = performance.now();
+      const calls: ToolCall[] = [];
+      const state = initialState();
+      await new AgentRunner(base, state, recordingTools(calls)).run(item.request).catch(() => {});
+      const open = calls.find((call) => call.name === 'open_official_service');
+      const keyword = typeof open?.arguments.keyword === 'string' ? open.arguments.keyword : '';
+      const destination = state.navigation?.id ?? outcomeOf(state, calls);
+      const norm = (text: string) => text.replace(/[「」《》『』"'\s]/g, '');
+      rows.push({
+        condition: 'runner',
+        request: item.request,
+        tag: item.tag,
+        expected: item.keyword,
+        got: { destination, keyword },
+        correct:
+          destination === 'townpass_library' &&
+          item.keyword.some((option) => norm(option) === norm(keyword)),
+        elapsedMs: Math.round(performance.now() - start),
+      });
+    });
+
+if (SET === 'turns')
+  for (const item of TURNS_CASES)
+    test(`turns · ${item.turns.join(' → ')}`, async () => {
+      const start = performance.now();
+      const calls: ToolCall[] = [];
+      const state = initialState();
+      const runner = new AgentRunner(base, state, recordingTools(calls));
+      await runner.run(item.turns[0]).catch(() => {});
+      calls.length = 0;
+      await runner.run(item.turns[1]).catch(() => {});
+      let correct: boolean;
+      let got: unknown;
+      if (item.expected.kind === 'place') {
+        const e = item.expected.place;
+        const call = calls.filter((c) => PLACE_TOOLS.includes(c.name)).at(-1);
+        got = {
+          tool: call?.name ?? 'none',
+          area: typeof call?.arguments.area === 'string' ? call.arguments.area : '',
+          near_me: call?.arguments.near_me === true,
+          accessible: call?.arguments.accessible === true,
+        };
+        const g = got as { tool: string; area: string; near_me: boolean; accessible: boolean };
+        correct =
+          g.tool === e.tool &&
+          e.area.includes(g.area) &&
+          g.near_me === e.near_me &&
+          g.accessible === e.accessible;
+      } else {
+        got = outcomeOf(state, calls);
+        correct = item.expected.ids.includes(got as string);
+      }
+      rows.push({
+        condition: 'runner',
+        request: item.turns.join(' → '),
+        tag: item.tag,
+        expected: item.expected,
+        got,
+        correct,
+        elapsedMs: Math.round(performance.now() - start),
+      });
+    });
+
+if (SET === 'scope')
+  for (const item of SCOPE_CASES)
+    test(`scope · ${item.request}`, async () => {
+      const start = performance.now();
+      const calls: ToolCall[] = [];
+      const state = initialState();
+      await new AgentRunner(base, state, recordingTools(calls)).run(item.request).catch(() => {});
+      const outcome = outcomeOf(state, calls);
+      const forbidden = item.forbidden ?? [];
+      rows.push({
+        condition: 'runner',
+        request: item.request,
+        tag: item.tag,
+        expected: item.expected,
+        forbidden,
+        outcome,
+        calls,
+        correct: item.expected.includes(outcome) && !forbidden.includes(outcome),
+        followedInjection: forbidden.includes(outcome),
+        elapsedMs: Math.round(performance.now() - start),
+      });
     });
 
 afterAll(() => {

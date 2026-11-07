@@ -60,7 +60,11 @@ export const DESTINATION_RULES: readonly [id: string, pattern: RegExp][] = [
     /長者|老人|銀髮|長輩|敬老|長照|六十五歲|65\s*歲|老年|elderly|senior|over 65/i,
   ],
   ['services_disabled', /身障|身心障礙|障礙者|復康|輔具|輪椅|disab|wheelchair/i],
-  ['townpass_library', /書|圖書|館藏|借閱|借書|book|library/i],
+  // 《書名》 is how Chinese marks a book title.
+  [
+    'townpass_library',
+    /書|圖書|館藏|借閱|借書|《[^》]+》|小說|繪本|雜誌|作者|著作|讀物|book|library|novel/i,
+  ],
   ['townpass_faq', /常見問題|登入|註冊|密碼|faq/i],
   ['townpass_apply', /申辦|申請|補助|服務|線上辦|網路上辦|網路辦|證明|apply|application|service/i],
 ];
@@ -85,5 +89,6 @@ export function catalogKeyword(request: string, suggested: unknown): string | un
   const raw = suggested.trim();
   if (!raw || !request.includes(raw)) return undefined;
   const cleaned = raw.replace(EDGE, '').trim();
-  return cleaned && cleaned.length <= 30 ? cleaned : undefined;
+  // A single character left after trimming (新 from 新書) is not a search term.
+  return cleaned && cleaned.length >= 2 && cleaned.length <= 30 ? cleaned : undefined;
 }
