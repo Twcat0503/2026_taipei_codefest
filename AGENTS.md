@@ -165,7 +165,7 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 多個 agent（Claude Code、pi 等）同時參與開發時：
 
 - 開工前先 `git fetch --prune`，確認目前的 branch 沒有被合併（見 CONTRIBUTING.md「日常 Git 操作」）；一個任務一個 branch，平行作業用 worktree（放在已 gitignore 的 `.claude/worktrees/`），不在 `main` 上修改。
-- 前端（`frontend/`）的工作從常駐的 `frontend` branch 切出，PR 回 `frontend`；其他工作從 `main` 切出（見 CONTRIBUTING.md「常駐 branch」）。
+- 依改動的目錄選 base branch：`frontend/` → `frontend`、`agent/` → `agent`、`model/` → `model`、`tools/` → `tools`，其他從 `main` 切出（見 CONTRIBUTING.md「常駐 branch」）；跨線介面的改動先 PR 到 `main`。
 - 只改任務範圍內的檔案；順手發現的問題寫進回報或 PR 內文，不要一起改。
 - 宣稱完成前，先跑所屬棧的自檢指令（見「指令」）；失敗就照實回報。
 - push 與開 PR 依使用者指示；合併由維護者執行。
