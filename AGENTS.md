@@ -100,6 +100,30 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 - API key 等機密不進 commit：`.env` 已 gitignore，key 名稱登記 `.env.example`，source code 不硬編碼。
 - 新增相依套件須為開源且與 **AGPL-3.0** 相容（MIT／BSD／Apache-2.0 可），PR 內說明選用理由。
 
+## 程式碼慣例
+
+- 註解可用繁中或英文，同一個檔案內保持一致；identifier 與 commit message 用英文。
+- repo 會公開：程式碼、註解、commit message、PR 內文都不得引用 `research/` 等內部路徑或內部文件內容；需要佐證時附公開來源的 URL。
+
+## 資料來源與穩定性
+
+- **資料要真實可查**：畫面上的統計數字、法條、電話、申辦天數與 dataset 名稱，都要有可查證的公開出處，並列在前端 `/about`（技術與資料來源頁）；查不到就不放，不可編造。
+- 開放資料依《政府資料開放授權條款》顯名（見「設計規範」）。
+- 還沒串接真實資料、暫時使用 mock 的畫面，要在畫面上清楚標示，不能讓使用者誤以為是真實資料。
+- **不能白屏**：每個 bridge 呼叫都要處理失敗（`bridge.call()` 會以 `no-bridge`／`timeout` reject）；資料載入失敗時，要顯示看得到的錯誤訊息與重試方式。
+- **app 外也能用**：主要流程在純瀏覽器（沒有 `window.flutterObject`）也要能完整走完；原生能力改用瀏覽器實作，或明確告知目前無法使用。
+
+## Agent 工作守則
+
+多個 agent（Claude Code、pi 等）同時參與開發時：
+
+- 開工前先 `git fetch --prune`，確認目前的 branch 沒有被合併（見 CONTRIBUTING.md「日常 Git 操作」）；一個任務一個 branch，平行作業用 worktree（放在已 gitignore 的 `.claude/worktrees/`），不在 `main` 上修改。
+- 只改任務範圍內的檔案；順手發現的問題寫進回報或 PR 內文，不要一起改。
+- 宣稱完成前，先跑所屬棧的自檢指令（見「指令」）；失敗就照實回報。
+- push 與開 PR 依使用者指示；合併由維護者執行。
+- 遵守「程式碼慣例」與「資料來源與穩定性」：不引用內部路徑、不編造資料。
+- 不讀取、不輸出、不 commit 機密（`.env`、token、金鑰）。
+
 ## 已知 gotchas
 
 - 需先接受 Xcode license：`sudo xcodebuild -license accept`，否則 brew／iOS build 會失敗（僅 iOS 需要；Android 基準開發不受影響）。
