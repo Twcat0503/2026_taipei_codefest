@@ -2,7 +2,7 @@
 
 給 agent 與前端的對接文件。這裡的工具全部唯讀，不會送件、付款或預約。
 
-agent 設定 `VITE_TOOL_SOURCE=townpass` 就會使用，第一次要先在這個目錄執行 `pnpm install`。工具直接在瀏覽器執行，不需要 server，也沒有使用 MCP 協定。
+agent 設定 `VITE_TOOL_SOURCE=townpass` 就會使用，第一次要先在這個目錄執行 `pnpm install`。工具直接在瀏覽器執行，不需要 server。
 
 ## 工具
 

@@ -1,6 +1,6 @@
 /**
  * 瀏覽器版工具入口：讓 frontend/agent-mvp 的 AgentRunner 直接查示範站資料，不需要另外架 server。
- * 對外只提供 agent 目前放行的 search_books、search_services，格式依它的 McpClient 契約。
+ * 對外只提供 agent 目前放行的 search_books、search_services，格式依它的 ToolClient 契約。
  * 這個檔案和它的 import 不可依賴 Node API。
  */
 

@@ -8,7 +8,7 @@ pnpm typecheck
 pnpm test
 ```
 
-`src/agent-client.ts` 的 `createAgentToolClient()` 符合 `frontend/agent-mvp` 的 `McpClient` 介面（介面名稱沿用 agent 端，這裡沒有使用 MCP 協定）。目前提供 `search_books`、`search_services`。資料只有中文，所以 `en` 欄位放的是原文。
+`src/agent-client.ts` 的 `createAgentToolClient()` 符合 `frontend/agent-mvp` 的 `ToolClient` 介面。目前提供 `search_books`、`search_services`。資料只有中文，所以 `en` 欄位放的是原文。
 
 相依套件：`zod`（上游資料驗證，MIT）。
 
