@@ -86,7 +86,7 @@ App 預設只用下列真實資料與官方服務，不拿模擬資料回答使�
 
 開放資料依《政府資料開放授權條款－第1版》（<https://data.gov.tw/license>）顯名，畫面上每次查詢都標示提供機關、資料集與資料時間，完整清單同步列在前端的 `/about`。
 
-官方服務入口（使用者確認後才前往，助手不代為送出）：[臺北市立圖書館館藏查詢](https://book.tpml.edu.tw/)、[台北服務通](https://service.taipei/)（身障者、孕婦、長者分類）、[臺北市陳情系統](https://1999.gov.taipei/)、1999 市民當家熱線、[臺北市政府智慧支付平台](https://pay.taipei/)。
+服務入口（使用者確認後才前往，助手不代為送出）：優先帶到台北通站內的微服務（有話要說、繳費、臨櫃叫號、圖書借閱、訂閱、報案、優惠；頁面為 TownPass-Services 範本示範資料，畫面上會標示）；台北通沒有的才用官方網站：[台北服務通](https://service.taipei/)（身障者、孕婦、長者分類）、1999 市民當家熱線。
 
 開發用的 [TownPass-Services](https://github.com/taipei-doit/TownPass-Services) `public/mock/*.json` 示範資料只在 `VITE_TOOL_SOURCE=townpass-demo` 時使用。
 

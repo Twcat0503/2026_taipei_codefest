@@ -29,7 +29,7 @@ const posted = async (page: Page) => {
   return raw ? JSON.parse(raw) : null;
 };
 
-test('official toilets resume with district and official services ask before leaving', async ({
+test('official toilets resume with district and in-app services ask before leaving', async ({
   page,
 }) => {
   await page.evaluate(() => {
@@ -50,11 +50,12 @@ test('official toilets resume with district and official services ask before lea
       .violations,
   ).toEqual([]);
 
-  // Personal bills are not invented: the official payment platform is offered instead.
+  // Personal bills are not invented: the in-app Town Pass payment page is offered instead.
   await stubBridge(page);
   await send(page, '我想看到我這期的帳單與繳費狀態');
-  await expect(page.getByRole('heading', { name: '臺北市政府智慧支付平台' })).toBeVisible();
-  await expect(answer).toContainText('pay.taipei');
+  await expect(page.getByRole('heading', { name: '繳費', exact: true })).toBeVisible();
+  await expect(answer).toContainText('台北通「繳費」');
+  await expect(answer).toContainText('示範資料');
   await expect(answer).not.toContainText('示範帳單');
   expect(
     (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
@@ -65,9 +66,12 @@ test('official toilets resume with district and official services ask before lea
   expect(await posted(page)).toBeNull();
 
   await send(page, '路燈壞了我要陳情');
-  await expect(page.getByRole('heading', { name: '臺北市陳情系統' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '有話要說' })).toBeVisible();
   await page.getByRole('button', { name: '前往', exact: true }).click();
-  expect(await posted(page)).toEqual({ name: 'open_link', data: 'https://1999.gov.taipei/' });
+  expect(await posted(page)).toEqual({
+    name: 'open_link',
+    data: 'https://taipei-pass-service.vercel.app/citizen-report/',
+  });
   await expect(answer).toContainText('已請手機開啟');
 });
 

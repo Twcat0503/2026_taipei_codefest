@@ -39,7 +39,7 @@ export const TOOLS: Record<string, { domain: ToolDomain | ToolDomain[]; args: st
   },
   // Real mode: requests that need an official site end in a confirm-before-leaving card.
   open_official_service: {
-    domain: ['library', 'services', 'bills'],
+    domain: ['library', 'services', 'bills', 'perks'],
     args: ['destination', 'keyword'],
   },
 };
@@ -192,25 +192,25 @@ export async function executeReadTool(
     !['demo', 'snapshot', 'live', 'link'].includes(data.source) ||
     !Array.isArray(data.records) ||
     data.records.length > 20 ||
-    (data.source === 'link') !== (call.name === NAVIGATION_TOOL)
+    (call.name === NAVIGATION_TOOL && data.source !== 'link')
   )
     throw new Error('UNSUPPORTED_SERVICE_DATA');
   const isBook = call.name === 'search_library_books' || call.name === 'get_library_ranking';
   for (const item of data.records)
     if (!validRecord(item, isBook)) throw new Error('INVALID_TOOL_RESULT');
-  if (data.source === 'link') {
+  if (call.name === NAVIGATION_TOOL) {
     const [record] = data.records as ToolRecord[];
     if (data.records.length !== 1 || !record?.url) throw new Error('INVALID_TOOL_RESULT');
+    const field = (label: string) =>
+      record.fields?.find((item) => item.label['zh-Hant-TW'] === label)?.value['zh-Hant-TW'] ?? '';
     // Nothing opens here: the UI asks the user before leaving the assistant.
     state.navigation = {
       id: record.id,
       title: record.title,
       description: record.description,
-      provider:
-        record.fields?.find((field) => field.label['zh-Hant-TW'] === '提供單位')?.value[
-          'zh-Hant-TW'
-        ] ?? '',
+      provider: field('提供單位'),
       url: record.url,
+      where: field('前往') || record.url,
     };
     state.records = [];
     state.bookIds = [];

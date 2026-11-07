@@ -28,11 +28,12 @@ const toolSamples: Sample[] = [
   [
     '幫我找跟貓有關的書',
     'open_official_service',
-    { destination: 'library_catalog', keyword: '貓' },
+    { destination: 'townpass_library', keyword: '貓' },
   ],
   ['我想申請身障補助', 'open_official_service', { destination: 'services_disabled' }],
-  ['路燈壞了要陳情', 'open_official_service', { destination: 'petition' }],
-  ['我要繳水費', 'open_official_service', { destination: 'pay' }],
+  ['路燈壞了要陳情', 'open_official_service', { destination: 'townpass_report' }],
+  ['我要繳水費', 'open_official_service', { destination: 'fee_water' }],
+  ['有哪些服務', 'list_townpass_services', {}],
 ];
 
 function structuredRequest(input: Parameters<ModelAdapter['complete']>[0], ollamaHints = true) {
@@ -221,8 +222,12 @@ export class DemoModel implements ModelAdapter {
         ],
       };
     }
-    if (names.includes('open_official_service') && names.length === 1) {
-      const destination = destinationFor(request.original_request) ?? 'library_catalog';
+    if (
+      names.includes('open_official_service') &&
+      names.every((name) => name === 'open_official_service' || name === 'list_townpass_services')
+    ) {
+      const ruled = destinationFor(request.original_request);
+      const destination = !ruled || ruled === 'catalog' ? 'townpass_library' : ruled;
       const keyword = quoted ?? demoArguments('search_library_books', text, said, quoted).keyword;
       return {
         calls: [
@@ -231,7 +236,7 @@ export class DemoModel implements ModelAdapter {
             name: 'open_official_service',
             arguments: {
               destination,
-              ...(destination === 'library_catalog' && keyword ? { keyword } : {}),
+              ...(destination === 'townpass_library' && keyword ? { keyword } : {}),
             },
           },
         ],

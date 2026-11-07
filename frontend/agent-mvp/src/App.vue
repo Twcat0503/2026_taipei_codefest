@@ -23,6 +23,7 @@ import { cancelDraft, changeBranch, confirmReservation, prepareReservation } fro
 import { clearTask, getPreference, restoreTask, saveTask, setPreference } from './platform/storage';
 import { canReadAloud, readAloud, stopReading } from './platform/speech';
 import { getLocation, openLink } from './platform/location';
+import { serviceOrigin } from './platform/service-navigation';
 
 const locale = ref<Locale>(
   getPreference('tp-language', 'zh-Hant-TW') === 'en' ? 'en' : 'zh-Hant-TW',
@@ -99,11 +100,12 @@ const suggestions = computed(() =>
     ? [
         t.value.toiletSuggestion,
         t.value.parkingSuggestion,
-        t.value.youbikeSuggestion,
-        t.value.disabledSuggestion,
-        t.value.bookSuggestion,
         t.value.petitionSuggestion,
         t.value.paySuggestion,
+        t.value.counter,
+        t.value.bookSuggestion,
+        t.value.disabledSuggestion,
+        t.value.browseServices,
       ]
     : [
         t.value.browseBills,
@@ -119,6 +121,11 @@ const suggestions = computed(() =>
 const confirmingLink = ref<string | null>(null);
 const leftFor = ref<string | null>(null);
 const hostOf = (url: string) => (url.startsWith('tel:') ? url.slice(4) : new URL(url).host);
+// In-app Town Pass pages are named by service, not by the demo host they happen to load from.
+const leaveQuestion = (record: TaskState['records'][number]) =>
+  record.url?.startsWith(`${serviceOrigin}/`)
+    ? t.value.leaveAskApp.replace('{name}', record.title[locale.value])
+    : t.value.leaveAsk.replace('{host}', hostOf(record.url ?? ''));
 function go(url: string) {
   openLink(url);
   leftFor.value = url;
@@ -475,7 +482,7 @@ onBeforeUnmount(() => {
         <span class="sr-only">{{ t.assistant }}</span>
         <p>{{ noticeText(turn.notice) }}</p>
         <p v-if="turn.navigation" class="small-note">
-          {{ turn.navigation.title[locale] }}（{{ hostOf(turn.navigation.url) }}）
+          {{ turn.navigation.title[locale] }}（{{ turn.navigation.where }}）
         </p>
         <ul v-if="turn.books.length" class="plain-list">
           <li v-for="book in turn.books" :key="book.id">
@@ -576,7 +583,7 @@ onBeforeUnmount(() => {
                 role="group"
                 :aria-label="t.leaveTitle"
               >
-                <p>{{ t.leaveAsk.replace('{host}', hostOf(record.url)) }}</p>
+                <p>{{ leaveQuestion(record) }}</p>
                 <div class="action-row">
                   <button class="primary-button" @click="go(record.url)">{{ t.leaveGo }}</button
                   ><button class="text-button" @click="stay">{{ t.leaveStay }}</button>
@@ -600,9 +607,9 @@ onBeforeUnmount(() => {
           </p>
           <dl>
             <dt>{{ state.navigation.url.startsWith('tel:') ? t.leaveCall : t.leaveSite }}</dt>
-            <dd>{{ hostOf(state.navigation.url) }}</dd>
+            <dd>{{ state.navigation.where }}</dd>
           </dl>
-          <p class="small-note">{{ t.leaveNote }}</p>
+          <p class="small-note">{{ state.source?.note || t.leaveNote }}</p>
           <div class="action-row">
             <button class="primary-button" @click="go(state.navigation.url)">
               {{ state.navigation.url.startsWith('tel:') ? t.leaveDial : t.leaveGo }}</button

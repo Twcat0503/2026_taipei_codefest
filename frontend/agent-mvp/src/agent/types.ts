@@ -62,6 +62,8 @@ export type Navigation = {
   provider: string;
   /** https URL or tel: number, taken only from the tool's allowlist. */
   url: string;
+  /** Where it opens, e.g. 台北通「有話要說」 or a website host. */
+  where: string;
 };
 export type Receipt = Draft & { reference: string; createdAt: string; source: 'demo' };
 export type TaskState = {

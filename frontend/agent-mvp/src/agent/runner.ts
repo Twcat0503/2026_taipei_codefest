@@ -8,7 +8,7 @@ import {
   executeReadTool,
   routingTool,
 } from './tools';
-import { catalogKeyword, destinationFor } from './skills/navigation';
+import { CATALOG_TOOL, catalogKeyword, destinationFor } from './skills/navigation';
 import {
   billIntentTool,
   billSkill,
@@ -361,18 +361,23 @@ export class AgentRunner {
         }
         return;
       }
-      const onlyNavigation =
-        offeredTools.length === 1 && offeredTools[0]!.function.name === NAVIGATION_TOOL;
+      const offeredNames = offeredTools.map((tool) => tool.function.name);
+      // Real mode: the only tools here open Town Pass services or official sites.
+      const linksOnly = offeredNames.every((n) => n === NAVIGATION_TOOL || n === CATALOG_TOOL);
+      const navigable = offeredNames.includes(NAVIGATION_TOOL);
       // A library request with no matching word (e.g. a quoted title) still means the catalog.
-      const ruled = destinationFor(request) ?? (domain === 'library' ? 'library_catalog' : null);
-      if (onlyNavigation && !ruled) {
-        // Never send someone to an unrelated site because a small model had to pick one.
-        trace('skill', 'no_destination', 'No official destination matches the request.');
+      const ruled = destinationFor(request) ?? (domain === 'library' ? 'townpass_library' : null);
+      if (linksOnly && !ruled) {
+        // Never send someone to an unrelated page because a small model had to pick one.
+        trace('skill', 'no_destination', 'No service destination matches the request.');
         this.state.notice = 'unsupported';
         return;
       }
       let call: ToolCall;
-      if (onlyNavigation && ruled && ruled !== 'library_catalog') {
+      if (linksOnly && ruled === 'catalog' && offeredNames.includes(CATALOG_TOOL)) {
+        call = { id: 'rule', name: CATALOG_TOOL, arguments: {} };
+        trace('skill', 'navigation', 'Listing Town Pass in-app services.');
+      } else if (linksOnly && navigable && ruled && ruled !== 'townpass_library') {
         // The destination is explicit; a second inference would only add latency.
         call = { id: 'rule', name: NAVIGATION_TOOL, arguments: { destination: ruled } };
         trace('skill', 'navigation', `Destination from explicit wording: ${ruled}`);
@@ -383,19 +388,19 @@ export class AgentRunner {
         );
         signal.throwIfAborted();
         if (!response.calls.length) {
-          if (!onlyNavigation || !ruled) throw new Error('NO_TOOL_RESULT');
+          if (!linksOnly || !navigable || !ruled) throw new Error('NO_TOOL_RESULT');
           response.calls = [{ id: 'rule', name: NAVIGATION_TOOL, arguments: {} }];
         }
         if (response.calls.length !== 1) throw new Error('ONE_TOOL_AT_A_TIME');
         call = response.calls[0]!;
       }
       if (call.name === NAVIGATION_TOOL) {
-        if (ruled && call.arguments.destination !== ruled) {
+        if (ruled && ruled !== 'catalog' && call.arguments.destination !== ruled) {
           trace('skill', 'corrected', `Explicit wording selects ${ruled}.`);
           call.arguments.destination = ruled;
         }
         const keyword =
-          call.arguments.destination === 'library_catalog'
+          call.arguments.destination === 'townpass_library'
             ? catalogKeyword(request, call.arguments.keyword)
             : undefined;
         if (keyword) call.arguments.keyword = keyword;

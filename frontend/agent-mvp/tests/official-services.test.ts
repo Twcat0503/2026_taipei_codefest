@@ -18,11 +18,17 @@ const route = (domain: string) => ({
   calls: [{ id: 'r', name: 'select_agent', arguments: { domain } }],
 });
 
-describe('official destinations in real mode', () => {
+const townpass = (path: string) => `https://taipei-pass-service.vercel.app${path}`;
+
+describe('Town Pass in-app services and official destinations in real mode', () => {
   it.each([
-    ['路燈壞了我要陳情', 'petition', 'https://1999.gov.taipei/'],
+    ['路燈壞了我要陳情', 'townpass_report', townpass('/citizen-report/')],
+    ['我要繳水費', 'fee_water', townpass('/fee-payment/detail/fee-6/')],
+    ['查詢臨櫃叫號', 'townpass_counter', townpass('/counter-calling/')],
+    ['有什麼優惠票券？', 'townpass_coupon', townpass('/coupon/')],
+    ['我想訂閱市政訊息', 'townpass_subscription', townpass('/subscription')],
+    ['我的東西被偷了要報案', 'townpass_police', townpass('/police-report')],
     ['我想申請身障補助', 'services_disabled', 'classificationCode=Disabled'],
-    ['我要繳水費', 'pay', 'https://pay.taipei/'],
     ['我懷孕了可以申請什麼', 'services_maternity', 'classificationCode=Maternity'],
     ['我想打 1999', 'call_1999', 'tel:1999'],
   ])('%s → %s, shown for confirmation and never opened', async (request, id, url) => {
@@ -43,17 +49,18 @@ describe('official destinations in real mode', () => {
     const state = initialState();
     await new AgentRunner(model, state, realClient()).run('路燈壞了我要陳情');
     expect(model.complete).toHaveBeenCalledOnce();
-    expect(state.navigation?.id).toBe('petition');
+    expect(state.navigation?.id).toBe('townpass_report');
+    expect(state.navigation?.where).toBe('台北通「有話要說」');
   });
 
   it('overrides a wrong destination from the model with explicit wording', async () => {
     const model = scripted(route('services'), {
-      calls: [{ id: 'c', name: 'open_official_service', arguments: { destination: 'pay' } }],
+      calls: [{ id: 'c', name: 'open_official_service', arguments: { destination: 'fee' } }],
     });
     const state = initialState();
     // "書" makes library_catalog the rule, which still asks the model for a keyword.
     await new AgentRunner(model, state, realClient()).run('我想借書');
-    expect(state.navigation?.id).toBe('library_catalog');
+    expect(state.navigation?.id).toBe('townpass_library');
     expect(state.traces.some((t) => t.event === 'corrected')).toBe(true);
   });
 
@@ -64,7 +71,7 @@ describe('official destinations in real mode', () => {
           {
             id: 'c',
             name: 'open_official_service',
-            arguments: { destination: 'library_catalog', keyword },
+            arguments: { destination: 'townpass_library', keyword },
           },
         ],
       });
@@ -72,25 +79,37 @@ describe('official destinations in real mode', () => {
       await new AgentRunner(model, state, realClient()).run(request);
       return state.navigation?.url;
     };
-    expect(await run('幫我找跟貓有關的書', '貓')).toBe(
-      'https://book.tpml.edu.tw/search?searchField=FullText&searchInput=%E8%B2%93',
+    expect(await run('幫我找「神奇柑仔店」', '神奇柑仔店')).toBe(
+      townpass(
+        '/library-service/keyword-search?search=%E7%A5%9E%E5%A5%87%E6%9F%91%E4%BB%94%E5%BA%97&type=all',
+      ),
     );
-    // A script-converted keyword is not what the user typed: open the catalog home instead.
-    expect(await run('熱門的書有哪些', '熱門的书')).toBe('https://book.tpml.edu.tw/');
+    // A script-converted keyword is not what the user typed: open the library home instead.
+    expect(await run('熱門的書有哪些', '熱門的书')).toBe(townpass('/library-service/'));
   });
 
-  it('sends personal bill questions to the official payment platform, not demo bills', async () => {
+  it('sends personal bill questions to the in-app payment page, not demo bills', async () => {
     const state = initialState();
     await new AgentRunner(new DemoModel(), state, realClient()).run(
       '我想看到我這期的帳單與繳費狀態',
     );
     expect(state.billResult).toBeNull();
     expect(state.pendingBillCategory).toBe(false);
-    expect(state.navigation?.id).toBe('pay');
+    expect(state.navigation?.id).toBe('fee');
+    expect(state.navigation?.url).toBe(townpass('/fee-payment/'));
   });
 
-  it('says it is unsupported instead of showing demo perks or a random site', async () => {
-    for (const request of ['有什麼優惠票券？', '今天天氣如何']) {
+  it('lists in-app services as links without demo data', async () => {
+    const state = initialState();
+    await new AgentRunner(new DemoModel(), state, realClient()).run('有哪些服務？');
+    expect(state.source?.kind).toBe('link');
+    expect(state.records.length).toBeGreaterThan(10);
+    expect(state.records.every((r) => r.url?.startsWith(townpass('/')))).toBe(true);
+    expect(state.navigation).toBeNull();
+  });
+
+  it('says it is unsupported instead of sending users to a random page', async () => {
+    for (const request of ['今天天氣如何', '幫我寫一首詩']) {
       const state = initialState();
       await new AgentRunner(new DemoModel(), state, realClient()).run(request);
       expect(state.notice).toBe('unsupported');
@@ -105,12 +124,17 @@ describe('official destinations in real mode', () => {
     await new AgentRunner(model, state, realClient()).run('查詢臨櫃叫號');
     expect(state.domain).toBe('services');
     expect(state.billResult).toBeNull();
+    expect(state.navigation?.id).toBe('townpass_counter');
   });
 });
 
 describe('navigation rules', () => {
   it('picks destinations from explicit wording', () => {
-    expect(destinationFor('附近的路燈不亮想反映')).toBe('petition');
+    expect(destinationFor('附近的路燈不亮想反映')).toBe('townpass_report');
+    expect(destinationFor('停車費要怎麼繳')).toBe('fee_parking');
+    expect(destinationFor('我想看繳費紀錄')).toBe('fee_history');
+    expect(destinationFor('家門口淹水了')).toBe('townpass_disaster');
+    expect(destinationFor('有哪些服務')).toBe('catalog');
     expect(destinationFor('長輩可以申請什麼補助')).toBe('services_elderly');
     expect(destinationFor('今天天氣如何')).toBeNull();
   });

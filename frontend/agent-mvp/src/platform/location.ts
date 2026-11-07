@@ -51,9 +51,16 @@ export function getLocation(signal: AbortSignal): Promise<LatLng | null> {
 export function openLink(url: string) {
   if (url.startsWith('tel:')) {
     const number = url.slice(4);
-    // Native phone_call opens the dialer; the user still presses call there.
+    // 1999 uses Town Pass's own call flow (its user agreement, then the dialer);
+    // other numbers open the dialer through phone_call. The user still presses call.
     if (window.flutterObject)
-      window.flutterObject.postMessage(JSON.stringify({ name: 'phone_call', data: number }));
+      window.flutterObject.postMessage(
+        JSON.stringify(
+          number === '1999'
+            ? { name: '1999agree', data: true }
+            : { name: 'phone_call', data: number },
+        ),
+      );
     else window.location.href = url;
     return;
   }
