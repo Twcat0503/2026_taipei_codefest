@@ -3,7 +3,8 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    # main plus the long-lived frontend integration branch
+    branches: [main, frontend]
 
 permissions:
   contents: read
@@ -34,7 +35,7 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
             changed="$(git diff --name-only "$BASE_SHA...$HEAD_SHA")"
           else
-            # Pushes to main check everything that exists.
+            # Pushes to long-lived branches check everything that exists.
             changed="$(git ls-files)"
           fi
 
