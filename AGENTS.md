@@ -6,9 +6,9 @@
 
 ### 前端（主要開發，`frontend/`）
 
-- Vue 3 + Vite + TypeScript；lint／格式：ESLint + Prettier；測試：Vitest。
+- Vue 3 + Vite + TypeScript + Tailwind CSS，以 [TownPass-Services](https://github.com/taipei-doit/TownPass-Services) 為範本（來源與授權狀態見 `frontend/README.md`）；lint／格式：ESLint + Prettier；測試：Vitest。
 - Node 與 pnpm 版本由 `frontend/mise.toml` 釘選（`mise install` 安裝）；套件管理一律用 **pnpm**，不用 npm／yarn／bun。
-- 目錄待建立；scaffold 後 `mise.toml` 與 `pnpm-lock.yaml` 進 git。
+- `mise.toml`、`package.json`、`pnpm-lock.yaml` 進 git；目錄結構與前端慣例見 `frontend/README.md`。前端開發在常駐的 `frontend` branch 進行。
 - **設計基準：mobile-first**，以 Android 裝置 viewport 為主，Android Chrome 驗證。
 
 ### Flutter（行動端，repo 根目錄）
@@ -28,8 +28,9 @@ mise install   # 首次：安裝 mise.toml 釘選的 Node／pnpm
 pnpm install   # 安裝相依
 pnpm dev       # 開發伺服器
 pnpm build     # 正式建置（含型別檢查）
-pnpm lint      # ESLint
-pnpm test      # Vitest
+pnpm lint      # ESLint（只檢查；pnpm lint:fix 會自動修正）
+pnpm format    # Prettier（pnpm format:check 只檢查不改）
+pnpm test      # Vitest（單次執行；pnpm test:watch 為監看模式）
 ```
 
 ### Flutter（repo 根目錄）
