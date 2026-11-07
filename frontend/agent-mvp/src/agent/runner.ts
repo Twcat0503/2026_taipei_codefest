@@ -18,7 +18,13 @@ import {
   parseBillOutcome,
   type BillSelection,
 } from './skills/bills';
-import type { Domain, Message, ModelAdapter, TaskState, ToolCall } from './types';
+import {
+  parseReportVision,
+  visionInstruction,
+  visionSystemPrompt,
+  type ReportVision,
+} from './skills/report-vision';
+import type { Domain, Locale, Message, ModelAdapter, TaskState, ToolCall } from './types';
 
 const ACCESSIBLE_PLACE =
   /無障礙|身障|身心障礙|輪椅|孕婦|懷孕|愛心|accessible|wheelchair|disab|pregnan/i;
@@ -63,6 +69,8 @@ const PROFILE_QUESTION =
 
 export class AgentRunner {
   private controller: AbortController | null = null;
+  /** A separate channel so a photo lookup can run (and be cancelled) from the draft card. */
+  private visionController: AbortController | null = null;
   /** The person's own settings (from the on-phone profile); applied to place lookups. */
   preferences = { accessible: false };
   constructor(
@@ -78,6 +86,40 @@ export class AgentRunner {
 
   cancel() {
     this.controller?.abort();
+  }
+
+  cancelVision() {
+    this.visionController?.abort();
+  }
+
+  /**
+   * Look at a report photo and return an editable draft (subject + description). Throws
+   * VISION_UNAVAILABLE when the model is not multimodal, and VISION_NO_RESULT when the model
+   * finds nothing reportable. The caller always shows the result for the person to confirm.
+   */
+  async describePhoto(image: string, locale: Locale): Promise<ReportVision> {
+    if (!this.model.vision) throw new Error('VISION_UNAVAILABLE');
+    if (this.visionController) throw new Error('VISION_RUNNING');
+    const controller = new AbortController();
+    this.visionController = controller;
+    try {
+      const raw = await bounded(
+        (child) =>
+          this.model.vision!({
+            image,
+            system: visionSystemPrompt(locale),
+            instruction: visionInstruction(locale),
+            signal: child,
+          }),
+        controller.signal,
+        Math.min(120000, Math.max(45000, this.model.requestTimeoutMs ?? 45000)),
+      );
+      const draft = parseReportVision(raw);
+      if (!draft) throw new Error('VISION_NO_RESULT');
+      return draft;
+    } finally {
+      if (this.visionController === controller) this.visionController = null;
+    }
   }
 
   run(request: string, onProgress: (stage: 'routing' | 'searching') => void = () => {}) {

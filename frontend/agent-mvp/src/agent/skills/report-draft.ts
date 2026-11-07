@@ -1,28 +1,24 @@
 import { normalizeRequest } from './normalize';
+import { findDistrict, REPORT_RULES, type ReportCategory } from '../open-data/taipei';
 
 /**
  * Draft a citizen report (有話要說) from what the person said, so the form opens filled in.
  * Rule-based on purpose: no extra inference on the phone, and nothing the person did not say
  * is invented. The draft is shown for editing before anything opens.
+ *
+ * The subject and the matched official category come from the open-data rules in
+ * `../open-data/taipei.ts`; the category and its handling agency are real petition data
+ * (PETITION_SOURCE) and are shown for transparency, not sent as a form field.
  */
-export type ReportDraft = { title: string; description: string; location: string };
-
-/** Subject lines for common problems; the first match wins. */
-const SUBJECTS: [RegExp, string][] = [
-  [/路燈|街燈/, '路燈故障'],
-  [/紅綠燈|號誌/, '交通號誌故障'],
-  [/坑洞|路面|柏油|凹陷/, '道路坑洞'],
-  [/人行道|騎樓/, '人行道問題'],
-  [/違停|違規停車|亂停/, '違規停車'],
-  [/噪音|太吵|很吵|施工聲/, '噪音問題'],
-  [/垃圾|髒亂|廚餘|資源回收/, '垃圾與環境髒亂'],
-  [/漏水|淹水|積水|水管/, '漏水或積水'],
-  [/路樹|樹倒|樹枝|倒樹/, '路樹問題'],
-  [/公車|司機|客運|站牌/, '公車服務問題'],
-  [/復康巴士/, '復康巴士問題'],
-  [/無障礙|輪椅|坡道|電梯/, '無障礙設施問題'],
-  [/流浪狗|流浪貓|動物/, '動物問題'],
-];
+export type ReportDraft = {
+  title: string;
+  description: string;
+  location: string;
+  /** Taipei district detected from the text, for the district picker; '' when none is found. */
+  district: string;
+  /** The matched official petition category and agency; null when nothing clean matches. */
+  category: ReportCategory | null;
+};
 
 /** Phrases about the request itself, not the problem, at either end. */
 const LEADING =
@@ -40,14 +36,16 @@ const AT_HOME = /我家|家門口|家裡|住家|我住的地方|家附近/;
 export function draftReport(request: string, homeAddress?: string): ReportDraft {
   const text = normalizeRequest(request).trim();
   const problem = text.replace(LEADING, '').replace(TRAILING, '').trim() || text;
-  const subject =
-    SUBJECTS.find(([pattern]) => pattern.test(text))?.[1] ??
-    problem.replace(/[，。！？,.!?].*$/, '').slice(0, 20);
+  const rule = REPORT_RULES.find(({ keywords }) => keywords.test(text));
+  const subject = rule?.subject ?? problem.replace(/[，。！？,.!?].*$/, '').slice(0, 20);
+  const location =
+    (text.match(LOCATION)?.[0] ?? '').replace(/^(?:就在|位於|附近的?|旁邊的?|在|於)/, '') ||
+    (homeAddress && AT_HOME.test(text) ? homeAddress : '');
   return {
     title: subject.slice(0, 40),
     description: problem.slice(0, 500),
-    location:
-      (text.match(LOCATION)?.[0] ?? '').replace(/^(?:就在|位於|附近的?|旁邊的?|在|於)/, '') ||
-      (homeAddress && AT_HOME.test(text) ? homeAddress : ''),
+    location,
+    district: findDistrict(location) || findDistrict(text),
+    category: rule?.main ? { main: rule.main, sub: rule.sub!, agency: rule.agency! } : null,
   };
 }

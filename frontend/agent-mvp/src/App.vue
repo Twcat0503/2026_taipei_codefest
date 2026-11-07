@@ -27,6 +27,8 @@ import { getLocation, openLink } from './platform/location';
 import { serviceOrigin } from './platform/service-navigation';
 import { PREFILL_FORM_PATH, PREFILL_SLOTS } from './agent/prefill';
 import { draftReport, type ReportDraft } from './agent/skills/report-draft';
+import { pickReportPhoto } from './platform/image';
+import { DISTRICTS, DISTRICT_SOURCE, PETITION_SOURCE } from './agent/open-data/taipei';
 import {
   forgetWaterNumber,
   formatWaterNumber,
@@ -164,8 +166,102 @@ const rememberWater = ref(true);
 const editingWater = ref(false);
 const waterError = ref(false);
 const slots = computed(() => (state.navigation ? (PREFILL_SLOTS[state.navigation.id] ?? []) : []));
-const draft = reactive<ReportDraft>({ title: '', description: '', location: '' });
+const draft = reactive<ReportDraft>({
+  title: '',
+  description: '',
+  location: '',
+  district: '',
+  category: null,
+});
+const emptyDraft = (): ReportDraft => ({
+  title: '',
+  description: '',
+  location: '',
+  district: '',
+  category: null,
+});
 const draftError = ref(false);
+// 拍照陳情：照片交給多模態模型辨識，整理成可編輯的草稿描述。
+const photo = ref<string | null>(null);
+const photoBusy = ref(false);
+const photoOk = ref(false);
+const photoError = ref<'error' | 'none' | 'unavailable' | 'notReady' | null>(null);
+const photoInput = ref<HTMLInputElement>();
+// 示範（規則模擬）模式沒有真正的視覺模型；本機與手機模型才送照片。
+const canSeePhotos = computed(() => mode.value !== 'demo');
+const photoMessageKey = computed<
+  | 'photoBusy'
+  | 'photoDone'
+  | 'photoNone'
+  | 'photoNotReady'
+  | 'photoUnavailable'
+  | 'photoSimulated'
+  | 'photoError'
+  | null
+>(() => {
+  if (photoBusy.value) return 'photoBusy';
+  if (photoError.value === 'none') return 'photoNone';
+  if (photoError.value === 'notReady') return 'photoNotReady';
+  if (photoError.value === 'unavailable')
+    return mode.value === 'demo' ? 'photoSimulated' : 'photoUnavailable';
+  if (photoError.value === 'error') return 'photoError';
+  if (photoOk.value) return 'photoDone';
+  return null;
+});
+function resetPhoto() {
+  runner.cancelVision();
+  photo.value = null;
+  photoBusy.value = false;
+  photoOk.value = false;
+  photoError.value = null;
+  if (photoInput.value) photoInput.value.value = '';
+}
+async function onPhoto(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  photoError.value = null;
+  photoOk.value = false;
+  if (!canSeePhotos.value) {
+    photoError.value = 'unavailable';
+    if (photoInput.value) photoInput.value.value = '';
+    return;
+  }
+  let image: string;
+  try {
+    image = await pickReportPhoto(file);
+  } catch {
+    photoError.value = 'error';
+    if (photoInput.value) photoInput.value.value = '';
+    return;
+  }
+  photo.value = image;
+  photoBusy.value = true;
+  try {
+    const result = await runner.describePhoto(image, locale.value);
+    // 不覆蓋使用者已經寫好的內容；描述則接在後面。
+    if (!draft.title.trim() && result.subject) draft.title = result.subject.slice(0, 40);
+    const line = result.description.trim();
+    if (line)
+      draft.description = draft.description.trim()
+        ? `${draft.description.trim()}\n${line}`.slice(0, 500)
+        : line;
+    draftError.value = false;
+    photoOk.value = true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    photoError.value =
+      message === 'VISION_NO_RESULT'
+        ? 'none'
+        : message === 'PHONE_NOT_READY'
+          ? 'notReady'
+          : message === 'VISION_UNAVAILABLE'
+            ? 'unavailable'
+            : 'error';
+  } finally {
+    photoBusy.value = false;
+    if (photoInput.value) photoInput.value.value = '';
+  }
+}
 // A new card (even for the same service) starts from the new request.
 watch(
   () => state.navigation,
@@ -174,8 +270,9 @@ watch(
       draft,
       slots.value.some((slot) => slot.source === 'draft')
         ? draftReport(lastRequest.value, memberInfo.value?.address)
-        : { title: '', description: '', location: '' },
+        : emptyDraft(),
     );
+    resetPhoto();
     draftError.value = false;
     waterInput.value = '';
     editingWater.value = false;
@@ -206,8 +303,19 @@ function goNavigation() {
       } else if (profile.value.waterNumber && !editingWater.value)
         prefill.water_number = profile.value.waterNumber;
     } else if (slot.source === 'draft') {
-      const value = draft[slot.field as keyof ReportDraft].trim();
-      if (value) prefill[slot.field] = value;
+      if (slot.field === 'location') {
+        const detail = draft.location.trim();
+        const district = draft.district.trim();
+        // Prepend the chosen district only when the typed location has none of its own.
+        const value =
+          district && detail && !/[一-鿿]{1,3}區/.test(detail)
+            ? `${district}${detail}`
+            : detail || district;
+        if (value) prefill.location = value;
+      } else if (slot.field === 'title' || slot.field === 'description') {
+        const value = draft[slot.field].trim();
+        if (value) prefill[slot.field] = value;
+      }
     } else if (typeof member.value === 'object' && member.value) {
       const value = memberField(member.value, slot.field);
       if (value) prefill[slot.field] = value;
@@ -445,6 +553,7 @@ function reset() {
   resumed.value = false;
   lastRequest.value = '';
   input.value = '';
+  resetPhoto();
 }
 async function applyConfig() {
   if (busy.value) return;
@@ -859,6 +968,43 @@ onBeforeUnmount(() => {
           </dl>
           <div v-if="slots.some((slot) => slot.source === 'draft')" class="prefill">
             <p class="field-label">{{ t.draftIntro }}</p>
+            <div class="report-photo">
+              <input
+                id="report-photo-input"
+                ref="photoInput"
+                class="sr-only"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                :disabled="photoBusy"
+                @change="onPhoto"
+              />
+              <label v-if="!photo" class="outline-button photo-button" for="report-photo-input">
+                <UiIcon name="camera" />{{ t.photoAdd }}
+              </label>
+              <img v-if="photo" :src="photo" :alt="t.photoAlt" class="photo-preview" />
+              <div v-if="photo" class="action-row">
+                <button type="button" class="text-button" :disabled="photoBusy" @click="resetPhoto">
+                  {{ t.photoRemove }}
+                </button>
+              </div>
+              <p class="small-note">{{ t.photoHint }}</p>
+              <p
+                v-if="photoMessageKey"
+                class="small-note"
+                :class="{ 'field-error': photoError && photoError !== 'none' }"
+                :role="photoBusy ? 'status' : 'alert'"
+                :aria-live="photoBusy ? 'polite' : undefined"
+              >
+                {{ t[photoMessageKey] }}
+              </p>
+            </div>
+            <dl v-if="draft.category" class="draft-category">
+              <dt>{{ t.draftCategory }}</dt>
+              <dd>{{ draft.category.main[locale] }} ・ {{ draft.category.sub }}</dd>
+              <dt>{{ t.draftAgency }}</dt>
+              <dd>{{ draft.category.agency }}</dd>
+            </dl>
             <label class="field-label" for="draft-title">{{ t.draftTitle }}</label>
             <input id="draft-title" v-model="draft.title" maxlength="40" autocomplete="off" />
             <label class="field-label" for="draft-description">{{ t.draftDescription }}</label>
@@ -868,6 +1014,11 @@ onBeforeUnmount(() => {
               maxlength="500"
               rows="3"
             ></textarea>
+            <label class="field-label" for="draft-district">{{ t.draftDistrict }}</label>
+            <select id="draft-district" v-model="draft.district" class="draft-district">
+              <option value="">{{ t.draftDistrictAny }}</option>
+              <option v-for="[zh] in DISTRICTS" :key="zh" :value="zh">{{ zh }}</option>
+            </select>
             <label class="field-label" for="draft-location">{{ t.draftLocation }}</label>
             <input
               id="draft-location"
@@ -877,6 +1028,17 @@ onBeforeUnmount(() => {
               :placeholder="t.draftLocationHint"
             />
             <p v-if="draftError" role="alert" class="field-error">{{ t.draftIncomplete }}</p>
+            <p class="small-note draft-sources">
+              {{ t.dataSource }}：<a :href="PETITION_SOURCE.url" target="_blank" rel="noopener">{{
+                PETITION_SOURCE.name
+              }}</a
+              >（{{ PETITION_SOURCE.provider }}）・<a
+                :href="DISTRICT_SOURCE.url"
+                target="_blank"
+                rel="noopener"
+                >{{ DISTRICT_SOURCE.name }}</a
+              >（{{ DISTRICT_SOURCE.provider }}）
+            </p>
           </div>
           <div v-else-if="slots.length" class="prefill">
             <template v-for="slot in slots" :key="slot.field">

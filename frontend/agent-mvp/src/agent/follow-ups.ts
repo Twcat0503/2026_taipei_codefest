@@ -1,4 +1,5 @@
 import type { Localized, TaskState } from './types';
+import { DISTRICTS } from './open-data/taipei';
 
 /**
  * Choices shown under an answer so people tap instead of type. Deterministic on purpose:
@@ -21,22 +22,6 @@ const option = (zh: string, en: string, request = zh): FollowUpOption => ({
 const prompt = (zh: string, en: string): Localized => ({ 'zh-Hant-TW': zh, en });
 
 const NEXT = prompt('接下來你可以', 'You can also');
-
-/** All 12 Taipei districts, in the order the city lists them. */
-const DISTRICTS: [string, string][] = [
-  ['中正區', 'Zhongzheng'],
-  ['大同區', 'Datong'],
-  ['中山區', 'Zhongshan'],
-  ['松山區', 'Songshan'],
-  ['大安區', "Da'an"],
-  ['萬華區', 'Wanhua'],
-  ['信義區', 'Xinyi'],
-  ['士林區', 'Shilin'],
-  ['北投區', 'Beitou'],
-  ['內湖區', 'Neihu'],
-  ['南港區', 'Nangang'],
-  ['文山區', 'Wenshan'],
-];
 
 const toilets = option('附近的無障礙廁所', 'Accessible toilets nearby');
 const parking = option('附近有身障車位的停車場', 'Parking with disabled spaces nearby');
