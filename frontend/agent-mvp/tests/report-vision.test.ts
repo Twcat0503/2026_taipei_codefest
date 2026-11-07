@@ -86,7 +86,9 @@ describe('AgentRunner.describePhoto', () => {
   });
 
   it('passes the photo and localized prompts to the model', async () => {
-    const vision = vi.fn(async (_input: VisionRequest) => '{"subject":"s","description":"d"}');
+    const vision = vi.fn<(input: VisionRequest) => Promise<string>>(async () =>
+      JSON.stringify({ subject: 's', description: 'd' }),
+    );
     const model: ModelAdapter = {
       mode: 'phone',
       complete: async () => ({ calls: [] }),
