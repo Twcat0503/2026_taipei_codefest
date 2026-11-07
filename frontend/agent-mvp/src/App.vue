@@ -34,6 +34,21 @@ import {
   rememberWaterNumber,
 } from './platform/profile';
 import { maskIdNo, readMember, type Member } from './platform/member';
+import { EMERGENCY_NUMBERS } from './agent/skills/emergency';
+
+const EMERGENCY_TEXT = {
+  fire: 'emergencyFire',
+  medical: 'emergencyMedical',
+  violence: 'emergencyViolence',
+  police: 'emergencyPolice',
+  mental: 'emergencyMental',
+} as const;
+const CALL_LABEL: Record<string, 'call119' | 'call110' | 'call113' | 'call1925'> = {
+  '119': 'call119',
+  '110': 'call110',
+  '113': 'call113',
+  '1925': 'call1925',
+};
 
 const locale = ref<Locale>(
   getPreference('tp-language', 'zh-Hant-TW') === 'en' ? 'en' : 'zh-Hant-TW',
@@ -666,6 +681,24 @@ onBeforeUnmount(() => {
             </template>
           </li>
         </ul>
+        <section
+          v-if="state.notice === 'emergency' && state.emergency"
+          class="result-card emergency-card"
+          aria-labelledby="emergency-title"
+        >
+          <h2 id="emergency-title">{{ t[EMERGENCY_TEXT[state.emergency]] }}</h2>
+          <div class="action-row">
+            <button
+              v-for="number in EMERGENCY_NUMBERS[state.emergency]"
+              :key="number"
+              class="primary-button emergency-call"
+              @click="openLink(`tel:${number}`)"
+            >
+              {{ t[CALL_LABEL[number]!] }}
+            </button>
+          </div>
+          <p class="small-note">{{ t.emergencyNote }}</p>
+        </section>
         <section
           v-if="state.navigation"
           class="result-card navigation-card"

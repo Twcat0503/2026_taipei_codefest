@@ -417,6 +417,21 @@ ol {
   background: var(--pale);
 }
 
+/* 緊急狀況：大而明顯的撥號按鈕 */
+.emergency-card {
+  border: 2px solid #a1260d;
+}
+.emergency-card h2 {
+  font-size: 1.125rem;
+  color: var(--ink);
+}
+.emergency-call {
+  background: #a1260d;
+  border-color: #a1260d;
+  min-height: 56px;
+  font-size: 1.125rem;
+}
+
 /* 回答下方的選項：補資料用的選擇題，或下一步建議 */
 .choices {
   display: grid;

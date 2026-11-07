@@ -165,6 +165,18 @@ const zh = {
   rememberedNone: '目前沒有記住任何資料。',
   rememberedWater: '水號',
   rememberedDelete: '刪除',
+  emergency: '這聽起來很緊急，請先照下面的方式求助。',
+  emergencyFire: '請先離開危險的地方，立刻撥打 119。',
+  emergencyMedical: '請立刻撥打 119 叫救護車。',
+  emergencyViolence: '你的安全最重要。有立即危險請撥 110；也可以撥 113 保護專線求助。',
+  emergencyPolice: '你的安全最重要，請立刻撥打 110 報警。',
+  emergencyMental:
+    '聽起來你現在很辛苦，你不是一個人。可以撥 1925 安心專線，24 小時都有人聽你說；如果有立即危險，請撥 119。',
+  emergencyNote: '按下按鈕會打開撥號畫面，由你按下撥出。',
+  call119: '撥打 119（火災、救護車）',
+  call110: '撥打 110（報警）',
+  call113: '撥打 113（保護專線）',
+  call1925: '撥打 1925（安心專線）',
 };
 const en: Record<keyof typeof zh, string> = {
   phoneTitle: 'AI on this phone',
@@ -348,5 +360,18 @@ const en: Record<keyof typeof zh, string> = {
   rememberedNone: 'Nothing is remembered.',
   rememberedWater: 'Water account',
   rememberedDelete: 'Delete',
+  emergency: 'This sounds urgent. Please get help as shown below.',
+  emergencyFire: 'Get away from danger and call 119 now.',
+  emergencyMedical: 'Call 119 for an ambulance now.',
+  emergencyViolence:
+    'Your safety comes first. Call 110 if you are in danger; you can also call the 113 protection hotline.',
+  emergencyPolice: 'Your safety comes first. Call 110 for the police now.',
+  emergencyMental:
+    'It sounds like things are very hard right now, and you are not alone. Call 1925, a 24-hour support line; if you are in immediate danger, call 119.',
+  emergencyNote: 'The button opens the dialer; you press call.',
+  call119: 'Call 119 (fire, ambulance)',
+  call110: 'Call 110 (police)',
+  call113: 'Call 113 (protection hotline)',
+  call1925: 'Call 1925 (support line)',
 };
 export const messages: Record<Locale, typeof en> = { 'zh-Hant-TW': zh, en };
