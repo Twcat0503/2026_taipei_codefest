@@ -6,3 +6,4 @@ test-results/
 model-eval.latest.json
 .env*
 !.env.example
+stress-results/
