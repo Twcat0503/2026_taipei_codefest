@@ -31,4 +31,12 @@ describe('conversation storage', () => {
     values.set('townpass-agent-conversation-v1', '{bad');
     expect(restoreConversation()).toEqual([]);
   });
+  it('keeps official navigation, emergency and profile summaries on reload', () => {
+    const notices = ['navigate', 'navigationDeclined', 'emergency', 'profile'] as const;
+    expect(saveConversation(notices.map((notice) => ({ request: '我家門口淹水了', notice })))).toBe(
+      true,
+    );
+    expect(restoreConversation()).toEqual(notices.map((notice) => ({ request: null, notice })));
+    expect([...values.values()].join('')).not.toContain('我家門口淹水了');
+  });
 });

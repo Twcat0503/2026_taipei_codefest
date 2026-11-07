@@ -26,6 +26,25 @@ const COUNTERS_FIXTURE = {
     },
   ],
 };
+const FEES_FIXTURE = {
+  data: [
+    {
+      name: "規費",
+      data: [
+        {
+          id: "fee-6",
+          name: "水費",
+          is_hot: true,
+          search_type_list: [
+            { name: "輸入資料", type: "form", form_format: [{ label: "水號", required: true }] },
+            { name: "掃描", type: "scan" },
+          ],
+        },
+      ],
+    },
+    { name: "稅費", data: [{ id: "tax-1", name: "地方稅", is_hot: false, search_type_list: [{ name: "掃描", type: "scan" }] }] },
+  ],
+};
 const youbike = (sno: string, act: string, lat: number) => ({
   sno, sna: `站${sno}`, sarea: "大安區", ar: "路", act, updateTime: "2026-11-07 13:00:00", Quantity: 10,
   available_rent_bikes: 4, available_return_bikes: 6, latitude: lat, longitude: 121.5,
@@ -36,6 +55,7 @@ const ROUTES: Record<string, unknown> = {
   ],
   [`${BASE}/mock/library/library_book_list.json`]: { data: [book("b1", "神奇柑仔店"), book("b2", "底層邏輯")] },
   [`${BASE}/mock/counter_list.json`]: COUNTERS_FIXTURE,
+  [`${BASE}/mock/fee-payment/fee_payment_list.json`]: FEES_FIXTURE,
   [`${BASE}/mock/subscription_list.json`]: { data: { submit_target: {}, data: [{ id: "sub-3", name: "交通措施", is_subscribed: true, description: "交通管制訊息" }] } },
   [`${BASE}/mock/service_list.json`]: {
     data: [
@@ -58,10 +78,10 @@ const parse = (result: { content: { text: string }[] }) => JSON.parse(result.con
 describe("createAgentToolClient", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("列出 16 支工具與 JSON Schema", async () => {
+  it("列出 17 支工具與 JSON Schema", async () => {
     const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch });
     const { tools } = await client.listTools({ signal: signal() });
-    expect(tools).toHaveLength(16);
+    expect(tools).toHaveLength(17);
     expect(tools.map((tool) => tool.name)).toContain("find_nearby_youbike");
     expect(tools.every((tool) => tool.inputSchema.type === "object")).toBe(true);
   });
@@ -114,10 +134,28 @@ describe("createAgentToolClient", () => {
     expect(office.fields[3].value.en).toContain("0379");
   });
 
+  it("只能掃描的繳費項目不附詳細頁連結而提示用 App 掃碼繳費，其餘項目保留連結", async () => {
+    const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch });
+    const result = await client.callTool({ name: "search_fee_types", arguments: {} }, { signal: signal() });
+    const { records } = parse(result);
+    const labels = (record: { fields: { label: { en: string } }[] }) => record.fields.map((f) => f.label.en);
+
+    const scanOnly = records.find((r: { id: string }) => r.id === "tax-1");
+    expect(scanOnly).not.toHaveProperty("url");
+    expect(labels(scanOnly)).toEqual(["查繳方式", "繳費方式"]);
+    expect(scanOnly.fields[1].value.en).toContain("掃碼繳費");
+
+    const mixed = records.find((r: { id: string }) => r.id === "fee-6");
+    expect(mixed.url).toBe(`${BASE}/fee-payment/detail/fee-6/`);
+    expect(labels(mixed)).toEqual(["查繳方式", "需要欄位"]);
+  });
+
   it("附近查詢用呼叫端的定位，拿不到時回 LOCATION_UNAVAILABLE", async () => {
     const located = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch, getLocation: async () => ({ lat: 25.0, lng: 121.5 }) });
     const near = await located.callTool({ name: "find_nearby_youbike", arguments: { near_me: true } }, { signal: signal() });
-    expect(parse(near)).toMatchObject({ source: "live", records: [{ id: "near", url: "https://www.google.com/maps/search/?api=1&query=25,121.5" }] });
+    expect(parse(near)).toMatchObject({ source: "live", records: [{ id: "near" }] });
+    // Places open in Town Pass's own 找地點 service, never a Google Maps link.
+    expect(parse(near).records[0].url).toBeUndefined();
     expect(parse(near).records[0].fields[0]).toEqual({ label: { "zh-Hant-TW": "距離", en: "距離" }, value: { "zh-Hant-TW": "0 公尺", en: "0 公尺" } });
     const unlocated = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch });
     const failed = await unlocated.callTool({ name: "find_nearby_youbike", arguments: { near_me: true } }, { signal: signal() });
@@ -134,10 +172,13 @@ describe("createAgentToolClient", () => {
     expect(result.content[0]!.text).not.toContain("is_subscribed");
   });
 
-  it("服務清單列出只能到頁面操作的服務", async () => {
-    const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch });
+  it("服務清單是台北通站內頁面的連結，不含示範資料", async () => {
+    const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch, includeDemo: false });
     const result = await client.callTool({ name: "list_townpass_services", arguments: { keyword: "警政" } }, { signal: signal() });
-    expect(parse(result).records).toMatchObject([{ id: "police_report", url: `${BASE}/police-report`, fields: [{ value: { en: "到頁面操作" } }] }]);
+    const body = parse(result);
+    expect(body.source).toBe("link");
+    expect(body.records).toMatchObject([{ id: "police_report", url: `${BASE}/police-report` }]);
+    expect(body.records[0].fields).toBeUndefined();
   });
 
   it("上游失敗回 isError，不偽裝成查無資料", async () => {
@@ -173,5 +214,46 @@ describe("createAgentToolClient", () => {
     const client = createAgentToolClient({ baseUrl: BASE });
     const result = await client.callTool({ name: "search_library_books", arguments: { keyword: "神奇" } }, { signal: signal() });
     expect(parse(result).records).toHaveLength(1);
+  });
+
+  it("App 模式只提供真實資料與官方入口，不提供示範站模擬資料", async () => {
+    const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch, includeDemo: false });
+    const { tools } = await client.listTools({ signal: signal() });
+    expect(tools.map((tool) => tool.name).sort()).toEqual([
+      "find_nearby_parking",
+      "find_nearby_toilets",
+      "find_nearby_youbike",
+      "list_townpass_services",
+      "open_official_service",
+    ]);
+    const demo = await client.callTool({ name: "search_library_books", arguments: { keyword: "貓" } }, { signal: signal() });
+    expect(demo.isError).toBe(true);
+  });
+
+  it("入口只從白名單組網址：台北通站內優先，關鍵字只用在圖書搜尋", async () => {
+    const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch, includeDemo: false });
+    const call = async (args: Record<string, unknown>) => {
+      const result = await client.callTool({ name: "open_official_service", arguments: args }, { signal: signal() });
+      return result.isError ? null : JSON.parse(result.content[0]!.text);
+    };
+    const report = await call({ destination: "townpass_report" });
+    expect(report.source).toBe("link");
+    expect(report.source_label).toBe("台北通站內服務");
+    expect(report.source_note).toContain("示範資料");
+    expect(report.records[0].url).toBe(`${BASE}/citizen-report/`);
+    expect(report.records[0].fields.find((f: { label: { en: string } }) => f.label.en === "前往").value.en).toBe("台北通「有話要說」");
+    expect((await call({ destination: "fee_water" })).records[0].url).toBe(`${BASE}/fee-payment/detail/fee-6/`);
+    expect((await call({ destination: "townpass_library", keyword: "神奇" })).records[0].url).toBe(
+      `${BASE}/library-service/keyword-search?search=%E7%A5%9E%E5%A5%87&type=all`,
+    );
+    expect((await call({ destination: "townpass_library", keyword: "https://evil.example/" })).records[0].url).toBe(
+      `${BASE}/library-service/`,
+    );
+    expect((await call({ destination: "fee_water", keyword: "x" })).records[0].url).toBe(`${BASE}/fee-payment/detail/fee-6/`);
+    const external = await call({ destination: "services_disabled" });
+    expect(external.source_label).toBe("官方入口");
+    expect(external.records[0].url).toContain("https://service.taipei/");
+    expect((await call({ destination: "call_1999" })).records[0].url).toBe("tel:1999");
+    expect(await call({ destination: "https://evil.example/" })).toBeNull();
   });
 });

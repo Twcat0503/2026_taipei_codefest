@@ -48,9 +48,30 @@ export function getLocation(signal: AbortSignal): Promise<LatLng | null> {
 }
 
 /** Inside the app, pages open through the existing open_link bridge so the chat is kept. */
-export function openLink(url: string) {
+export function openLink(url: string, prefill?: Record<string, string>) {
+  if (url.startsWith('tel:')) {
+    const number = url.slice(4);
+    // 1999 uses Town Pass's own call flow (its user agreement, then the dialer);
+    // other numbers open the dialer through phone_call. The user still presses call.
+    if (window.flutterObject)
+      window.flutterObject.postMessage(
+        JSON.stringify(
+          number === '1999'
+            ? { name: '1999agree', data: true }
+            : { name: 'phone_call', data: number },
+        ),
+      );
+    else window.location.href = url;
+    return;
+  }
   if (window.flutterObject) {
-    window.flutterObject.postMessage(JSON.stringify({ name: 'open_link', data: url }));
+    // Google Maps refuses to render inside a WebView (it redirects to intent://), so maps go
+    // to the native map app through launch_map instead of a stacked WebView page.
+    const name = url.startsWith('https://www.google.com/maps/') ? 'launch_map' : 'open_link';
+    // Fields to fill on arrival; the app re-checks the page origin, field names and values.
+    const data =
+      name === 'open_link' && prefill && Object.keys(prefill).length ? { url, prefill } : url;
+    window.flutterObject.postMessage(JSON.stringify({ name, data }));
     return;
   }
   window.open(url, '_blank', 'noopener');

@@ -118,7 +118,9 @@ a {
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 100dvh;
+  /* 開發看板（src/dev/hud.ts，?hud=1）固定在最上方，把高度寫進 --dev-hud-height 讓頁面讓位。 */
+  height: calc(100dvh - var(--dev-hud-height, 0px));
+  margin-top: var(--dev-hud-height, 0px);
   margin-inline: auto;
   background: var(--paper);
 }
@@ -257,7 +259,10 @@ a {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  flex-shrink: 0;
+  /* Wraps instead of pushing the page sideways at 200% text on a narrow phone. */
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
   margin: 0 0.375rem;
   color: var(--deep);
   font-size: 1.375rem;
@@ -617,6 +622,27 @@ a {
   display: grid;
   gap: 1rem;
 }
+.parking-actions,
+.parking-district {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+}
+.parking-actions {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--pale);
+}
+.parking-district {
+  width: 100%;
+}
+.parking-district label {
+  font-weight: 600;
+}
+.parking-district select {
+  width: 100%;
+}
 .result-card,
 .bill-list li {
   display: grid;
@@ -782,45 +808,18 @@ dd {
 .settings-content .phone-model-panel {
   margin: 0;
 }
+.model-hint {
+  flex-shrink: 0;
+  color: var(--teal);
+  font-size: 0.875rem;
+  text-align: center;
+}
 
 /* Composer stays above the keyboard and never covers the scrolling content. */
 .composer-dock {
   flex-shrink: 0;
   padding: 0.5rem 1.375rem max(0.5rem, env(safe-area-inset-bottom));
   background: var(--paper);
-}
-.attachments {
-  max-height: min(22dvh, 10rem);
-  overflow-y: auto;
-  margin-bottom: 0.5rem;
-}
-.attachments ul {
-  padding: 0;
-  margin: 0;
-  list-style: none;
-}
-.attachments li {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-.attachments li span {
-  overflow-wrap: anywhere;
-}
-.attachments li button {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-}
-.attachments li svg {
-  width: 1.25rem;
-  height: 1.25rem;
-}
-.attachments p {
-  margin: 0;
 }
 .composer {
   --composer-control: clamp(48px, 3.75rem, 96px);
@@ -835,13 +834,14 @@ dd {
   justify-content: center;
   width: var(--composer-control);
   height: var(--composer-control);
-  min-width: 48px;
-  min-height: 48px;
   padding: 0;
   border: 2px solid var(--primary);
   border-radius: 50%;
   color: white;
   background: var(--deep);
+}
+.add-button:hover:not(:disabled) {
+  background: var(--teal);
 }
 .add-button svg {
   width: 2rem;
@@ -944,6 +944,12 @@ dd {
 .composer-note > span {
   color: var(--teal);
   font-weight: 600;
+}
+.photo-entry-note {
+  margin: 0.5rem 0 0;
+  color: var(--teal);
+  font-size: 0.875rem;
+  text-align: center;
 }
 .draft-hint {
   padding-bottom: 0.75rem;
@@ -1121,58 +1127,117 @@ dd {
   height: var(--bar-ratio);
 }
 
-.disaster-demo,
-.disaster-step {
+/* 前往確認卡：報案表單（有話要說）、會員資料帶入、水號 */
+.navigation-card {
+  border-color: var(--teal);
+}
+.navigation-card dl,
+.report-form dl {
+  margin: 0;
+}
+.report-form,
+.prefill {
   display: grid;
-  gap: 1.25rem;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 1rem;
+  border-radius: 1.25rem;
+  background: var(--pale);
 }
-.disaster-step:focus {
-  outline: none;
+.report-form .field-label,
+.prefill .field-label {
+  margin-top: 0.25rem;
+  color: var(--deep);
 }
-.demo-disclosure {
-  color: var(--teal);
-  font-size: 0.75rem;
-}
-.disaster-step .user-message {
-  justify-self: end;
-}
-.disaster-choices {
-  display: grid;
-  gap: 0.75rem;
-}
-.disaster-choices button {
-  font-size: 1.125rem;
-}
-.disaster-choices.choice-row {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-.location-preview-form {
-  display: grid;
-  gap: 0.75rem;
-}
-.disaster-photo {
+.report-form textarea {
   width: 100%;
-  height: auto;
-  aspect-ratio: 362 / 283;
-  object-fit: cover;
-  border-radius: 1.75rem 1.75rem 4px 1.75rem;
+  min-height: 6rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--muted);
+  border-radius: 0.75rem;
+  background: var(--paper);
+  line-height: 1.5;
+  resize: vertical;
 }
-.disaster-exit {
-  justify-self: start;
-}
-.photo-options {
-  display: grid;
-  gap: 0.75rem;
-}
-.photo-options summary {
-  min-height: 48px;
-  padding-block: 0.75rem;
+.report-form a {
   color: var(--teal);
+}
+.report-photo {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+}
+.photo-button {
+  gap: 0.5rem;
   cursor: pointer;
 }
-.photo-options input {
-  max-width: 100%;
+.photo-preview {
+  width: 100%;
+  max-height: 14rem;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--paper);
+}
+.field-error {
+  color: #a1260d;
+  font-weight: 600;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: var(--touch-target);
+}
+.check input {
+  width: 1.25rem;
+  min-height: 0;
+  height: 1.25rem;
+}
+/* `.settings-section label` is more specific and would stack the box above its text. */
+.settings-section .check {
+  display: flex;
+  gap: 0.5rem;
+}
+.settings-section .check input {
+  flex: none;
+}
+
+/* 離開助手前的確認、緊急撥號、回答下方的選項 */
+.leave-confirm {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-radius: 1.25rem;
+  background: var(--pale);
+}
+.leave-confirm p {
+  font-weight: 600;
+}
+.emergency-card {
+  border: 2px solid #a1260d;
+}
+.emergency-call {
+  min-height: 56px;
+  border-color: #a1260d;
+  background: #a1260d;
+  font-size: 1.125rem;
+}
+.emergency-call:hover:not(:disabled) {
+  background: #801d0a;
+}
+.choices {
+  display: grid;
+  gap: 0.5rem;
+}
+.choices h2 {
+  color: var(--muted);
   font-size: 0.875rem;
+  font-weight: 600;
+}
+.choices-ask h2 {
+  color: var(--ink);
+  font-size: 1rem;
 }
 
 /* In-place feedback: no translating, lifting or scaling interactive controls. */
@@ -1248,13 +1313,11 @@ button:active:not(:disabled) {
 }
 @supports (interpolate-size: allow-keywords) {
   .developer-panel,
-  .decision,
-  .photo-options {
+  .decision {
     interpolate-size: allow-keywords;
   }
   .developer-panel::details-content,
-  .decision::details-content,
-  .photo-options::details-content {
+  .decision::details-content {
     block-size: 0;
     opacity: 0;
     overflow: hidden;
@@ -1264,8 +1327,7 @@ button:active:not(:disabled) {
       content-visibility 180ms allow-discrete;
   }
   .developer-panel[open]::details-content,
-  .decision[open]::details-content,
-  .photo-options[open]::details-content {
+  .decision[open]::details-content {
     block-size: auto;
     opacity: 1;
   }
@@ -1349,10 +1411,7 @@ button:active:not(:disabled) {
   .result-list {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   }
-  .reply-bubble,
-  .disaster-choices,
-  .disaster-photo,
-  .location-preview-form {
+  .reply-bubble {
     max-width: 48rem;
   }
   .voice-dock {

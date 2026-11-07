@@ -228,43 +228,42 @@ export const YOUBIKE = dataset(
   LIVE_TTL,
 );
 
-export const PARKING = dataset(
-  "/mock/find-place/TCMSV_alldesc.json",
-  "停車場資料",
-  z.array(
+/**
+ * 臺北市停車場資訊（交通局停管處，data.taipei d5c0656b-5250-4179-a491-c94daa56ef2c）的官方 JSON。
+ * 只用靜態欄位；同一資料集的「剩餘車位」檔目前停在舊時間點，不能當即時資料呈現。
+ */
+export const PARKING_DATASET_URL = "https://data.taipei/dataset/detail?id=d5c0656b-5250-4179-a491-c94daa56ef2c";
+export const PARKING = {
+  ...dataset(
+    "https://tcgbusfs.blob.core.windows.net/blobtcmsv/TCMSV_alldesc.json",
+    "臺北市停車場資訊",
     z.object({
-      id: z.string(),
-      area: z.string(),
-      name: z.string(),
-      summary: z.string(),
-      address: z.string(),
-      tel: z.string(),
-      payex: z.string(),
-      serviceTime: z.string(),
-      tw97x: z.string(),
-      tw97y: z.string(),
-      totalcar: z.number(),
-      totalmotor: z.number(),
-      EntranceCoord: z
-        .object({ EntrancecoordInfo: z.array(z.object({ Xcod: z.string(), Ycod: z.string() })).optional() })
-        .optional(),
+      data: z.object({
+        UPDATETIME: z.string(),
+        park: z.array(
+          z.object({
+            id: z.string(),
+            area: z.string(),
+            name: z.string(),
+            summary: z.string(),
+            address: z.string(),
+            tel: z.string(),
+            payex: z.string(),
+            serviceTime: z.string(),
+            tw97x: z.string(),
+            tw97y: z.string(),
+            totalcar: z.number(),
+            totalmotor: z.number(),
+            Handicap_First: z.string().optional(),
+            Pregnancy_First: z.string().optional(),
+            Handicap_Discount: z.string().optional(),
+            EntranceCoord: z
+              .object({ EntrancecoordInfo: z.array(z.object({ Xcod: z.string(), Ycod: z.string() })).optional() })
+              .optional(),
+          }),
+        ),
+      }),
     }),
   ),
-);
-
-export const TOILETS = dataset(
-  "/mock/find-place/public_toilet_taipei.json",
-  "公廁資料",
-  z.array(
-    z.object({
-      number: z.string(),
-      city: z.string(),
-      name: z.string(),
-      address: z.string(),
-      latitude: z.string(),
-      longitude: z.string(),
-      grade: z.string(),
-      type: z.string(),
-    }),
-  ),
-);
+  anyContentType: true,
+};

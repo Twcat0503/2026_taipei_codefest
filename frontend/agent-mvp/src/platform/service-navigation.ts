@@ -1,7 +1,7 @@
 import { billCategories, type BillCategory } from '../agent/skills/bills';
 
 // Same development service host as the Flutter bill page. No IDs or credentials in URLs.
-const serviceOrigin = 'https://taipei-pass-service.vercel.app';
+export const serviceOrigin = 'https://taipei-pass-service.vercel.app';
 export function billServiceUrl(category: BillCategory | 'history') {
   if (category !== 'history' && !Object.hasOwn(billCategories, category))
     throw new Error('UNKNOWN_SERVICE_ROUTE');

@@ -18,11 +18,22 @@ export const SNAPSHOT: DataSource = {
   note: "來自示範站內建的資料檔，更新時間未知，可能與現況不同；回覆使用者時必須說明。",
 };
 
+const LICENSE = "依政府資料開放授權條款－第1版公眾釋出（https://data.gov.tw/license）";
+
 export const LIVE: DataSource = {
   kind: "live",
   label: "即時資料",
-  note: "來自台北市公開資料的 YouBike 即時資訊，實際車輛數仍可能變動。",
+  note: `臺北市政府交通局「YouBike2.0臺北市公共自行車即時資訊」（臺北市資料大平臺，每分鐘更新），${LICENSE}。實際車輛數仍可能變動。`,
 };
+
+/** 官方開放資料，但不是即時：照實寫出提供機關、資料集與資料時間。 */
+export function officialSnapshot(publisher: string, dataset: string, dataTime: string, caveat = ""): DataSource {
+  return {
+    kind: "snapshot",
+    label: "官方開放資料",
+    note: `${publisher}「${dataset}」（臺北市資料大平臺，資料時間 ${dataTime}），${LICENSE}。${caveat}`,
+  };
+}
 
 export interface ListResult<T> {
   status: "found" | "not_found";

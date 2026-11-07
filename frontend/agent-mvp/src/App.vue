@@ -6,8 +6,22 @@ import { withDemoBills } from './agent/tool-client';
 import PhoneModelPanel from './components/PhoneModelPanel.vue';
 import { PhoneModel, type PhoneState } from './agent/phone-model';
 import UiIcon from './components/UiIcon.vue';
+import NavigationPanel from './components/NavigationPanel.vue';
+import EmergencyCard from './components/EmergencyCard.vue';
+import ProfilePanel from './components/ProfilePanel.vue';
+import { shouldReadAnswerAloud } from './agent/auto-read';
+import { followUps } from './agent/follow-ups';
+import { outcomeFeedback } from './agent/outcome-feedback';
+import { serviceOrigin } from './platform/service-navigation';
+import {
+  forgetWaterNumber,
+  formatWaterNumber,
+  loadProfile,
+  TAIPEI_DISTRICTS,
+  updateProfile,
+} from './platform/profile';
+import { readMember, type Member } from './platform/member';
 import WelcomePanel from './components/WelcomePanel.vue';
-import DisasterDemo from './components/DisasterDemo.vue';
 import VoiceWave from './components/VoiceWave.vue';
 import { messages } from './i18n';
 import { branches } from './agent/catalog';
@@ -16,6 +30,7 @@ import {
   type Locale,
   type Localized,
   type ModelAdapter,
+  type Navigation,
   type TaskState,
 } from './agent/types';
 import { AgentRunner } from './agent/runner';
@@ -33,6 +48,16 @@ import {
   setPreference,
 } from './platform/storage';
 import { canReadAloud, readAloud, stopReading } from './platform/speech';
+import { a11yState } from './platform/a11y';
+import { feedback, setVoiceFeedbackEnabled, voiceFeedbackEnabled } from './platform/feedback';
+import { hapticsEnabled, setHapticsEnabled } from './platform/haptics';
+import {
+  armNaturalVoiceAudio,
+  naturalVoiceEnabled,
+  prepareNaturalVoice,
+  releaseNaturalVoice,
+  setNaturalVoiceEnabled,
+} from './platform/natural-voice';
 import { getLocation, openLink } from './platform/location';
 import { createVoiceInput, type VoiceStatus } from './platform/voice-input';
 
@@ -50,16 +75,20 @@ const resumed = ref(restoreTask(state));
 const input = ref('');
 const lastRequest = ref('');
 const busy = ref(false);
-const stage = ref<'routing' | 'searching'>('routing');
+const stage = ref<'routing' | 'searching' | 'locating'>('routing');
+type ParkingSpace = 'disabled' | 'pregnancy';
+type ParkingSearch = { space: ParkingSpace; radius: 1000 | 3000; area: string | null };
+const parkingSearch = ref<ParkingSearch | null>(null);
+const parkingDistrict = ref('');
 const resultHeading = ref<HTMLElement>();
 const requestInput = ref<HTMLTextAreaElement>();
+const photoInput = ref<HTMLInputElement>();
+const pendingPhoto = ref<File | null>(null);
+const photoEntryNotice = ref<'photoSimulated' | 'photoNotReady' | 'photoError' | null>(null);
 const assistantBody = ref<HTMLElement>();
 const keyboardViewportHeight = ref<number | null>(null);
-const attachmentInput = ref<HTMLInputElement>();
-const attachments = ref<File[]>([]);
 const preferencesDialog = ref<HTMLDialogElement>();
 const home = ref(!resumed.value);
-const disasterDemo = ref(false);
 const native = !!window.flutterObject;
 const voiceOpen = ref(false);
 const voiceStatus = ref<VoiceStatus>('idle');
@@ -109,16 +138,86 @@ let adapter: ModelAdapter =
           import.meta.env.VITE_MODEL_PROTOCOL === 'tools' ? 'tools' : 'json-schema',
         )
       : new DemoModel();
-// 預設查台北通工具；VITE_TOOL_SOURCE=demo 才用 DemoToolClient 的虛構資料。
+// 預設只用真實資料：台北通官方工具與開放資料（includeDemo: false）。帳單、前往確認卡與水號帶入
+// 都走這條路；示範帳單面板（withDemoBills）會攔下繳費需求，所以只在示範資料模式提供。
+// VITE_TOOL_SOURCE=townpass-demo 加回示範站模擬資料與示範帳單，=demo 為完全虛構的資料。
+const toolSource = import.meta.env.VITE_TOOL_SOURCE;
+const lookupLocation = async (signal: AbortSignal) => {
+  if (parkingSearch.value && !parkingSearch.value.area) stage.value = 'locating';
+  const position = await getLocation(signal);
+  if (!signal.aborted && parkingSearch.value) stage.value = 'searching';
+  return position;
+};
 const toolClient =
-  import.meta.env.VITE_TOOL_SOURCE === 'demo'
+  toolSource === 'demo'
     ? undefined
-    : withDemoBills(createAgentToolClient({ getLocation }), billReadTool);
+    : toolSource === 'townpass-demo'
+      ? withDemoBills(createAgentToolClient({ getLocation: lookupLocation }), billReadTool)
+      : createAgentToolClient({ getLocation: lookupLocation, includeDemo: false });
+const realData = toolSource !== 'demo' && toolSource !== 'townpass-demo';
 let runner = new AgentRunner(adapter, state, toolClient);
+// 台北通會員資料：只在 App 內讀一次、只留在記憶體，供選項、草稿與「我的資料」使用。
+const memberInfo = ref<Member | null>(null);
+if (window.flutterObject) void readMember().then((m) => (memberInfo.value = m));
+// 民眾要求助手記住的資料（只存在這支手機）。
+const profile = ref(loadProfile());
+const homeDistrict = computed(() => profile.value.homeDistrict ?? memberInfo.value?.district);
+watch(
+  () => profile.value.preferAccessible,
+  (on) => (runner.preferences.accessible = Boolean(on)),
+  { immediate: true },
+);
+function setHomeDistrict(event: Event) {
+  updateProfile({ homeDistrict: (event.target as HTMLSelectElement).value || undefined });
+  profile.value = loadProfile();
+}
+function setPreferAccessible(event: Event) {
+  updateProfile({ preferAccessible: (event.target as HTMLInputElement).checked });
+  profile.value = loadProfile();
+}
+function forgetWater() {
+  forgetWaterNumber();
+  profile.value = loadProfile();
+}
+// 離開助手一律要第二次、明確的點選。
+const confirmingLink = ref<string | null>(null);
+const leftFor = ref(false);
+const hostOf = (url: string) => (url.startsWith('tel:') ? url.slice(4) : new URL(url).host);
+const leaveQuestion = (record: TaskState['records'][number]) =>
+  record.url?.startsWith(`${serviceOrigin}/`)
+    ? t.value.leaveAskApp.replace('{name}', record.title[locale.value])
+    : t.value.leaveAsk.replace('{host}', hostOf(record.url ?? ''));
+function goRecord(url: string) {
+  openLink(url);
+  leftFor.value = true;
+  confirmingLink.value = null;
+}
+// 示範（規則模擬）模式沒有真正的視覺模型；本機與手機模型才送照片。
+const canSeePhotos = computed(
+  () => mode.value === 'local' || (mode.value === 'phone' && phoneState.value.ready),
+);
 const speechSupported = ref(canReadAloud());
 const speaking = ref(false);
 const speechFailed = ref(false);
 const rate = ref('0.9');
+// 震動與語音回饋的開關：偏好存在這支手機；勾選狀態以實際存下的值為準。
+const hapticsOn = ref(hapticsEnabled());
+const voiceFeedbackOn = ref(voiceFeedbackEnabled());
+function setHaptics(event: Event) {
+  const box = event.target as HTMLInputElement;
+  setHapticsEnabled(box.checked);
+  // 儲存被瀏覽器擋住時存不下來，勾選就退回實際生效的值。
+  box.checked = hapticsOn.value = hapticsEnabled();
+}
+function setVoiceFeedback(event: Event) {
+  const box = event.target as HTMLInputElement;
+  setVoiceFeedbackEnabled(box.checked);
+  box.checked = voiceFeedbackOn.value = voiceFeedbackEnabled();
+}
+// 本機自然語音（BlueMagpie）：只在 App 內提供、預設關閉；無法使用時自動改用系統語音。
+const naturalVoice = ref(native && naturalVoiceEnabled());
+// WebView 預設要使用者手勢才能出聲，所以開著的話，第一次點擊或按鍵就先解鎖播放用的 <audio>。
+if (naturalVoice.value) armNaturalVoiceAudio();
 const shownBooks = computed(() => state.bookResults);
 const activeBook = computed(() =>
   state.bookResults.find((book) => book.id === (state.draft?.bookId ?? state.receipt?.bookId)),
@@ -126,7 +225,30 @@ const activeBook = computed(() =>
 const activeBranch = computed(() =>
   branches.find((branch) => branch.id === state.receipt?.branchId),
 );
-const reply = computed(() => t.value[state.notice]);
+// 真實資料模式的「不支援／沒有結果」要提到官方資料，不能暗示示範內容。
+const noticeText = (notice: TaskState['notice']) =>
+  realData && notice === 'unsupported'
+    ? t.value.unsupportedReal
+    : realData && notice === 'empty'
+      ? t.value.emptyReal
+      : t.value[notice];
+const reply = computed(() => noticeText(state.notice));
+// 回答下方的選項：補資料用的選擇題（行政區、帳單種類），或下一步建議。
+const choices = computed(() =>
+  busy.value || state.draft ? null : followUps(state, { homeDistrict: homeDistrict.value }),
+);
+const suggestions = computed(() =>
+  realData
+    ? [
+        t.value.toiletSuggestion,
+        t.value.parkingSuggestion,
+        t.value.petitionSuggestion,
+        t.value.paySuggestion,
+        t.value.counter,
+        t.value.disabledSuggestion,
+      ]
+    : [t.value.browseBooks, t.value.browseServices],
+);
 const inputDisabled = computed(
   () => busy.value || !!state.draft || (mode.value === 'phone' && !phoneState.value.ready),
 );
@@ -135,7 +257,15 @@ const showSuggestions = computed(
     !busy.value &&
     !state.draft &&
     !state.receipt &&
-    ['welcome', 'unsupported', 'empty', 'error', 'cancelled'].includes(state.notice),
+    [
+      'welcome',
+      'greeting',
+      'unsupported',
+      'empty',
+      'error',
+      'cancelled',
+      'navigationDeclined',
+    ].includes(state.notice),
 );
 const hasConversation = computed(() => state.notice !== 'welcome' || turns.value.length > 0);
 
@@ -147,6 +277,7 @@ type Turn = {
   notice: TaskState['notice'];
   books: TaskState['bookResults'];
   records: TaskState['records'];
+  navigation: Navigation | null;
   source: TaskState['source'];
   bills: TaskState['billResult'];
   failure: TaskState['failure'];
@@ -166,6 +297,7 @@ const turns = ref<Turn[]>(
     notice: turn.notice,
     books: [],
     records: [],
+    navigation: null,
     source: null,
     bills: null,
     failure: null,
@@ -192,6 +324,7 @@ function archiveTurn() {
     notice: state.notice,
     books: finished ? [] : state.bookResults,
     records: state.records,
+    navigation: state.navigation,
     source: state.source,
     bills: state.billResult,
     failure: state.failure,
@@ -255,7 +388,6 @@ function onViewEntered() {
     !home.value &&
     hasConversation.value &&
     !voiceOpen.value &&
-    !disasterDemo.value &&
     document.activeElement !== requestInput.value
   )
     void focusResult();
@@ -266,6 +398,7 @@ async function focusInput() {
   requestInput.value?.focus();
 }
 function openSettings() {
+  profile.value = loadProfile();
   const dialog = preferencesDialog.value;
   if (!dialog) return;
   dialog.inert = false;
@@ -283,17 +416,6 @@ function goHome() {
   if (busy.value) return;
   cancelVoice();
   home.value = true;
-  disasterDemo.value = false;
-}
-function startDisasterDemo() {
-  if (busy.value || state.draft) return;
-  closeSettings();
-  cancelVoice();
-  stopReading();
-  speaking.value = false;
-  home.value = false;
-  input.value = '';
-  disasterDemo.value = true;
 }
 function startVoice() {
   if (inputDisabled.value) return;
@@ -314,17 +436,99 @@ function typeInstead() {
   voiceOpen.value = false;
   void focusInput();
 }
+async function searchParking(
+  space: ParkingSpace = 'disabled',
+  radius: 1000 | 3000 = 1000,
+  area: string | null = null,
+  newRequest = true,
+) {
+  if (busy.value || state.draft || !toolClient) return;
+  if (newRequest) archiveTurn();
+  parkingSearch.value = { space, radius, area };
+  lastRequest.value =
+    space === 'disabled' ? t.value.parkingSuggestion : t.value.pregnancyParkingSuggestion;
+  home.value = false;
+  resumed.value = false;
+  stage.value = area ? 'searching' : 'locating';
+  busy.value = true;
+  await focusResult();
+  try {
+    await runner.runTool('places', 'find_nearby_parking', {
+      accessible: true,
+      parking_space: space,
+      ...(area ? { area } : { near_me: true, radius_m: radius }),
+    });
+  } catch {
+    if (state.failure?.code === 'LOCATION_UNAVAILABLE') {
+      state.notice = 'needLocation';
+      parkingDistrict.value = homeDistrict.value ?? '';
+    }
+  } finally {
+    busy.value = false;
+    feedbackForAnswer();
+    persistConversation();
+    await focusResult();
+  }
+}
+function parkingPhone(record: TaskState['records'][number]) {
+  if (state.lastTool !== 'find_nearby_parking') return null;
+  const phone = record.fields?.find((field) => field.label['zh-Hant-TW'] === '電話')?.value[
+    'zh-Hant-TW'
+  ];
+  return phone && /^[+\d][\d\s()-]{5,24}$/.test(phone) ? phone.replace(/[^+\d]/g, '') : null;
+}
+// 一輪請求結束時的回饋。震動：有結果、出錯、緊急各一種（對照見 agent/outcome-feedback.ts），不帶
+// 文字，因為畫面上的 role="status" 已經會播報。朗讀：「語音回饋」開著、而且確定沒開螢幕閱讀器時，
+// 像按下「朗讀這段」一樣把回答唸出來（條件與哪些回答會唸見 agent/auto-read.ts）。只在剛結束時
+// 呼叫，還原上次的對話或草稿時不會。
+function feedbackForAnswer() {
+  const kind = outcomeFeedback(state.notice);
+  if (kind) feedback(kind);
+  const readIt = shouldReadAnswerAloud(state.notice, {
+    voiceFeedback: voiceFeedbackEnabled(),
+    screenReader: a11yState.screenReader,
+    speechSupported: speechSupported.value,
+  });
+  if (!readIt) return;
+  try {
+    startReading();
+  } catch {
+    // 朗讀只是額外的回饋，出錯也不能讓這一輪的收尾（存檔、移動焦點）做不完。
+    speaking.value = false;
+  }
+}
+// 點選建議或選項：馬上震動一下，因為回答可能還要等幾秒。
+function pick(request: string) {
+  feedback('selection');
+  void submit(request);
+}
+function pickBillCategory(category: BillSelection) {
+  feedback('selection');
+  void billAction(category);
+}
+function pickNearbyParking() {
+  feedback('selection');
+  void searchParking();
+}
 async function submit(text = input.value) {
-  if (inputDisabled.value || attachments.value.length || !text.trim()) return;
-  if (
-    /^(?:我想要|我要|我想)?通報災情[。！!？?]?$|^(?:i want to )?report a disaster[.!?]?$/iu.test(
-      text.trim(),
-    )
-  ) {
-    startDisasterDemo();
+  if (inputDisabled.value || !text.trim()) return;
+  parkingSearch.value = null;
+  if (/^(?:你好|您好|嗨|哈囉|hello|hi)[!！。,.，\s]*$/iu.test(text.trim())) {
+    archiveTurn();
+    lastRequest.value = text.trim();
+    input.value = '';
+    home.value = false;
+    resumed.value = false;
+    Object.assign(state, initialState(), { notice: 'greeting' });
+    saveTask(state);
+    persistConversation();
+    feedbackForAnswer();
+    await focusResult();
     return;
   }
-  disasterDemo.value = false;
+  profile.value = loadProfile();
+  confirmingLink.value = null;
+  leftFor.value = false;
   stopReading();
   speaking.value = false;
   voice.cancel();
@@ -342,6 +546,7 @@ async function submit(text = input.value) {
     /* Runner exposes a localized, non-sensitive error state. */
   } finally {
     busy.value = false;
+    feedbackForAnswer();
     saveTask(state);
     persistConversation();
     await focusResult();
@@ -358,6 +563,7 @@ async function showBookDetails(bookId: string) {
     /* Runner exposes a localized, non-sensitive error state. */
   } finally {
     busy.value = false;
+    feedbackForAnswer();
     await focusResult();
   }
 }
@@ -380,6 +586,7 @@ async function billAction(category?: BillSelection) {
     /* Runner exposes the error state. */
   } finally {
     busy.value = false;
+    feedbackForAnswer();
     await focusResult();
   }
 }
@@ -393,6 +600,7 @@ function updateBranch(event: Event) {
 function confirm() {
   if (state.draft) {
     confirmReservation(state, state.draft.id);
+    feedbackForAnswer();
     void focusResult();
   }
 }
@@ -402,28 +610,57 @@ function reset() {
   speaking.value = false;
   clearTask();
   clearConversation();
+  parkingSearch.value = null;
   conversationSaveFailed.value = false;
   Object.assign(state, initialState());
   turns.value = [];
   resumed.value = false;
   lastRequest.value = '';
   input.value = '';
-  attachments.value = [];
+  pendingPhoto.value = null;
+  photoEntryNotice.value = null;
+  runner.cancelVision();
   cancelVoice();
   input.value = '';
   home.value = true;
   closeSettings();
-  disasterDemo.value = false;
 }
-function selectAttachments(event: Event) {
-  const target = event.target as HTMLInputElement;
-  if (inputDisabled.value) return;
-  attachments.value = [...attachments.value, ...Array.from(target.files ?? [])];
-  target.value = '';
-  if (attachments.value.length) home.value = false;
+function stay() {
+  if (state.navigation) {
+    state.navigation = null;
+    state.notice = 'navigationDeclined';
+  }
 }
-function removeAttachment(index: number) {
-  attachments.value.splice(index, 1);
+function requestPhoto() {
+  if (busy.value || state.draft) return;
+  if (!canSeePhotos.value) {
+    photoEntryNotice.value = mode.value === 'demo' ? 'photoSimulated' : 'photoNotReady';
+    return;
+  }
+  photoEntryNotice.value = null;
+  photoInput.value?.click();
+}
+async function selectPhoto(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const photo = input.files?.[0];
+  input.value = '';
+  if (!photo || !canSeePhotos.value || busy.value || state.draft) return;
+  if (
+    !['image/jpeg', 'image/png', 'image/webp'].includes(photo.type) ||
+    photo.size > 20 * 1024 * 1024
+  ) {
+    photoEntryNotice.value = 'photoError';
+    return;
+  }
+  photoEntryNotice.value = null;
+  pendingPhoto.value = photo;
+  home.value = false;
+  if (state.navigation?.id !== 'townpass_report') await submit(t.value.reportRequest);
+  await nextTick();
+  if (state.navigation?.id !== 'townpass_report') {
+    pendingPhoto.value = null;
+    photoEntryNotice.value = 'photoError';
+  }
 }
 async function applyConfig() {
   if (busy.value) return;
@@ -441,6 +678,7 @@ async function applyConfig() {
             )
           : new DemoModel();
     runner = new AgentRunner(adapter, state, toolClient);
+    runner.preferences.accessible = Boolean(profile.value.preferAccessible);
     mode.value = selectedMode.value;
     configStatus.value = 'applied';
   } catch {
@@ -473,12 +711,21 @@ async function refreshPhone() {
     /* Adapter exposes status errors. */
   }
 }
-function speak() {
-  if (speaking.value) {
-    stopReading();
-    speaking.value = false;
-    return;
-  }
+function setNaturalVoice(event: Event) {
+  const box = event.target as HTMLInputElement;
+  setNaturalVoiceEnabled(box.checked);
+  // 儲存被瀏覽器擋住時存不下來，勾選就退回實際生效的值。
+  box.checked = naturalVoice.value = naturalVoiceEnabled();
+  stopReading();
+  speaking.value = false;
+  // 開啟時先在背景載入語音模型，第一次朗讀就不必等；關閉時釋放它佔用的記憶體。
+  if (naturalVoice.value) void prepareNaturalVoice();
+  else releaseNaturalVoice();
+}
+// 開始朗讀目前的回答，「朗讀這段」與自動朗讀共用。已經在朗讀的話，新的取代舊的。
+function startReading() {
+  // 先結束還在進行的朗讀：它的 finished 會同步把 speaking 設回 false，不能發生在下面設成 true 之後。
+  stopReading();
   speechFailed.value = false;
   speaking.value = true;
   const extra = state.draft
@@ -491,13 +738,22 @@ function speak() {
               `${billCategories[bill.category].label[locale.value]}. ${bill.periodLabel}. ${bill.amount} TWD. ${t.value[`billStatus_${bill.status}`]}`,
           ) ?? []),
           ...shownBooks.value.map((book) => book.title[locale.value]),
+          ...(state.navigation
+            ? [
+                `${state.navigation.title[locale.value]}. ${state.navigation.description?.[locale.value] ?? ''}`,
+              ]
+            : []),
           ...state.records.map(
             (record) =>
               `${record.title[locale.value]}. ${record.description?.[locale.value] ?? ''}`,
           ),
         ].join('。');
+  // 螢幕閱讀與朗讀的使用者也要聽得到選項。
+  const choiceText = choices.value
+    ? `${choices.value.prompt[locale.value]}：${choices.value.options.map((o) => o.label[locale.value]).join('、')}`
+    : '';
   readAloud(
-    `${reply.value} ${extra}`,
+    `${reply.value} ${extra} ${choiceText}`,
     locale.value,
     Number(rate.value),
     () => (speaking.value = false),
@@ -506,6 +762,15 @@ function speak() {
       speechFailed.value = true;
     },
   );
+}
+// 「朗讀這段」按鈕：朗讀中再按一次就停止。
+function speak() {
+  if (speaking.value) {
+    stopReading();
+    speaking.value = false;
+    return;
+  }
+  startReading();
 }
 onBeforeUnmount(() => {
   window.visualViewport?.removeEventListener('resize', updateKeyboardViewport);
@@ -521,6 +786,7 @@ onBeforeUnmount(() => {
       .finally(() => phone.dispose());
   else phone.dispose();
   stopReading();
+  releaseNaturalVoice();
 });
 </script>
 
@@ -542,7 +808,7 @@ onBeforeUnmount(() => {
     </header>
 
     <main id="main" ref="assistantBody" class="assistant-body">
-      <button v-if="mode === 'phone'" class="phone-status-button" @click="openSettings">
+      <button v-if="mode === 'phone' && !home" class="phone-status-button" @click="openSettings">
         {{ phoneState.ready ? t.phoneConnected : t.phoneStart }}
       </button>
       <Transition name="view-fade" mode="out-in" @after-enter="onViewEntered">
@@ -552,28 +818,34 @@ onBeforeUnmount(() => {
           :disabled="inputDisabled"
           :has-task="hasConversation"
           :pending-draft="!!state.draft"
-          @request="submit"
+          :nearby-parking="realData && !!toolClient"
+          :nearby-parking-disabled="busy || !!state.draft"
+          :native="native || mode === 'phone'"
+          :model-needs-start="mode === 'phone' && !phoneState.ready"
+          :model-starting="phoneStarting"
+          :model-status="
+            phoneState.error ? t[`phoneError_${phoneState.error}`] : t[`phone_${phoneState.phase}`]
+          "
+          @request="pick"
+          @nearby-parking="pickNearbyParking"
           @voice="startVoice"
+          @start-model="startPhone"
           @resume="home = false"
           @settings="openSettings"
         />
 
         <div v-else class="conversation">
-          <div
-            class="conversation-heading"
-            :class="{ 'has-request': hasConversation || disasterDemo }"
-          >
-            <h1>{{ disasterDemo ? t.disasterRequest : lastRequest || t.today }}</h1>
+          <div class="conversation-heading" :class="{ 'has-request': hasConversation }">
+            <h1>{{ lastRequest || t.today }}</h1>
             <button class="icon-button" :aria-label="t.settings" @click="openSettings">
               <UiIcon name="settings" />
             </button>
           </div>
-          <DisasterDemo v-if="disasterDemo" :locale="locale" @exit="goHome" />
-          <div v-if="!hasConversation && !voiceOpen && !disasterDemo" class="conversation-empty">
+          <div v-if="!hasConversation && !voiceOpen" class="conversation-empty">
             <p>{{ t.welcome }}</p>
             <p class="small-note">{{ t.historyHint }}</p>
           </div>
-          <div v-if="!disasterDemo" class="messages">
+          <div class="messages">
             <template v-for="turn in turns" :key="turn.id">
               <div v-if="turn.request" class="user-message">
                 <span class="sr-only">{{ t.you }}</span>
@@ -581,7 +853,7 @@ onBeforeUnmount(() => {
               </div>
               <article class="past-message" :aria-label="t.assistant">
                 <p v-if="turn.restored" class="small-note">{{ t.savedSummaryNote }}</p>
-                <p class="reply-bubble">{{ t[turn.notice] }}</p>
+                <p class="reply-bubble">{{ noticeText(turn.notice) }}</p>
                 <ul v-if="turn.books.length" class="plain-list">
                   <li v-for="book in turn.books" :key="book.id">
                     <strong>{{ book.title[locale] }}</strong
@@ -605,8 +877,11 @@ onBeforeUnmount(() => {
                     </li>
                   </ul>
                 </template>
+                <p v-if="turn.navigation" class="small-note">
+                  {{ turn.navigation.title[locale] }}（{{ turn.navigation.where }}）
+                </p>
                 <p v-if="turn.failure?.hint" class="small-note">{{ turn.failure.hint }}</p>
-                <p v-if="turn.source" class="source-note">
+                <p v-if="turn.source && !turn.navigation" class="source-note">
                   {{ turn.source.label }}：{{ turn.source.note }}
                 </p>
                 <p v-if="turn.reference" class="small-note">
@@ -650,7 +925,7 @@ onBeforeUnmount(() => {
                   v-if="state.domain === 'bills'"
                   :state="state"
                   :locale="locale"
-                  @select="billAction"
+                  @select="pickBillCategory"
                   @retry="billAction()"
                 />
                 <ul v-if="shownBooks.length && !state.draft && !state.receipt" class="result-list">
@@ -681,22 +956,174 @@ onBeforeUnmount(() => {
                         <dd>{{ field.value[locale] }}</dd></template
                       >
                     </dl>
-                    <button v-if="record.url" class="outline-button" @click="openLink(record.url)">
-                      {{ t.openPage }}
+                    <button
+                      v-if="parkingPhone(record)"
+                      class="outline-button"
+                      :aria-label="t.callParking.replace('{name}', record.title[locale])"
+                      @click="openLink(`tel:${parkingPhone(record)}`)"
+                    >
+                      {{ t.callParkingButton }}
                     </button>
+                    <template v-if="record.url">
+                      <div
+                        v-if="confirmingLink === record.id"
+                        class="leave-confirm"
+                        role="group"
+                        :aria-label="t.leaveTitle"
+                      >
+                        <p>{{ leaveQuestion(record) }}</p>
+                        <div class="action-row">
+                          <button class="primary-button" @click="goRecord(record.url)">
+                            {{ t.leaveGo }}
+                          </button>
+                          <button class="text-button" @click="confirmingLink = null">
+                            {{ t.leaveStay }}
+                          </button>
+                        </div>
+                      </div>
+                      <button v-else class="outline-button" @click="confirmingLink = record.id">
+                        {{
+                          record.url.startsWith('https://www.google.com/maps')
+                            ? t.openMap
+                            : t.openPage
+                        }}
+                      </button>
+                    </template>
                   </li>
                 </ul>
+                <section
+                  v-if="
+                    parkingSearch &&
+                    state.domain === 'places' &&
+                    !busy &&
+                    (state.notice === 'results' ||
+                      state.notice === 'needLocation' ||
+                      (state.notice === 'empty' && !parkingSearch.area))
+                  "
+                  class="parking-actions"
+                  :aria-label="t.parkingActions"
+                >
+                  <p v-if="state.notice === 'results' && parkingSearch.area" class="small-note">
+                    {{ t.parkingAreaNote }}
+                  </p>
+                  <p v-if="state.notice === 'results' && !parkingSearch.area" class="small-note">
+                    {{ t.parkingDistanceNote }}
+                  </p>
+                  <p v-if="state.notice === 'empty' && !parkingSearch.area" class="small-note">
+                    {{
+                      t.parkingNoResults.replace('{radius}', String(parkingSearch.radius / 1000))
+                    }}
+                  </p>
+                  <button
+                    v-if="
+                      state.notice === 'empty' &&
+                      parkingSearch.radius === 1000 &&
+                      !parkingSearch.area
+                    "
+                    class="outline-button"
+                    @click="searchParking(parkingSearch.space, 3000, null, false)"
+                  >
+                    {{ t.parkingExpand }}
+                  </button>
+                  <button
+                    v-if="state.notice === 'needLocation'"
+                    class="outline-button"
+                    @click="searchParking(parkingSearch.space, parkingSearch.radius, null, false)"
+                  >
+                    {{ t.parkingRetryLocation }}
+                  </button>
+                  <div
+                    v-if="
+                      state.notice === 'needLocation' ||
+                      (state.notice === 'empty' &&
+                        parkingSearch.radius === 3000 &&
+                        !parkingSearch.area)
+                    "
+                    class="parking-district"
+                  >
+                    <label for="parking-district">{{ t.parkingChooseDistrict }}</label>
+                    <select id="parking-district" v-model="parkingDistrict">
+                      <option value="">{{ t.parkingDistrictPlaceholder }}</option>
+                      <option
+                        v-for="district in TAIPEI_DISTRICTS"
+                        :key="district"
+                        :value="district"
+                      >
+                        {{ district }}
+                      </option>
+                    </select>
+                    <button
+                      class="outline-button"
+                      :disabled="!parkingDistrict"
+                      @click="
+                        searchParking(
+                          parkingSearch.space,
+                          parkingSearch.radius,
+                          parkingDistrict,
+                          false,
+                        )
+                      "
+                    >
+                      {{ t.parkingSearchDistrict }}
+                    </button>
+                  </div>
+                </section>
+                <ProfilePanel
+                  v-if="state.notice === 'profile'"
+                  :member="memberInfo"
+                  :profile="profile"
+                  :home-district="homeDistrict"
+                  :locale="locale"
+                />
+                <EmergencyCard
+                  v-if="state.notice === 'emergency' && state.emergency"
+                  :kind="state.emergency"
+                  :locale="locale"
+                />
+                <NavigationPanel
+                  v-if="state.navigation"
+                  :navigation="state.navigation"
+                  :source="state.source"
+                  :locale="locale"
+                  :request="lastRequest"
+                  :can-see-photos="canSeePhotos"
+                  :demo-mode="mode === 'demo'"
+                  :describe="(image: string) => runner.describePhoto(image, locale)"
+                  :cancel-describe="() => runner.cancelVision()"
+                  :photo-file="pendingPhoto"
+                  @photo-consumed="pendingPhoto = null"
+                  @stay="stay"
+                />
                 <p v-if="state.failure?.hint" class="notice-box">{{ state.failure.hint }}</p>
-                <p v-if="state.source" class="source-note">
+                <p v-if="state.source && !state.navigation" class="source-note">
                   {{ state.source.label }}：{{ state.source.note }}
                   <template v-if="state.source.truncated">{{
                     t.truncated.replace('{total}', String(state.source.total))
                   }}</template>
+                  <button
+                    v-if="
+                      state.lastTool === 'find_nearby_parking' &&
+                      state.source.url.startsWith('https://data.taipei/')
+                    "
+                    class="text-button"
+                    @click="openLink(state.source.url)"
+                  >
+                    {{ t.parkingSourceLink }}
+                  </button>
                 </p>
                 <button
                   v-if="state.notice === 'error' && lastRequest"
                   class="primary-button"
-                  @click="submit(lastRequest)"
+                  @click="
+                    parkingSearch
+                      ? searchParking(
+                          parkingSearch.space,
+                          parkingSearch.radius,
+                          parkingSearch.area,
+                          false,
+                        )
+                      : submit(lastRequest)
+                  "
                 >
                   {{ t.retry }}
                 </button>
@@ -747,6 +1174,26 @@ onBeforeUnmount(() => {
                     <p class="small-note">{{ t.saved }}</p>
                   </section>
                 </Transition>
+                <section
+                  v-if="choices && !(parkingSearch && state.notice === 'needLocation')"
+                  class="choices"
+                  :class="{ 'choices-ask': choices.kind === 'choose' }"
+                  aria-labelledby="choices-title"
+                >
+                  <h2 id="choices-title">{{ choices.prompt[locale] }}</h2>
+                  <div class="recovery-options">
+                    <button
+                      v-for="choice in choices.options"
+                      :key="choice.request"
+                      class="outline-button"
+                      :disabled="inputDisabled"
+                      @click="pick(choice.request)"
+                    >
+                      {{ choice.label[locale] }}
+                    </button>
+                  </div>
+                </section>
+                <p v-if="leftFor" class="small-note" role="status">{{ t.leaveRequested }}</p>
                 <div
                   v-if="showSuggestions"
                   class="recovery-options"
@@ -754,18 +1201,13 @@ onBeforeUnmount(() => {
                   :aria-label="t.quick"
                 >
                   <button
+                    v-for="suggestion in suggestions"
+                    :key="suggestion"
                     class="outline-button"
                     :disabled="inputDisabled"
-                    @click="submit(t.browseBooks)"
+                    @click="pick(suggestion)"
                   >
-                    {{ t.browseBooks }}
-                  </button>
-                  <button
-                    class="outline-button"
-                    :disabled="inputDisabled"
-                    @click="submit(t.browseServices)"
-                  >
-                    {{ t.browseServices }}
+                    {{ suggestion }}
                   </button>
                 </div>
                 <button v-if="speechSupported" class="text-button read-button" @click="speak">
@@ -820,60 +1262,36 @@ onBeforeUnmount(() => {
       </div>
     </section>
     <footer v-else class="composer-dock">
-      <div
-        v-if="!home && !state.draft && !disasterDemo"
-        class="quick-chips"
-        role="group"
-        :aria-label="t.quick"
-      >
-        <button
-          :disabled="inputDisabled"
-          :aria-label="t.browseBills"
-          @click="submit(t.browseBills)"
-        >
+      <div v-if="!home && !state.draft" class="quick-chips" role="group" :aria-label="t.quick">
+        <button :disabled="inputDisabled" :aria-label="t.browseBills" @click="pick(t.browseBills)">
           <span aria-hidden="true"></span>{{ t.billShortcut }}
         </button>
-        <button :disabled="inputDisabled" @click="submit(t.reportRequest)">
+        <button :disabled="inputDisabled" @click="pick(t.reportRequest)">
           <span aria-hidden="true"></span>{{ t.reportShortcut }}
         </button>
-        <button :disabled="inputDisabled" :aria-label="t.counter" @click="submit(t.counter)">
+        <button :disabled="inputDisabled" :aria-label="t.counter" @click="pick(t.counter)">
           <span aria-hidden="true"></span>{{ t.counterShortcut }}
         </button>
       </div>
       <p v-if="state.draft && !home" class="draft-hint">{{ t.draftHint }}</p>
-      <div v-if="attachments.length" class="attachments" role="region" :aria-label="t.attachments">
-        <ul>
-          <li v-for="(file, index) in attachments" :key="index">
-            <span>{{ file.name }}</span>
-            <button
-              type="button"
-              :aria-label="t.removeAttachment.replace('{name}', file.name)"
-              @click="removeAttachment(index)"
-            >
-              <UiIcon name="close" />
-            </button>
-          </li>
-        </ul>
-        <p role="status">{{ t.attachmentUnavailable }}</p>
-      </div>
       <form class="composer" @submit.prevent="submit()">
         <input
-          ref="attachmentInput"
+          id="assistant-photo-input"
+          ref="photoInput"
           class="sr-only"
           type="file"
-          :aria-label="t.attachmentPicker"
-          :disabled="inputDisabled"
-          accept="image/*,.pdf,.txt,text/plain,application/pdf"
-          multiple
+          accept="image/jpeg,image/png,image/webp"
+          :aria-label="t.photoPicker"
+          aria-hidden="true"
           tabindex="-1"
-          @change="selectAttachments"
+          @change="selectPhoto"
         />
         <button
           type="button"
           class="add-button"
-          :aria-label="t.addAttachment"
-          :disabled="inputDisabled"
-          @click="attachmentInput?.click()"
+          :aria-label="t.photoReport"
+          :disabled="busy || !!state.draft"
+          @click="requestPhoto"
         >
           <UiIcon name="plus" />
         </button>
@@ -896,17 +1314,18 @@ onBeforeUnmount(() => {
             class="send-button"
             :class="{ 'is-empty': !input.trim() }"
             :aria-label="t.send"
-            :disabled="inputDisabled || !!attachments.length || !input.trim()"
+            :disabled="inputDisabled || !input.trim()"
           >
             <UiIcon name="send" />
           </button>
         </div>
       </form>
       <p id="input-help" class="composer-note">
-        <span>{{ disasterDemo ? t.demoBadge : mode === 'demo' ? t.ruleBadge : t.modelBadge }}</span
-        ><span class="scope-copy">
-          · {{ disasterDemo || !toolClient ? t.demoBadge : t.readOnlyBadge }}</span
-        >
+        <span>{{ mode === 'demo' ? t.ruleBadge : t.modelBadge }}</span
+        ><span class="scope-copy"> · {{ !toolClient ? t.demoBadge : t.readOnlyBadge }}</span>
+      </p>
+      <p v-if="photoEntryNotice" class="photo-entry-note" role="status">
+        {{ t[photoEntryNotice] }}
       </p>
       <p v-if="conversationSaveFailed" role="status">{{ t.conversationSaveFailed }}</p>
     </footer>
@@ -959,6 +1378,61 @@ onBeforeUnmount(() => {
             </select></label
           >
           <p v-else class="small-note">{{ t.speechUnavailable }}</p>
+          <label class="check"
+            ><input type="checkbox" :checked="hapticsOn" @change="setHaptics" />{{
+              t.hapticFeedback
+            }}</label
+          >
+          <label class="check"
+            ><input type="checkbox" :checked="voiceFeedbackOn" @change="setVoiceFeedback" />{{
+              t.voiceFeedback
+            }}</label
+          >
+          <template v-if="native">
+            <label class="check"
+              ><input
+                type="checkbox"
+                :checked="naturalVoice"
+                aria-describedby="natural-voice-hint"
+                @change="setNaturalVoice"
+              />{{ t.naturalVoice }}</label
+            >
+            <p id="natural-voice-hint" class="small-note">{{ t.naturalVoiceHint }}</p>
+          </template>
+        </section>
+        <section class="settings-section remembered" aria-labelledby="remembered-title">
+          <h3 id="remembered-title">{{ t.rememberedTitle }}</h3>
+          <p v-if="!profile.waterNumber" class="small-note">{{ t.rememberedNone }}</p>
+          <div v-else class="action-row">
+            <span>{{ t.rememberedWater }} {{ formatWaterNumber(profile.waterNumber) }}</span>
+            <button class="text-button" @click="forgetWater">{{ t.rememberedDelete }}</button>
+          </div>
+          <label
+            >{{ t.fieldHome
+            }}<select
+              :value="profile.homeDistrict ?? ''"
+              :aria-label="t.fieldHome"
+              @change="setHomeDistrict"
+            >
+              <option value="">
+                {{
+                  memberInfo?.district
+                    ? `${t.homeFromMember}（${memberInfo.district}）`
+                    : t.homeUnset
+                }}
+              </option>
+              <option v-for="d in TAIPEI_DISTRICTS" :key="d" :value="d">{{ d }}</option>
+            </select></label
+          >
+          <label class="check"
+            ><input
+              type="checkbox"
+              :checked="profile.preferAccessible"
+              @change="setPreferAccessible"
+            />{{ t.fieldAccessible }}</label
+          >
+        </section>
+        <section v-if="!native && mode !== 'phone'" class="settings-section">
           <button
             class="outline-button"
             :disabled="inputDisabled"

@@ -57,8 +57,9 @@
   git push --force-with-lease
   ```
 
-  不想在本機處理時，也可以按 PR 頁面的「Update branch」。
+  不想在本機處理時，也可以按 PR 頁面的「Update branch」。替別人的 PR 解衝突時改用 merge（`git merge origin/main`，衝突寫在 merge commit 裡），不改寫對方的 branch。
 - **force push 只用 `--force-with-lease`，而且只推自己的 branch**；不要改寫別人的 branch，`main` 一律禁止 force push。
+- **多個 PR 改到同一區時依序合併**：每合一個，下一個 PR 先合入最新的 `main`，再重跑該棧的完整自檢（前端含 `pnpm test:e2e`）。git 沒有回報衝突不代表沒有語意衝突，例如同一個 helper 在兩個 PR 被改成不同名字，或新增的全域元件讓舊測試的選擇器一次對到兩個元素。
 - **PR 要小、早點合併**：一個 PR 盡量在幾個小時內就能審完合併；branch 放越久，越容易跟別人衝突。
 - **疊加 PR**（B 依賴還沒合併的 A）：B 從 A 切出，PR 的 base 選 A。A 以 squash 合併後，在 B 上執行：
 
@@ -68,8 +69,8 @@
   git push --force-with-lease
   ```
 
-  本機已經刪掉 A 的話，把 `A` 換成 A 合併前最後一個 commit 的 SHA。最後確認 B 的 PR base 已改回 `main`（A 的 branch 被刪除後，GitHub 通常會自動改）。
-- **合併後清理**：GitHub 會自動刪除已合併的 branch，本機再執行：
+  本機已經刪掉 A 的話，把 `A` 換成 A 合併前最後一個 commit 的 SHA。本 repo 沒有開啟「合併後自動刪除 branch」，GitHub 不會自動把 B 的 base 改回 `main`：**先把 B 的 base 改成 `main`，再 push**。PR 跟 base 衝突、建不出 merge ref 時 GitHub 不會跑 CI，而改 base 這個動作本身也不會觸發 CI。
+- **合併後清理**：本 repo 沒有開啟自動刪除，合併後由作者刪除遠端 branch（`git push origin --delete <branch>`；四條常駐 branch 不刪），本機再執行：
 
   ```sh
   git switch main && git pull --rebase
@@ -94,10 +95,13 @@
 ## PR 規範
 
 - 標題沿用 Conventional Commits 風格（squash merge 後即成為 `main` 上的 commit message）。
+- squash 時 subject 用 PR 標題加 `(#N)`（合計不超過 72 字元，太長就縮短），內文改寫成幾行摘要，不要沿用 GitHub 預設那種把每個 commit 訊息串起來的內容；PR 裡有其他隊友的 commit 時，保留他們的 `Co-authored-by`。
 - 內文寫清楚：改什麼、為什麼、如何驗證；UI 變更請附截圖或錄影。
 - **合併條件：CI 通過，且至少一位 reviewer approve。** CI（`.github/workflows/ci.yml`）依改動路徑只檢查受影響的棧：
-  - 前端（`frontend/` 有改動）：`pnpm lint`、`pnpm format:check`、`pnpm test`、`pnpm build`。
-  - Flutter（`lib/`、`test/`、`assets/`、`fonts/`、`pubspec.*`、`analysis_options.yaml`、`.fvmrc` 有改動）：`dart format` 格式檢查，再跑 `build_runner` 與 `flutter analyze`。`flutter test` 已納入（安心助手入口測試取代失效範本，見 AGENTS.md）。
+  - 前端（`frontend/` 有改動，含 `frontend/agent-mvp/`）：`pnpm lint`、`pnpm format:check`、`pnpm test`、`pnpm build`。
+  - Agent MVP（`frontend/agent-mvp/` 或 `tools/townpass/` 有改動）：`tools/townpass` 的 `pnpm typecheck`、`pnpm test`，再跑 agent-mvp 的 `pnpm lint`、`pnpm format:check`、`pnpm test`、`pnpm build`、`pnpm test:e2e`。
+  - Flutter（`lib/`、`test/`、`integration_test/`、`android/`、`assets/`、`fonts/`、`tools/llm-android/`、`tools/asr-android/`、`tools/tts-android/`、`pubspec.*`、`analysis_options.yaml`、`.fvmrc` 有改動）：`dart format` 格式檢查、`build_runner`、`flutter analyze`、`flutter test`，最後建 arm64 debug APK。
+  - 改到 `.github/workflows/` 時三組都會跑。
   - branch protection 只需要把「CI result」設為 required check。
 - push 前先在本機跑過同一組指令，結果貼在 PR 內文：
 
@@ -116,6 +120,14 @@
   pnpm format:check
   pnpm test
   pnpm build
+  ```
+
+  Agent MVP（先在 `tools/townpass/`，再到 `frontend/agent-mvp/`）：
+
+  ```sh
+  pnpm typecheck && pnpm test          # tools/townpass
+  pnpm lint && pnpm test && pnpm build # frontend/agent-mvp
+  pnpm test:e2e                        # frontend/agent-mvp
   ```
 
 ## 前端開發（`frontend/`）

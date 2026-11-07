@@ -1,4 +1,7 @@
-import type { Message, ModelAdapter, ToolCall } from './types';
+import { recordInference } from '../dev/hud';
+import { destinationFor } from './skills/navigation';
+import { VISION_IMAGE } from './skills/report-vision';
+import type { Message, ModelAdapter, ToolCall, VisionRequest } from './types';
 
 export type CompletionProtocol = 'json-schema' | 'tools';
 
@@ -20,9 +23,23 @@ const toolSamples: Sample[] = [
   ['有什麼票券優惠', 'search_perks', { keyword: '', kind: 'ticket' }],
   ['附近的 YouBike', 'find_nearby_youbike', { near_me: true }],
   ['大安區 YouBike', 'find_nearby_youbike', { area: '大安區' }],
-  ['大安區的無障礙廁所', 'find_nearby_toilets', { area: '大安區', keyword: '無障礙' }],
+  ['大安區的無障礙廁所', 'find_nearby_toilets', { area: '大安區', accessible: true }],
   ['大安區的停車場', 'find_nearby_parking', { area: '大安區' }],
-  ['最近的無障礙廁所', 'find_nearby_toilets', { near_me: true, keyword: '無障礙' }],
+  ['最近的無障礙廁所', 'find_nearby_toilets', { near_me: true, accessible: true }],
+  [
+    '附近有身障車位的停車場',
+    'find_nearby_parking',
+    { near_me: true, accessible: true, parking_space: 'disabled' },
+  ],
+  [
+    '幫我找跟貓有關的書',
+    'open_official_service',
+    { destination: 'townpass_library', keyword: '貓' },
+  ],
+  ['我想申請身障補助', 'open_official_service', { destination: 'services_disabled' }],
+  ['路燈壞了要陳情', 'open_official_service', { destination: 'townpass_report' }],
+  ['我要繳水費', 'open_official_service', { destination: 'fee_water' }],
+  ['有哪些服務', 'list_townpass_services', {}],
 ];
 
 function structuredRequest(input: Parameters<ModelAdapter['complete']>[0], ollamaHints = true) {
@@ -173,11 +190,11 @@ export class DemoModel implements ModelAdapter {
           ? 'places'
           : /優惠|票券|景點|折價|coupon|ticket/.test(text)
             ? 'perks'
-            : /圖書|借書|找書|書籍|熱門書|排行|分館|book|library|一起慢慢走|把日子過簡單|巷口的那棵樹/.test(
+            : /圖書|借書|找書|書籍|的書|本書|熱門書|排行|分館|book|library|一起慢慢走|把日子過簡單|巷口的那棵樹/.test(
                   text,
                 )
               ? 'library'
-              : /服務|申辦|叫號|臨櫃|補助|諮詢|繳費|水費|停車費|地方稅|陳情|通報|災情|常見問題|登入|註冊|警政|訂閱|service|application|counter|welfare|faq/.test(
+              : /服務|申辦|申請|叫號|臨櫃|補助|諮詢|繳費|水費|停車費|地方稅|陳情|反映|路燈|通報|災情|常見問題|登入|註冊|警政|訂閱|懷孕|孕婦|長者|長輩|銀髮|身障|1999|打電話|service|application|counter|welfare|faq/.test(
                     text,
                   )
                 ? 'services'
@@ -208,6 +225,26 @@ export class DemoModel implements ModelAdapter {
       return {
         calls: [
           { id: 'demo-bill', name: 'select_bill_query', arguments: { category, period, action } },
+        ],
+      };
+    }
+    if (
+      names.includes('open_official_service') &&
+      names.every((name) => name === 'open_official_service' || name === 'list_townpass_services')
+    ) {
+      const ruled = destinationFor(request.original_request);
+      const destination = !ruled || ruled === 'catalog' ? 'townpass_library' : ruled;
+      const keyword = quoted ?? demoArguments('search_library_books', text, said, quoted).keyword;
+      return {
+        calls: [
+          {
+            id: 'demo-call',
+            name: 'open_official_service',
+            arguments: {
+              destination,
+              ...(destination === 'townpass_library' && keyword ? { keyword } : {}),
+            },
+          },
         ],
       };
     }
@@ -248,11 +285,15 @@ function demoArguments(
     return {
       ...(/附近|最近|nearby|nearest/.test(text) || !area ? { near_me: true } : {}),
       ...(area ? { area } : {}),
-      ...(name === 'find_nearby_toilets' && text.includes('無障礙')
-        ? { keyword: '無障礙' }
-        : quoted
-          ? { keyword: quoted }
+      ...(/無障礙|身障|孕婦|輪椅/.test(text) && name !== 'find_nearby_youbike'
+        ? { accessible: true }
+        : {}),
+      ...(name === 'find_nearby_parking' && /身障|輪椅|身心障礙/.test(text)
+        ? { parking_space: 'disabled' }
+        : name === 'find_nearby_parking' && /孕婦|懷孕/.test(text)
+          ? { parking_space: 'pregnancy' }
           : {}),
+      ...(quoted ? { keyword: quoted } : {}),
     };
   if (name === 'search_perks') {
     const kind = /票券|ticket/.test(text)
@@ -355,6 +396,38 @@ export function parseCompletion(body: unknown): { calls: ToolCall[]; content?: s
   return { calls: [], content: message.content };
 }
 
+const VISION_SCHEMA = {
+  type: 'object',
+  properties: { subject: { type: 'string' }, description: { type: 'string' } },
+  required: ['subject', 'description'],
+  additionalProperties: false,
+} as const;
+
+/** Pull the assistant text out of a Chat Completions reply, for the vision (non-tool) path. */
+export function visionContent(body: unknown): string {
+  if (!record(body) || !Array.isArray(body.choices) || !record(body.choices[0]))
+    throw new Error('INVALID_RESPONSE');
+  const choice = body.choices[0];
+  if (choice.finish_reason === 'length') throw new Error('TRUNCATED_RESPONSE');
+  const message = choice.message;
+  if (!record(message) || typeof message.content !== 'string') throw new Error('INVALID_RESPONSE');
+  return message.content;
+}
+
+/**
+ * Error wording that local OpenAI-compatible servers use when the loaded model is text-only:
+ * llama.cpp `llama-server` without `--mmproj` ("image input is not supported ... mmproj"),
+ * Ollama ("missing data required for image input", "does not support images"), vLLM
+ * ("is not a multimodal model") and LM Studio ("does not support vision").
+ */
+const VISION_UNSUPPORTED =
+  /image input is not supported|mmproj|missing data required for image input|does not support (?:images?|image input|vision)|not a multimodal model|vision is not supported/i;
+
+/** True when an error body says the model cannot take images (vs. any other failure). */
+export function visionUnsupported(errorBody: string): boolean {
+  return VISION_UNSUPPORTED.test(errorBody.slice(0, 4000));
+}
+
 /** OpenAI Chat Completions wire format. Only on-device loopback is allowed. */
 export class LocalModel implements ModelAdapter {
   mode = 'local' as const;
@@ -371,6 +444,7 @@ export class LocalModel implements ModelAdapter {
   }
   async complete(input: Parameters<ModelAdapter['complete']>[0]) {
     aborted(input.signal);
+    const started = performance.now();
     const controller = new AbortController();
     const cancel = () => controller.abort();
     input.signal.addEventListener('abort', cancel, { once: true });
@@ -402,7 +476,70 @@ export class LocalModel implements ModelAdapter {
       if (!response.ok) throw new Error(`MODEL_HTTP_${response.status}`);
       const text = await response.text();
       if (text.length > 100000) throw new Error('RESPONSE_TOO_LARGE');
-      return parseCompletion(JSON.parse(text));
+      const body: unknown = JSON.parse(text);
+      recordInference({ model: this.model, latencyMs: performance.now() - started, body });
+      return parseCompletion(body);
+    } finally {
+      clearTimeout(timer);
+      input.signal.removeEventListener('abort', cancel);
+    }
+  }
+  async vision(input: VisionRequest): Promise<string> {
+    aborted(input.signal);
+    if (
+      !VISION_IMAGE.pattern.test(input.image) ||
+      input.image.length > VISION_IMAGE.maxDataUrlLength
+    )
+      throw new Error('INVALID_IMAGE');
+    const started = performance.now();
+    const controller = new AbortController();
+    const cancel = () => controller.abort();
+    input.signal.addEventListener('abort', cancel, { once: true });
+    // Image inference is heavier than routing; give it room but still bound it.
+    const timer = setTimeout(cancel, Math.max(this.timeoutMs, 45000));
+    try {
+      const response = await fetch(this.endpoint, {
+        method: 'POST',
+        redirect: 'error',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.options.getApiKey?.()
+            ? { Authorization: `Bearer ${this.options.getApiKey()}` }
+            : {}),
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages: [
+            { role: 'system', content: input.system },
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: input.instruction },
+                { type: 'image_url', image_url: { url: input.image } },
+              ],
+            },
+          ],
+          response_format: {
+            type: 'json_schema',
+            json_schema: { name: 'report_vision', strict: true, schema: VISION_SCHEMA },
+          },
+          stream: false,
+          temperature: 0,
+          max_tokens: 320,
+        }),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        // 401 stays as-is so the phone adapter can drop its credentials.
+        if (response.status !== 401 && visionUnsupported(await response.text().catch(() => '')))
+          throw new Error('VISION_UNAVAILABLE');
+        throw new Error(`MODEL_HTTP_${response.status}`);
+      }
+      const text = await response.text();
+      if (text.length > 100000) throw new Error('RESPONSE_TOO_LARGE');
+      const body: unknown = JSON.parse(text);
+      recordInference({ model: this.model, latencyMs: performance.now() - started, body });
+      return visionContent(body);
     } finally {
       clearTimeout(timer);
       input.signal.removeEventListener('abort', cancel);
