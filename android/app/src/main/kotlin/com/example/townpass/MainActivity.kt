@@ -134,8 +134,9 @@ class MainActivity : FlutterActivity() {
                 "status" -> result.success(AsrServer.status().toMap())
                 "start" -> {
                     val config = AsrConfig(threads = call.argument<Int>("threads"))
+                    val ticket = AsrServer.startTicket()
                     worker.execute {
-                        val status = AsrServer.start(applicationContext, config)
+                        val status = AsrServer.start(applicationContext, config, ticket)
                         mainHandler.post { result.success(status.toMap()) }
                     }
                 }
@@ -190,6 +191,11 @@ class MainActivity : FlutterActivity() {
         }
         ttsOwner?.let { TtsServer.detach(it) }
         ttsOwner = null
+        // ASR 不綁畫面生命週期，離開時要主動停止，釋放子行程、記憶體與連線埠。
+        // 停止最久要等數秒，交給背景執行緒；shutdown 仍會跑完已排入的工作。
+        AsrServer.cancelPendingStart()
+        val appContext = applicationContext
+        worker.execute { AsrServer.stop(appContext) }
         worker.shutdown()
         super.onDestroy()
     }
