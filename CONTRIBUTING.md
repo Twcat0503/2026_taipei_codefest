@@ -125,6 +125,32 @@
 - 正式站出問題時，先到 Cloudflare dashboard 的 Deployments，把 production rollback 到上一個正常的 deployment，再開 `fix/` PR 修正。
 - SPA 路由不用另外設定：專案沒有 `404.html` 時，Pages 會把未知路徑交給 `index.html`。
 
+## 發表與提交
+
+發表就是現場操作成品，發表用的版本就是正式 release，不另外做展示版。
+
+- **釋出**：確認 `main` 的 CI 通過、正式站已更新後，由維護者打 tag：
+
+  ```sh
+  git switch main && git pull --rebase
+  git tag -a v1.0.0 -m "release v1.0.0"
+  git push origin v1.0.0
+  ```
+
+  APK 從同一個 tag build：`fvm flutter build apk --release`，產出在 `build/app/outputs/flutter-apk/app-release.apk`。目前 release 沿用 debug 簽章，可以直接安裝，但不能上架。
+- 釋出後只收 `fix/` PR；修完後打下一個 patch 版號（例如 `v1.0.1`），並重新 build APK。
+- **提交前檢查**（截止時間與欄位字數見 AGENTS.md「競賽限制」）：
+  - [ ] repo 已轉為 public，用無痕視窗打得開提交的 GitHub 連結
+  - [ ] 根目錄 README 是作品說明，資料來源與授權都已填寫
+  - [ ] 正式站的 `/about` 列出所有資料來源，開放資料依授權條款顯名
+  - [ ] `destinationUrl` 指向正式站，app 已從 release tag 重新 build
+  - [ ] 專案名稱、簡介、作品介紹符合字數限制；截圖連結的權限是「知道連結的人可檢視」
+- **發表設備**（現場只能操作成品，不能用簡報）：
+  - [ ] Android 實機或模擬器已安裝 release APK；實機可以用 scrcpy 投到筆電畫面
+  - [ ] 實際開過一次 TalkBack 與最大系統字級，主要流程都走得完
+  - [ ] 準備網路備案（例如手機熱點）；斷網時畫面會顯示錯誤提示，不會白屏
+  - [ ] HDMI 轉接器、充電器自備
+
 ## 設計規範
 
 主題、對象與必守規則摘要見 [AGENTS.md](AGENTS.md)「設計規範」；本節補充依據、各對象設計要點、實作細則與自檢方式。
