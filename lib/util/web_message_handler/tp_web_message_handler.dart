@@ -10,6 +10,7 @@ import 'package:town_pass/gen/assets.gen.dart';
 import 'package:town_pass/service/account_service.dart';
 import 'package:town_pass/service/device_service.dart';
 import 'package:town_pass/service/geo_locator_service.dart';
+import 'package:town_pass/service/llm_service.dart';
 import 'package:town_pass/service/notification_service.dart';
 import 'package:town_pass/service/shared_preferences_service.dart';
 import 'package:town_pass/service/subscription_service.dart';
@@ -360,5 +361,91 @@ class ShareMessageHandler extends TPWebMessageHandler {
     onReply?.call(
       replyWebMessage(data: result.status == ShareResultStatus.success),
     );
+  }
+}
+
+/// 取得來源網址的 origin；無法解析時回傳 null（視為不允許）。
+String? _originOf(WebUri? uri) {
+  if (uri == null) return null;
+  try {
+    return uri.origin;
+  } catch (_) {
+    return null;
+  }
+}
+
+/// 啟動本機 LLM 服務。只接受 [kLlmAllowedOrigins] 內的網頁來源；回覆中包含 apiKey。
+/// 不接受網頁端傳入 threads / contextSize，避免網頁改變資源用量。
+class LlmStartMessageHandler extends TPWebMessageHandler {
+  @override
+  String get name => 'llm_start';
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
+    if (!isLlmOriginAllowed(_originOf(sourceOrigin))) {
+      onReply?.call(
+        replyWebMessage(
+          data: {'running': false, 'error': 'origin_not_allowed'},
+        ),
+      );
+      return;
+    }
+    final status = await LlmService.start();
+    onReply?.call(replyWebMessage(data: status.toJson(includeKey: true)));
+  }
+}
+
+/// 停止本機 LLM 服務（同樣只接受白名單來源）。
+class LlmStopMessageHandler extends TPWebMessageHandler {
+  @override
+  String get name => 'llm_stop';
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
+    if (!isLlmOriginAllowed(_originOf(sourceOrigin))) {
+      onReply?.call(
+        replyWebMessage(
+          data: {'running': false, 'error': 'origin_not_allowed'},
+        ),
+      );
+      return;
+    }
+    final status = await LlmService.stop();
+    onReply?.call(replyWebMessage(data: status.toJson()));
+  }
+}
+
+/// 查詢本機 LLM 狀態（不含 apiKey）。
+class LlmStatusMessageHandler extends TPWebMessageHandler {
+  @override
+  String get name => 'llm_status';
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
+    if (!isLlmOriginAllowed(_originOf(sourceOrigin))) {
+      onReply?.call(
+        replyWebMessage(
+          data: {'running': false, 'error': 'origin_not_allowed'},
+        ),
+      );
+      return;
+    }
+    final status = await LlmService.status();
+    onReply?.call(replyWebMessage(data: status.toJson()));
   }
 }
