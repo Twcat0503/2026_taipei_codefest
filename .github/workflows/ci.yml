@@ -20,6 +20,7 @@ jobs:
     outputs:
       frontend: ${{ steps.filter.outputs.frontend }}
       flutter: ${{ steps.filter.outputs.flutter }}
+      agent: ${{ steps.filter.outputs.agent }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -56,6 +57,12 @@ jobs:
 
           echo "frontend=$frontend" >> "$GITHUB_OUTPUT"
           echo "flutter=$flutter" >> "$GITHUB_OUTPUT"
+          agent=false
+          if [ -f frontend/agent-mvp/package.json ] &&
+            { [ "$workflow_changed" = true ] || grep -qE '^frontend/agent-mvp/' <<<"$changed"; }; then
+            agent=true
+          fi
+          echo "agent=$agent" >> "$GITHUB_OUTPUT"
           echo "frontend=$frontend flutter=$flutter"
 
   frontend:
@@ -81,8 +88,28 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
+  agent:
+    name: Agent MVP (lint, format, test, build)
+    needs: changes
+    if: needs.changes.outputs.agent == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/agent-mvp
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+        with:
+          working_directory: frontend/agent-mvp
+          github_token: ${{ github.token }}
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm test
+      - run: pnpm build
+
   flutter:
-    name: Flutter (format, analyze)
+    name: Flutter (format, analyze, test)
     needs: changes
     if: needs.changes.outputs.flutter == 'true'
     runs-on: ubuntu-latest
@@ -106,13 +133,12 @@ jobs:
 
       - run: flutter analyze
 
-      # `flutter test` is intentionally not run yet: test/widget_test.dart is the
-      # template counter test and fails by design (see AGENTS.md). Add it here once fixed.
+      - run: flutter test
 
   # Single required check for branch protection; skipped jobs count as passing.
   result:
     name: CI result
-    needs: [changes, frontend, flutter]
+    needs: [changes, frontend, agent, flutter]
     if: always()
     runs-on: ubuntu-latest
     steps:

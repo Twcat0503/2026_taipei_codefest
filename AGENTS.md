@@ -50,8 +50,7 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 ## 測試與 lint 現況（2026-11-07 實測）
 
 - `fvm flutter analyze`：無任何 issue（exit code 0），新改動應維持零 issue。
-- `fvm flutter test`：目前必定失敗。唯一的 `test/widget_test.dart` 是 Flutter 範本留下的 counter smoke test，未先跑 `initServices()`，會在 `SharedPreferencesService.instance` 的 null check 失敗；與 app 功能無關。
-- PR 自檢看到上述 test 失敗屬既有狀態，只需確認沒有新增的失敗。
+- `fvm flutter test`：已以安心助手入口測試取代失效的 counter 範本，驗證 WebView 路由、無障礙點擊與 200% 字級。
 
 ## 架構入門點
 
@@ -70,7 +69,16 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 - 微服務掛進 app：城市服務列表定義在 `lib/page/city_service/model/my_service_model.dart`。先在 `MyServiceItemId` enum 加 id，再於 `MyServiceIdExt` 補 `MyServiceItem`；`destinationUrl` 填前端部署網址（空字串＝項目不可點），`forceWebViewTitle` 可固定 WebView 標題。
 - Mock 資料流：controller／service 以 `rootBundle.loadString(Assets.mockData.xxx)` 讀 `assets/mock_data/*.json`，再交給 `lib/bean/` 的 model 解析（範例：`AccountService`）。
 - `assets/mock_data/`：mock 資料；`assets/svg/`、`assets/image/` 經 flutter_gen 產生常數，勿手寫 asset 路徑字串。
-- `test/`：目前僅 `widget_test.dart`（現況見「測試與 lint 現況」）。
+- `test/widget_test.dart`：安心助手入口測試（現況見「測試與 lint 現況」）。
+
+## Agent MVP 分工
+
+- **隊友負責 MCP 與 LLM 推論**；本範圍是 agent orchestration、工具驗證與操作介面。
+- 已驗證的獨立 MVP 在 `frontend/agent-mvp/`，保留 `frontend/` 既有服務範本；UI／UX 交接見 `frontend/agent-mvp/docs/ui-ux-handoff.md`。
+- 在 `frontend/agent-mvp/` 執行 `mise install`、`pnpm install`、`pnpm dev`；lint、format:check、test、build 也在該目錄獨立執行，CI 另行檢查。
+- LLM 透過 `ModelAdapter`、MCP 透過 `McpClient` 替換；Ollama 與 DemoMcpClient 僅供聯調，契約見 MVP README。
+- 路由及專家提示用英文；中文需求與專有名詞保留為資料，使用者介面預設繁體中文。
+- App 首頁／服務頁入口使用 `TPAgentEntry`；`AGENT_WEB_URL` debug 預設 loopback，release 需明確指定 HTTPS。前端接點變數見 MVP 的 `.env.example`，不放秘密。
 
 ## WebView 整合（前端 ↔ App）
 

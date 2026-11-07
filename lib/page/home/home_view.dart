@@ -6,6 +6,7 @@ import 'package:town_pass/page/home/widget/city_news/city_news_widget.dart';
 import 'package:town_pass/page/home/widget/news/news_banner_widget.dart';
 import 'package:town_pass/page/home/widget/subscription/subscription_widget.dart';
 import 'package:town_pass/util/tp_app_bar.dart';
+import 'package:town_pass/util/tp_agent_entry.dart';
 import 'package:town_pass/util/tp_colors.dart';
 import 'package:town_pass/util/tp_route.dart';
 
@@ -26,6 +27,7 @@ class HomeView extends StatelessWidget {
       ),
       body: const CustomScrollView(
         slivers: [
+          SliverToBoxAdapter(child: TPAgentEntry()),
           _SliverGap(20),
           SliverToBoxAdapter(child: NewsBannerWidget()),
           _SliverGap(20),

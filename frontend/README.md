@@ -1,5 +1,7 @@
 # frontend
 
+Agent MVP 已放在獨立子專案 [`agent-mvp/`](agent-mvp/README.md)，不替換這裡的服務範本。UI／UX 隊友請看 [MVP 交接文件](agent-mvp/docs/ui-ux-handoff.md)；兩者分開執行安裝、開發與測試指令。
+
 「用得了」的 Vue 前端（聊天畫面與結果卡片，規劃中），以 TownPass-Services 為範本，掛在城市通的 `TPWebView` 裡，也能直接用瀏覽器開發。專案規範以根目錄的 [AGENTS.md](../AGENTS.md) 與 [CONTRIBUTING.md](../CONTRIBUTING.md) 為準；前端開發在常駐的 `frontend` branch 進行。
 
 ## 範本來源

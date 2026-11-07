@@ -1,38 +1,70 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:town_pass/main.dart';
-
-/// Helper function to verify the counter's displayed text in the widget tree.
-/// This function specifically checks for the presence of [expectedCount]
-/// and the absence of the *other* number (assuming a simple 0-1 counter based on the test).
-void _verifyCounterValue(WidgetTester tester, int expectedCount) {
-  expect(find.text('$expectedCount'), findsOneWidget);
-  // Also verify that the *other* possible counter value (0 or 1) is not present.
-  final unexpectedCount = expectedCount == 0 ? 1 : 0;
-  expect(find.text('$unexpectedCount'), findsNothing);
-}
+import 'package:get/get.dart';
+import 'package:town_pass/util/tp_agent_entry.dart';
+import 'package:town_pass/util/tp_route.dart';
+import 'package:town_pass/util/tp_web_view.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  tearDown(() => Get.reset());
 
-    // Verify that our counter starts at 0.
-    _verifyCounterValue(tester, 0);
+  testWidgets(
+    'Assistant entry opens the existing WebView route with the configured URL',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      WebViewArgument? received;
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: const Scaffold(body: TPAgentEntry()),
+          getPages: [
+            GetPage(
+              name: TPRoute.webView,
+              page: () {
+                received = Get.arguments as WebViewArgument;
+                return const Scaffold(body: Text('WebView route'));
+              },
+            ),
+          ],
+        ),
+      );
+      expect(find.bySemanticsLabel(RegExp('安心助手')), findsOneWidget);
+      expect(
+        tester.getSemantics(find.bySemanticsLabel(RegExp('安心助手'))),
+        matchesSemantics(
+          label: '安心助手，找服務、查圖書，一步一步完成，示範體驗・送出前由你確認',
+          isButton: true,
+          hasTapAction: true,
+        ),
+      );
+      await tester.tap(find.byType(FilledButton));
+      await tester.pumpAndSettle();
+      expect(received?.url, TPAgentConfig.url);
+      expect(received?.forceTitle, '安心助手');
+      expect(find.text('WebView route'), findsOneWidget);
+      semantics.dispose();
+    },
+  );
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    _verifyCounterValue(tester, 1);
-  });
+  testWidgets(
+    'Assistant entry fits a narrow viewport at 200 percent text size',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(textScaler: TextScaler.linear(2)),
+            child: Scaffold(body: SingleChildScrollView(child: TPAgentEntry())),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(
+        tester.getSize(find.byType(FilledButton)).height,
+        greaterThanOrEqualTo(48),
+      );
+    },
+  );
 }

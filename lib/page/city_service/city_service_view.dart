@@ -5,6 +5,7 @@ import 'package:town_pass/page/city_service/widget/official_service_card/officia
 import 'package:town_pass/page/city_service/widget/pinned_service_widget.dart';
 import 'package:town_pass/page/city_service/widget/trending_service_widget.dart';
 import 'package:town_pass/util/tp_app_bar.dart';
+import 'package:town_pass/util/tp_agent_entry.dart';
 import 'package:town_pass/util/tp_colors.dart';
 import 'package:town_pass/util/tp_route.dart';
 import 'package:town_pass/util/tp_text.dart';
@@ -27,6 +28,7 @@ class CityServiceView extends StatelessWidget {
       body: ListView(
         physics: const BouncingScrollPhysics(),
         children: [
+          const TPAgentEntry(),
           Padding(padding: const EdgeInsets.all(16), child: _myServiceTitle()),
           PinnedServiceWidget(
             onMoreTap: () => Get.toNamed(TPRoute.serviceEdit),
