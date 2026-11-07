@@ -28,28 +28,45 @@ type Resources = {
   modelRssMb: number | null;
   appRssMb: number | null;
   sysAvailMb: number | null;
+  sysTotalMb: number | null;
 };
 
 const STORAGE_KEY = 'townpass:dev-hud';
+const COLLAPSED_KEY = 'townpass:dev-hud-collapsed';
 const MAX_SAMPLES = 50;
 const RESOURCE_STALE_MS = 8000;
 const samples: Sample[] = [];
 let overlay: HTMLElement | null = null;
 let battery: { level: number | null; charging: boolean | null } = { level: null, charging: null };
 let resources: Resources | null = null;
+let collapsed = false;
 let frame = 0;
+
+/** 展開／收合狀態記在 localStorage，重新整理後維持。 */
+function toggleCollapsed(): void {
+  collapsed = !collapsed;
+  try {
+    if (collapsed) localStorage.setItem(COLLAPSED_KEY, '1');
+    else localStorage.removeItem(COLLAPSED_KEY);
+  } catch {
+    /* 存不了就只在這次有效。 */
+  }
+  render();
+}
 
 /** 由電腦端 monitor 透過 window.__devHud.setResources(...) 注入即時記憶體數字。 */
 function setResources(input: {
   modelRssMb?: number | null;
   appRssMb?: number | null;
   sysAvailMb?: number | null;
+  sysTotalMb?: number | null;
 }): void {
   resources = {
     at: Date.now(),
     modelRssMb: finite(input.modelRssMb),
     appRssMb: finite(input.appRssMb),
     sysAvailMb: finite(input.sysAvailMb),
+    sysTotalMb: finite(input.sysTotalMb),
   };
   scheduleRender();
 }
@@ -119,13 +136,47 @@ function render(): void {
   if (!overlay) return;
   const last = samples.at(-1);
   const model = last?.model ?? '';
-  const header =
-    `<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">` +
-    `<span style="font-size:15px;font-weight:700;color:#7fc1ff">🛠 開發看板</span>` +
-    `<span style="font-size:13px;opacity:.7;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(model)}</span>` +
-    `</div>`;
-  const note = `<div style="font-size:12px;opacity:.55;margin-top:1px">CPU／溫度／熱節流需用電腦端 pnpm stress:phone ·?hud=0 關閉</div>`;
   const secs = (ms: number | null) => (ms === null ? '—' : `${(ms / 1000).toFixed(1)}s`);
+  const gb = (mb: number | null) => (mb === null ? '—' : (mb / 1024).toFixed(2));
+  // 「我們」＝模型行程＋App 行程（兩者 RSS 相加）。
+  const ours =
+    resources && (resources.modelRssMb !== null || resources.appRssMb !== null)
+      ? (resources.modelRssMb ?? 0) + (resources.appRssMb ?? 0)
+      : null;
+  const total = resources?.sysTotalMb ?? null;
+  const share = ours !== null && total ? Math.round((ours / total) * 100) : null;
+
+  // 收合時標題列旁顯示一行摘要，展開時顯示模型名稱。
+  const summary = collapsed
+    ? [
+        last?.decodeTps != null ? `${last.decodeTps.toFixed(1)} tok/s` : null,
+        last ? secs(last.latencyMs) : null,
+        ours !== null
+          ? `我們 ${gb(ours)}${total ? `／${gb(total)}` : ''} GB${share !== null ? `（${share}%）` : ''}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(' · ') || '尚無推論'
+    : model;
+
+  // 標題列是整個看板唯一可點的地方（其餘 pointer-events:none，點擊穿透到 app）。
+  const header =
+    `<button type="button" data-hud-toggle aria-expanded="${!collapsed}" aria-label="${collapsed ? '展開' : '收合'}開發看板" ` +
+    `style="pointer-events:auto;display:flex;align-items:center;gap:10px;width:100%;min-height:44px;margin:-6px 0;padding:0;` +
+    `border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer">` +
+    `<span style="font-size:15px;font-weight:700;color:#7fc1ff;white-space:nowrap">🛠 開發看板</span>` +
+    `<span style="flex:1;min-width:0;font-size:13px;opacity:.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(summary)}</span>` +
+    `<span aria-hidden="true" style="font-size:13px;font-weight:700;color:#7fc1ff;white-space:nowrap">${collapsed ? '展開 ▾' : '收合 ▴'}</span>` +
+    `</button>`;
+
+  if (collapsed) {
+    overlay.style.padding = '8px 14px';
+    replaceContent(header);
+    return;
+  }
+  overlay.style.padding = '12px 14px';
+
+  const note = `<div style="font-size:12px;opacity:.55;margin-top:1px">CPU／溫度／熱節流需用電腦端 pnpm stress:phone ·?hud=0 關閉</div>`;
 
   // 模型效能（app 自己量得到）：有推論時顯示大數字卡＋累積統計，否則顯示提示。
   let perf: string;
@@ -163,17 +214,60 @@ function render(): void {
   let mem = '';
   if (resources) {
     const stale = Date.now() - resources.at > RESOURCE_STALE_MS;
-    const gb = (mb: number | null) => (mb === null ? '—' : (mb / 1024).toFixed(2));
+    const { modelRssMb, appRssMb, sysAvailMb } = resources;
     const cards =
-      tile(gb(resources.modelRssMb), '模型 RAM GB', '#ff9db0') +
-      tile(gb(resources.sysAvailMb), '系統可用 GB') +
-      (resources.appRssMb !== null ? tile(gb(resources.appRssMb), 'App RAM GB') : '');
+      tile(
+        `${gb(ours)}${share !== null ? ` · ${share}%` : ''}`,
+        '我們佔用 GB（模型＋App）',
+        '#ff9db0',
+      ) +
+      tile(gb(total), '手機總 RAM GB') +
+      tile(gb(sysAvailMb), '系統可用 GB', '#8affc1');
+
+    // 一條分段長條：模型／App／其他已用／可用，加起來＝手機總 RAM。
+    let bar = '';
+    if (total) {
+      const others =
+        sysAvailMb !== null
+          ? Math.max(0, total - sysAvailMb - (modelRssMb ?? 0) - (appRssMb ?? 0))
+          : null;
+      const seg = (mb: number | null, color: string) =>
+        mb
+          ? `<div style="width:${((mb / total) * 100).toFixed(2)}%;background:${color}"></div>`
+          : '';
+      // 「可用」在長條上是沒填色的底，圖例用空心框表示，和「其他已用」的實心灰分開。
+      const dot = (color: string, hollow = false) =>
+        `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;` +
+        (hollow ? `border:1.5px solid ${color}` : `background:${color}`) +
+        `"></span>`;
+      bar =
+        `<div style="display:flex;height:12px;border-radius:6px;overflow:hidden;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)">` +
+        seg(modelRssMb, '#ff9db0') +
+        seg(appRssMb, '#7fc1ff') +
+        seg(others, '#6b7486') +
+        `</div>` +
+        `<div style="display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;opacity:.85">` +
+        `<span>${dot('#ff9db0')}模型 ${gb(modelRssMb)}</span>` +
+        `<span>${dot('#7fc1ff')}App ${gb(appRssMb)}</span>` +
+        `<span>${dot('#6b7486')}其他已用 ${gb(others)}</span>` +
+        `<span>${dot('rgba(255,255,255,.6)', true)}可用 ${gb(sysAvailMb)}</span>` +
+        `</div>`;
+    }
     mem =
       `<div style="font-size:12px;opacity:.6;margin-top:2px">記憶體（電腦端監看${stale ? ' · 停更' : ''}）</div>` +
-      `<div style="display:flex;gap:8px${stale ? ';opacity:.45' : ''}">${cards}</div>`;
+      `<div style="display:flex;flex-direction:column;gap:6px${stale ? ';opacity:.45' : ''}">` +
+      `<div style="display:flex;gap:8px">${cards}</div>${bar}</div>`;
   }
 
-  overlay.innerHTML = header + perf + mem + note;
+  replaceContent(header + perf + mem + note);
+}
+
+/** 重畫時若焦點在切換鈕上，換完內容後把焦點還回去（monitor 每秒注入會一直重畫）。 */
+function replaceContent(html: string): void {
+  if (!overlay) return;
+  const hadFocus = document.activeElement?.hasAttribute('data-hud-toggle') ?? false;
+  overlay.innerHTML = html;
+  if (hadFocus) overlay.querySelector<HTMLElement>('[data-hud-toggle]')?.focus();
 }
 
 function scheduleRender(): void {
@@ -211,9 +305,19 @@ async function trackBattery(): Promise<void> {
 /** 由 main.ts 在啟動時呼叫一次。未啟用或非瀏覽器時什麼都不做。 */
 export function mountDevHud(): void {
   if (overlay || !enabled()) return;
+  try {
+    collapsed = localStorage.getItem(COLLAPSED_KEY) === '1';
+  } catch {
+    collapsed = false;
+  }
   overlay = document.createElement('div');
   overlay.id = 'dev-hud';
-  overlay.setAttribute('aria-hidden', 'true');
+  overlay.setAttribute('role', 'region');
+  overlay.setAttribute('aria-label', '開發看板');
+  // 內容每次重畫都會換掉，所以點擊用委派掛在外層。
+  overlay.addEventListener('click', (event) => {
+    if ((event.target as Element | null)?.closest('[data-hud-toggle]')) toggleCollapsed();
+  });
   overlay.style.cssText =
     'position:fixed;top:0;left:0;right:0;z-index:2147483647;pointer-events:none;' +
     'display:flex;flex-direction:column;gap:7px;padding:12px 14px;' +

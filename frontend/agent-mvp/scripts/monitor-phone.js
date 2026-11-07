@@ -92,10 +92,11 @@ async function readMemory(appPid, modelPid) {
       `grep VmRSS /proc/${appPid}/status`,
       modelPid ? `grep VmRSS /proc/${modelPid}/status` : 'echo',
       `grep MemAvailable /proc/meminfo`,
+      `grep MemTotal /proc/meminfo`,
     ].join(' ; echo "|||" ; '),
   ).catch(() => null);
   if (!raw) return null;
-  const [appRss, modelRss, memAvail] = raw.split('|||');
+  const [appRss, modelRss, memAvail, memTotal] = raw.split('|||');
   const mb = (text) => {
     const kb = Number(text?.match(/(\d+)/)?.[1] ?? NaN);
     return Number.isFinite(kb) ? kb / 1024 : null;
@@ -104,6 +105,7 @@ async function readMemory(appPid, modelPid) {
     appRssMb: mb(appRss),
     modelRssMb: modelPid ? mb(modelRss) : null,
     sysAvailMb: mb(memAvail),
+    sysTotalMb: mb(memTotal),
   };
 }
 
@@ -126,7 +128,7 @@ while (running) {
     await page.evaluate(`window.__devHud?.setResources(${JSON.stringify(mem)})`).catch(() => {});
     const g = (mb) => (mb === null ? '—' : (mb / 1024).toFixed(2));
     process.stdout.write(
-      `\r模型 ${g(mem.modelRssMb)} GB｜App ${g(mem.appRssMb)} GB｜系統可用 ${g(mem.sysAvailMb)} GB${modelPid ? '' : '（模型未執行）'}        `,
+      `\r我們 ${g((mem.modelRssMb ?? 0) + (mem.appRssMb ?? 0))}／總共 ${g(mem.sysTotalMb)} GB（模型 ${g(mem.modelRssMb)}、App ${g(mem.appRssMb)}）｜系統可用 ${g(mem.sysAvailMb)} GB${modelPid ? '' : '（模型未執行）'}        `,
     );
   }
   await new Promise((r) => setTimeout(r, Math.max(0, SAMPLE_MS - (Date.now() - started))));
