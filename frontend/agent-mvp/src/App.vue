@@ -66,6 +66,9 @@ const busy = ref(false);
 const stage = ref<'routing' | 'searching'>('routing');
 const resultHeading = ref<HTMLElement>();
 const requestInput = ref<HTMLTextAreaElement>();
+const photoInput = ref<HTMLInputElement>();
+const pendingPhoto = ref<File | null>(null);
+const photoEntryNotice = ref<'photoSimulated' | 'photoNotReady' | 'photoError' | null>(null);
 const assistantBody = ref<HTMLElement>();
 const keyboardViewportHeight = ref<number | null>(null);
 const preferencesDialog = ref<HTMLDialogElement>();
@@ -493,6 +496,8 @@ function reset() {
   resumed.value = false;
   lastRequest.value = '';
   input.value = '';
+  pendingPhoto.value = null;
+  photoEntryNotice.value = null;
   runner.cancelVision();
   cancelVoice();
   input.value = '';
@@ -503,6 +508,37 @@ function stay() {
   if (state.navigation) {
     state.navigation = null;
     state.notice = 'navigationDeclined';
+  }
+}
+function requestPhoto() {
+  if (busy.value || state.draft) return;
+  if (!canSeePhotos.value) {
+    photoEntryNotice.value = mode.value === 'demo' ? 'photoSimulated' : 'photoNotReady';
+    return;
+  }
+  photoEntryNotice.value = null;
+  photoInput.value?.click();
+}
+async function selectPhoto(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const photo = input.files?.[0];
+  input.value = '';
+  if (!photo || !canSeePhotos.value || busy.value || state.draft) return;
+  if (
+    !['image/jpeg', 'image/png', 'image/webp'].includes(photo.type) ||
+    photo.size > 20 * 1024 * 1024
+  ) {
+    photoEntryNotice.value = 'photoError';
+    return;
+  }
+  photoEntryNotice.value = null;
+  pendingPhoto.value = photo;
+  home.value = false;
+  if (state.navigation?.id !== 'townpass_report') await submit(t.value.reportRequest);
+  await nextTick();
+  if (state.navigation?.id !== 'townpass_report') {
+    pendingPhoto.value = null;
+    photoEntryNotice.value = 'photoError';
   }
 }
 async function applyConfig() {
@@ -826,7 +862,8 @@ onBeforeUnmount(() => {
                   :demo-mode="mode === 'demo'"
                   :describe="(image: string) => runner.describePhoto(image, locale)"
                   :cancel-describe="() => runner.cancelVision()"
-                  :photo-file="null"
+                  :photo-file="pendingPhoto"
+                  @photo-consumed="pendingPhoto = null"
                   @stay="stay"
                 />
                 <p v-if="state.failure?.hint" class="notice-box">{{ state.failure.hint }}</p>
@@ -995,6 +1032,26 @@ onBeforeUnmount(() => {
       </div>
       <p v-if="state.draft && !home" class="draft-hint">{{ t.draftHint }}</p>
       <form class="composer" @submit.prevent="submit()">
+        <input
+          id="assistant-photo-input"
+          ref="photoInput"
+          class="sr-only"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          :aria-label="t.photoPicker"
+          aria-hidden="true"
+          tabindex="-1"
+          @change="selectPhoto"
+        />
+        <button
+          type="button"
+          class="add-button"
+          :aria-label="t.photoReport"
+          :disabled="busy || !!state.draft"
+          @click="requestPhoto"
+        >
+          <UiIcon name="plus" />
+        </button>
         <label class="sr-only" for="request">{{ t.questionLabel }}</label>
         <div class="composer-box">
           <textarea
@@ -1023,6 +1080,9 @@ onBeforeUnmount(() => {
       <p id="input-help" class="composer-note">
         <span>{{ mode === 'demo' ? t.ruleBadge : t.modelBadge }}</span
         ><span class="scope-copy"> · {{ !toolClient ? t.demoBadge : t.readOnlyBadge }}</span>
+      </p>
+      <p v-if="photoEntryNotice" class="photo-entry-note" role="status">
+        {{ t[photoEntryNotice] }}
       </p>
       <p v-if="conversationSaveFailed" role="status">{{ t.conversationSaveFailed }}</p>
     </footer>

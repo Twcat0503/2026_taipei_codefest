@@ -806,6 +806,26 @@ dd {
   align-items: center;
   gap: 0.5rem;
 }
+.add-button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: var(--composer-control);
+  height: var(--composer-control);
+  padding: 0;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  color: white;
+  background: var(--deep);
+}
+.add-button:hover:not(:disabled) {
+  background: var(--teal);
+}
+.add-button svg {
+  width: 2rem;
+  height: 2rem;
+}
 .composer-box {
   position: relative;
   display: flex;
@@ -903,6 +923,12 @@ dd {
 .composer-note > span {
   color: var(--teal);
   font-weight: 600;
+}
+.photo-entry-note {
+  margin: 0.5rem 0 0;
+  color: var(--teal);
+  font-size: 0.875rem;
+  text-align: center;
 }
 .draft-hint {
   padding-bottom: 0.75rem;
