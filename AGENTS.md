@@ -50,9 +50,10 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 ## 測試與 lint 現況（2026-11-08 實測）
 
 - `fvm flutter analyze`：無任何 issue（exit code 0），新改動應維持零 issue。
-- `fvm flutter test`：190 個測試全過，涵蓋安心助手入口（WebView 路由、無障礙點擊、200% 字級）、app shell、無障礙 bridge（`tts` 生命週期、`haptic`、`a11y_state`）、ASR／TTS 的 bridge 與 service、表單帶入。
-- `frontend/agent-mvp/`：`pnpm lint`、`pnpm test`（425 個）、`pnpm build`、`pnpm test:e2e`（35 個，含 axe 的 WCAG 2.1 AA 掃描）全過。
-- `tools/townpass/`：`pnpm typecheck`、`pnpm test`（34 個）全過。
+- `fvm flutter test`：204 個測試全過，涵蓋安心助手入口（WebView 路由、無障礙點擊、200% 字級）、app shell、無障礙 bridge（`tts` 生命週期、`haptic`、`a11y_state`）、ASR／TTS 的 bridge 與 service、表單帶入、`userinfo` 來源檢查、`open_link` 帶入回覆、麥克風入口。
+- `frontend/agent-mvp/`：`pnpm lint`、`pnpm test`（541 個）、`pnpm build`、`pnpm test:e2e`（47 個，含 axe 的 WCAG 2.1 AA 掃描）全過。
+- `tools/townpass/`：`pnpm typecheck`、`pnpm test`（114 個）全過。
+- CI 另外執行 Kotlin TTS 生命週期測試（job `kotlin-tts`，`TtsLifecycleTest.kt`）與 Python TTS 工具測試（job `python-tts`，`tools/tts-android/`）。
 - `integration_test/` 的 LLM／ASR／TTS 伺服器測試需要實機與手動安裝的模型，CI 不執行。
 
 ## 架構入門點

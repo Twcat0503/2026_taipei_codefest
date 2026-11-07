@@ -112,9 +112,9 @@ The Care Assistant entry on the app's home screen opens the assistant. The on-de
 
 | Scope | Commands | Status |
 | --- | --- | --- |
-| Flutter | `fvm flutter analyze`, `fvm flutter test` | no issues; 190 tests pass |
-| Care Assistant | `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm test:e2e` | 425 unit tests and 35 end-to-end tests (with axe scans) pass |
-| Tools | `pnpm typecheck`, `pnpm test` (in `tools/townpass`) | 34 tests pass |
+| Flutter | `fvm flutter analyze`, `fvm flutter test` | no issues; 204 tests pass |
+| Care Assistant | `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm test:e2e` | 541 unit tests and 47 end-to-end tests (with axe scans) pass |
+| Tools | `pnpm typecheck`, `pnpm test` (in `tools/townpass`) | 114 tests pass |
 
 CI only checks the parts affected by a change; see [CONTRIBUTING.md](CONTRIBUTING.md) (in Chinese).
 
