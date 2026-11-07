@@ -1,11 +1,21 @@
-/* Town Pass TPColors; darker primary700 is used for AA-readable controls. */
+/* Town Pass UI kit. Primary700/800 keep text and controls AA-readable. */
 :root {
   --ink: #171b1d;
   --muted: #5e6d76;
-  --border: #e3e7e9;
+  --border: #cad1d5;
+  --primary: #5ab4c5;
   --teal: #356c77;
   --deep: #22474e;
   --pale: #edf8fa;
+  --paper: #fff;
+  --surface: #f4f4f4;
+  --bubble: #e3e7e9;
+  --user-bubble: #b4e2ea;
   --cream: #fcf2df;
   --amber-ink: #74521b;
+  --radius-card: 2rem;
+  --radius-bubble: 1.75rem;
+  --radius-pill: 999px;
+  --touch-target: 48px;
+  --app-width: 420px;
 }

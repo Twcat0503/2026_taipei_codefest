@@ -4,11 +4,11 @@ import AxeBuilder from '@axe-core/playwright';
 test.beforeEach(async ({ page }) => {
   // This server uses the real tool adapter; only HTTP responses/location are fixtures.
   await page.goto('/');
-  await page.getByText('設定', { exact: true }).click();
+  await page.getByRole('button', { name: '設定', exact: true }).click();
   await page.getByText('開發者檢視與接點設定', { exact: true }).click();
   await page.getByLabel('模型來源').selectOption('demo');
   await page.getByRole('button', { name: '套用接點', exact: true }).click();
-  await page.getByText('設定', { exact: true }).click();
+  await page.getByRole('button', { name: '關閉設定', exact: true }).click();
 });
 
 test('nearby lookup resumes with district, shows source, and keeps bill clarification', async ({
