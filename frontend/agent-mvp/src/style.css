@@ -250,6 +250,15 @@ ol {
   color: var(--muted);
 }
 
+/* 決策過程 */
+.decision {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.decision summary {
+  cursor: pointer;
+}
+
 /* 結果卡片 */
 .result-list {
   display: grid;

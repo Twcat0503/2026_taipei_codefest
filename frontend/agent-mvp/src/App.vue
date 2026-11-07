@@ -16,6 +16,7 @@ import { DemoModel, LocalModel } from './agent/model';
 import { cancelDraft, changeBranch, confirmReservation, prepareReservation } from './agent/tools';
 import { clearTask, getPreference, restoreTask, saveTask, setPreference } from './platform/storage';
 import { canReadAloud, readAloud, stopReading } from './platform/speech';
+import { getLocation, openLink } from './platform/location';
 
 const locale = ref<Locale>(
   getPreference('tp-language', 'zh-Hant-TW') === 'en' ? 'en' : 'zh-Hant-TW',
@@ -49,16 +50,15 @@ let adapter: ModelAdapter =
         import.meta.env.VITE_MODEL_PROTOCOL === 'tools' ? 'tools' : 'json-schema',
       )
     : new DemoModel();
-// VITE_TOOL_SOURCE=townpass 查台北通示範站；未設定時用 DemoToolClient 的虛構資料。
+// 預設查台北通工具；VITE_TOOL_SOURCE=demo 才用 DemoToolClient 的虛構資料。
 const toolClient =
-  import.meta.env.VITE_TOOL_SOURCE === 'townpass' ? createAgentToolClient() : undefined;
+  import.meta.env.VITE_TOOL_SOURCE === 'demo' ? undefined : createAgentToolClient({ getLocation });
 let runner = new AgentRunner(adapter, state, toolClient);
 const speechSupported = ref(canReadAloud());
 const speaking = ref(false);
 const speechFailed = ref(false);
 const rate = ref('0.9');
 const shownBooks = computed(() => state.bookResults);
-const shownServices = computed(() => state.serviceResults);
 const activeBook = computed(() =>
   state.bookResults.find((book) => book.id === (state.draft?.bookId ?? state.receipt?.bookId)),
 );
@@ -81,7 +81,10 @@ type Turn = {
   request: string;
   notice: TaskState['notice'];
   books: TaskState['bookResults'];
-  services: TaskState['serviceResults'];
+  records: TaskState['records'];
+  source: TaskState['source'];
+  failure: TaskState['failure'];
+  traces: TaskState['traces'];
   reference?: string;
   receiptBook?: Localized;
 };
@@ -95,7 +98,10 @@ function archiveTurn() {
     request: lastRequest.value,
     notice: state.notice,
     books: finished ? [] : state.bookResults,
-    services: state.serviceResults,
+    records: state.records,
+    source: state.source,
+    failure: state.failure,
+    traces: state.traces,
     reference: state.receipt?.reference,
     receiptBook: finished ? activeBook.value?.title : undefined,
   });
@@ -142,6 +148,20 @@ async function submit(text = input.value) {
   } finally {
     busy.value = false;
     saveTask(state);
+    await focusResult();
+  }
+}
+async function showBookDetails(bookId: string) {
+  if (inputDisabled.value) return;
+  archiveTurn();
+  busy.value = true;
+  await focusResult();
+  try {
+    await runner.runTool('library', 'get_library_book', { book_id: bookId });
+  } catch {
+    /* Runner exposes a localized, non-sensitive error state. */
+  } finally {
+    busy.value = false;
     await focusResult();
   }
 }
@@ -208,8 +228,9 @@ function speak() {
       ? `${activeBook.value?.title[locale.value]}. ${activeBranch.value?.name[locale.value]}. ${state.receipt.reference}`
       : [
           ...shownBooks.value.map((book) => book.title[locale.value]),
-          ...shownServices.value.map(
-            (service) => `${service.title[locale.value]}. ${service.description[locale.value]}`,
+          ...state.records.map(
+            (record) =>
+              `${record.title[locale.value]}. ${record.description?.[locale.value] ?? ''}`,
           ),
         ].join('。');
   readAloud(
@@ -291,15 +312,6 @@ onBeforeUnmount(() => {
               ><button class="outline-button" :disabled="busy">{{ t.apply }}</button>
               <p v-if="configStatus" role="status">{{ t[configStatus] }}</p>
             </form>
-            <h2>{{ t.trace }}</h2>
-            <p v-if="!state.traces.length">{{ t.noTrace }}</p>
-            <ol v-else class="trace" lang="en">
-              <li v-for="event in state.traces" :key="event.id">
-                <code>{{ event.actor }} / {{ event.event }}</code
-                ><span>{{ event.detail }}</span
-                ><small>{{ event.elapsedMs }} ms</small>
-              </li>
-            </ol>
             <p class="small-note">{{ t.boundary }}</p>
           </details>
         </div>
@@ -322,15 +334,27 @@ onBeforeUnmount(() => {
             <span>{{ book.author[locale] }}</span>
           </li>
         </ul>
-        <ul v-if="turn.services.length" class="plain-list">
-          <li v-for="service in turn.services" :key="service.id">
-            <strong>{{ service.title[locale] }}</strong>
-            <span v-if="service.description[locale]">{{ service.description[locale] }}</span>
+        <ul v-if="turn.records.length" class="plain-list">
+          <li v-for="record in turn.records" :key="record.id">
+            <strong>{{ record.title[locale] }}</strong>
+            <span v-if="record.description?.[locale]">{{ record.description[locale] }}</span>
           </li>
         </ul>
+        <p v-if="turn.failure?.hint" class="small-note">{{ turn.failure.hint }}</p>
+        <p v-if="turn.source" class="small-note">{{ turn.source.label }}</p>
         <p v-if="turn.reference" class="small-note">
           {{ turn.receiptBook?.[locale] }}・{{ t.reference }} {{ turn.reference }}
         </p>
+        <details v-if="turn.traces.length" class="decision">
+          <summary>{{ t.trace }}</summary>
+          <ol class="trace" lang="en">
+            <li v-for="event in turn.traces" :key="event.id">
+              <code>{{ event.actor }} / {{ event.event }}</code
+              ><span>{{ event.detail }}</span
+              ><small>{{ event.elapsedMs }} ms</small>
+            </li>
+          </ol>
+        </details>
       </div>
     </template>
 
@@ -359,22 +383,39 @@ onBeforeUnmount(() => {
             <span v-if="book.category[locale]" class="category">{{ book.category[locale] }}</span>
             <h2>{{ book.title[locale] }}</h2>
             <p>{{ book.author[locale] }}</p>
-            <button class="outline-button" @click="prepare(book.id)">{{ t.reserve }}</button>
-          </li>
-        </ul>
-        <ul v-if="shownServices.length" class="result-list">
-          <li v-for="service in shownServices" :key="service.id" class="result-card">
-            <h2>{{ service.title[locale] }}</h2>
-            <p v-if="service.description[locale]">{{ service.description[locale] }}</p>
-            <button
-              v-if="service.id === 'library'"
-              class="outline-button"
-              @click="submit(t.browseBooks)"
-            >
-              {{ t.explore }}
+            <button v-if="!toolClient" class="outline-button" @click="prepare(book.id)">
+              {{ t.reserve }}
+            </button>
+            <button v-else class="outline-button" @click="showBookDetails(book.id)">
+              {{ t.details }}
             </button>
           </li>
         </ul>
+        <ul v-if="state.records.length" class="result-list">
+          <li v-for="record in state.records" :key="record.id" class="result-card">
+            <span v-if="record.category?.[locale]" class="category">{{
+              record.category[locale]
+            }}</span>
+            <h2>{{ record.title[locale] }}</h2>
+            <p v-if="record.description?.[locale]">{{ record.description[locale] }}</p>
+            <dl v-if="record.fields?.length">
+              <template v-for="field in record.fields" :key="field.label[locale]">
+                <dt>{{ field.label[locale] }}</dt>
+                <dd>{{ field.value[locale] }}</dd>
+              </template>
+            </dl>
+            <button v-if="record.url" class="outline-button" @click="openLink(record.url)">
+              {{ t.openPage }}
+            </button>
+          </li>
+        </ul>
+        <p v-if="state.failure?.hint" class="small-note">{{ state.failure.hint }}</p>
+        <p v-if="state.source" class="small-note">
+          {{ state.source.label }}：{{ state.source.note }}
+          <template v-if="state.source.truncated">
+            {{ t.truncated.replace('{total}', String(state.source.total)) }}
+          </template>
+        </p>
 
         <section v-if="state.draft" class="result-card" aria-labelledby="review-title">
           <h2 id="review-title">{{ t.reviewTitle }}</h2>
@@ -411,6 +452,9 @@ onBeforeUnmount(() => {
           <button @click="submit(t.browseBooks)">{{ t.browseBooks }}</button>
           <button @click="submit(t.browseServices)">{{ t.browseServices }}</button>
           <button @click="submit(t.counter)">{{ t.counter }}</button>
+          <button @click="submit(t.feeSuggestion)">{{ t.feeSuggestion }}</button>
+          <button @click="submit(t.youbikeSuggestion)">{{ t.youbikeSuggestion }}</button>
+          <button @click="submit(t.perkSuggestion)">{{ t.perkSuggestion }}</button>
         </div>
 
         <button
@@ -421,6 +465,16 @@ onBeforeUnmount(() => {
           <UiIcon name="sound" />{{ speaking ? t.stopRead : t.read }}
         </button>
         <p v-if="speechFailed" role="alert" class="small-note">{{ t.speechError }}</p>
+        <details v-if="state.traces.length" class="decision">
+          <summary>{{ t.trace }}</summary>
+          <ol class="trace" lang="en">
+            <li v-for="event in state.traces" :key="event.id">
+              <code>{{ event.actor }} / {{ event.event }}</code
+              ><span>{{ event.detail }}</span
+              ><small>{{ event.elapsedMs }} ms</small>
+            </li>
+          </ol>
+        </details>
       </template>
     </section>
   </main>

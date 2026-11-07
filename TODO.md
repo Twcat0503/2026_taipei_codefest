@@ -18,7 +18,7 @@
 
 ## Agent
 
-- [x] 用 `tools/townpass/` 取代 `DemoToolClient`（`VITE_TOOL_SOURCE=townpass`，直接函式呼叫）
+- [x] 用 `tools/townpass/` 取代 `DemoToolClient`（預設啟用，直接函式呼叫，16 支工具）
 - [ ] 接上正式模型，取代規則模擬與暫用的 Qwen3 1.7B
 - [ ] 接上正式服務後，重新驗證逾時、取消、工具失敗與模型輸出格式錯誤的處理
 

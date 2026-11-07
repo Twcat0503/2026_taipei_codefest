@@ -55,9 +55,7 @@ test('accessible initial page and enlarged bilingual layouts', async ({ page }) 
 test('unknown requests and cancelled drafts never produce receipts', async ({ page }) => {
   await page.getByLabel('你想要做什麼？', { exact: true }).fill('幫我寫一首詩');
   await page.getByRole('button', { name: '送出需求', exact: true }).click();
-  await expect(
-    page.getByText('目前能協助查詢服務與示範圖書。請選擇其中一項，或換個方式告訴我。'),
-  ).toBeVisible();
+  await expect(page.getByText(/^我能查圖書/)).toBeVisible();
   await page.getByRole('button', { name: '幫我找圖書', exact: true }).click();
   await page.getByRole('button', { name: '預約這本書', exact: true }).first().click();
   await page.getByRole('button', { name: '取消草稿', exact: true }).click();

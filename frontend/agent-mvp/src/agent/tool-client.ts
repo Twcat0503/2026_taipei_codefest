@@ -35,11 +35,11 @@ export class DemoToolClient implements ToolClient {
     { signal }: { signal: AbortSignal },
   ): Promise<ToolResult> {
     signal.throwIfAborted();
-    const query = String(params.arguments.query ?? '')
+    const query = String(params.arguments.keyword ?? '')
       .trim()
       .toLowerCase();
     let records: unknown[];
-    if (params.name === 'search_books')
+    if (params.name === 'search_library_books')
       records = books.filter((book) =>
         [
           ...Object.values(book.title),
@@ -47,12 +47,14 @@ export class DemoToolClient implements ToolClient {
           ...Object.values(book.category),
         ].some((text) => text.toLowerCase().includes(query)),
       );
-    else if (params.name === 'search_services')
-      records = services.filter((service) =>
-        [...Object.values(service.title), ...service.keywords].some((text) =>
-          text.toLowerCase().includes(query),
-        ),
-      );
+    else if (params.name === 'search_application_services')
+      records = services
+        .filter((service) =>
+          [...Object.values(service.title), ...service.keywords].some((text) =>
+            text.toLowerCase().includes(query),
+          ),
+        )
+        .map(({ id, title, description }) => ({ id, title, description }));
     else return { isError: true, content: [{ type: 'text', text: 'TOOL_NOT_FOUND' }] };
     return { content: [{ type: 'text', text: JSON.stringify({ source: 'demo', records }) }] };
   }

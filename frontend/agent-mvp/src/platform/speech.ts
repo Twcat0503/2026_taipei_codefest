@@ -1,6 +1,10 @@
 declare global {
   interface Window {
-    flutterObject?: { postMessage: (message: string) => void };
+    flutterObject?: {
+      postMessage: (message: string) => void;
+      addEventListener?: (type: 'message', listener: (event: { data: string }) => void) => void;
+      removeEventListener?: (type: 'message', listener: (event: { data: string }) => void) => void;
+    };
   }
 }
 

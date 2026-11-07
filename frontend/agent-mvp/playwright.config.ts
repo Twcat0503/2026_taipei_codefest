@@ -9,5 +9,10 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
   },
-  webServer: { command: 'pnpm dev', url: 'http://127.0.0.1:5173', reuseExistingServer: true },
+  webServer: {
+    command: 'pnpm dev',
+    url: 'http://127.0.0.1:5173',
+    reuseExistingServer: true,
+    env: { VITE_TOOL_SOURCE: 'demo' },
+  },
 });
