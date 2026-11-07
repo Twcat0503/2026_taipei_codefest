@@ -10,3 +10,6 @@ feature-eval.*.json
 .env*
 !.env.example
 stress-results/
+docs/features-*.json
+docs/form-fill-eval-*.json
+docs/model-eval-*.json

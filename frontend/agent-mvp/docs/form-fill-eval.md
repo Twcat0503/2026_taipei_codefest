@@ -13,16 +13,7 @@
 
 - 程式：[`form-fill.ts`](../src/agent/skills/form-fill.ts)（`fillFormGuarded`）、[`form-guard.ts`](../src/agent/skills/form-guard.ts)
 - 評測：[`tests/form-fill.eval.ts`](../tests/form-fill.eval.ts)；保留題：[`tests/form-fill-heldout.ts`](../tests/form-fill-heldout.ts)
-- 原始結果（每題輸入、模型原始輸出、最後的值與每欄對錯）：
-  - [手機 LFM3 原題組](form-fill-eval-phone-lfm3-2026-11-07.json)
-  - [手機 LFM3 保留題](form-fill-eval-phone-lfm3-heldout-2026-11-07.json)
-  - [Mac qwen3 原題組](form-fill-eval-mac-qwen3-2026-11-07.json)
-  - [手機 LFM3 改口題組](form-fill-eval-phone-lfm3-correction-2026-11-08.json)
-  - [Mac qwen3 改口題組](form-fill-eval-mac-qwen3-correction-2026-11-08.json)
-  - [手機 LFM3 台北通全部表單](form-fill-eval-phone-lfm3-townpass-2026-11-08.json)
-  - [Mac qwen3 台北通全部表單](form-fill-eval-mac-qwen3-townpass-2026-11-08.json)
-  - [手機 LFM3 補強驗證新題目](form-fill-eval-phone-lfm3-townpass2-2026-11-08.json)
-  - [Mac qwen3 補強驗證新題目](form-fill-eval-mac-qwen3-townpass2-2026-11-08.json)
+- 原始結果（每題輸入、模型原始輸出、最後的值與每欄對錯）：不放在 repo 裡，在本機跑評測就能重新產生（做法見「重現」）；本文的數字是這些執行的摘要。
 - 台北通表單定義：[`townpass-forms.ts`](../src/agent/skills/townpass-forms.ts)；題目：[`tests/form-fill-townpass.ts`](../tests/form-fill-townpass.ts)、補強驗證 [`tests/form-fill-townpass2.ts`](../tests/form-fill-townpass2.ts)
 - 改口題組：[`tests/form-fill-correction.ts`](../tests/form-fill-correction.ts)
 - 測試日期：2026-11-07～08
@@ -353,7 +344,7 @@ FORM_EVAL_RESCORE=<上次的結果>.json FORM_EVAL_RESUME=1 FORM_EVAL_SET=correc
 # 保留題、只跑部分條件
 FORM_EVAL_SET=heldout FORM_EVAL_CONDITIONS=rule,generic,generic+guard,guarded node scripts/form-fill-phone.js
 # 改了防護或評分後，用已存的模型輸出重新評分（不推論；x+guard 與 guarded 會重新套防護）
-FORM_EVAL_RESCORE=docs/form-fill-eval-phone-lfm3-2026-11-07.json \
+FORM_EVAL_RESCORE=form-fill-eval.phone.json \
   FORM_EVAL_CONDITIONS=rule,dedicated,dedicated+guard,generic,generic+guard,guarded \
   MODEL_NAME=lfm3-1.7b-q4_0 pnpm test:model tests/form-fill.eval.ts
 ```
