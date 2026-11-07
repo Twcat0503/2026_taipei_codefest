@@ -788,6 +788,63 @@ const { values } = await fillFormGuarded(model, TOUR_FORM, 原話, {
   </section>
 
   <section>
+    <h2>補強之後</h2>
+    <p>
+      針對上面做不好的地方補了五項：會員地址拆成縣市／區／路名、過去日期往前算、數量從線索字旁讀取（含改口）、災情分類同義詞、地點描述只收說明位置的短句。驗證用另一個代理新寫的
+      46 題，它沒看過程式和表單定義。
+    </p>
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr>
+            <th>新題目（46 題，手機 LFM3）</th>
+            <th class="n">補強前</th>
+            <th class="n">補強後</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>報案聯絡資料（地址拆欄）</td>
+            <td class="n">69.4%</td>
+            <td class="n"><span class="pill good">100%</span></td>
+          </tr>
+          <tr>
+            <td>交通違規申訴（地址、肇事日期）</td>
+            <td class="n">70.0%</td>
+            <td class="n">91.7%</td>
+          </tr>
+          <tr>
+            <td>報案案件（發生日期 100%）</td>
+            <td class="n">80.0%</td>
+            <td class="n">88.0%</td>
+          </tr>
+          <tr>
+            <td>災情通報（分類 80%）</td>
+            <td class="n">60.0%</td>
+            <td class="n">73.3%</td>
+          </tr>
+          <tr>
+            <td>路燈通報、購票、水費</td>
+            <td class="n">48～79%</td>
+            <td class="n"><span class="pill warn">56～79%</span></td>
+          </tr>
+          <tr>
+            <td><strong>合計</strong></td>
+            <td class="n">67.2%</td>
+            <td class="n"><strong>82.2%</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <ul>
+      <li>Mac qwen3 結果一致：67.6% → 81.7%（只靠模型 46.9%）。</li>
+      <li>
+        還沒補好：改口時沒重說票種或單位（「三張全票，不對，兩張」）、「不會亮」這類線索字變形、號碼局部改口（「最後一碼是九」）。
+      </li>
+    </ul>
+  </section>
+
+  <section>
     <h2>還要注意的</h2>
     <div class="tbl">
       <table>

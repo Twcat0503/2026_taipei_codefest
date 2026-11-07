@@ -52,13 +52,19 @@ export type FormField = {
    * For text fields: `summary` = a short phrase the model writes (主旨), `longtext` = the
    * problem in the person's words (描述). Without it a text field is a verbatim span (a place).
    */
-  kind?: 'summary' | 'longtext';
+  kind?: 'summary' | 'longtext' | 'detail';
   /** For yesno/count/number fields: words showing the person talked about it (default: from label). */
   cues?: string[];
   /** For select/multiselect fields: the choices, exactly as the page shows them. */
   options?: string[];
   /** For select/multiselect fields: other words people use for an option (作者 → 著者). */
   aliases?: Record<string, string[]>;
+  /** For date fields: which way a date without a year (十月三十日、星期一) points. Default future. */
+  when?: 'past' | 'future';
+  /** Part of an address split over several fields: the app fills them from one address. */
+  address?: 'county' | 'town' | 'street';
+  /** For count fields: read the number said next to the cue word (兩張全票、全票兩張). */
+  readNear?: boolean;
 };
 export type FormSpec = { id: string; title: string; fields: FormField[] };
 export type FormValues = Record<string, string>;

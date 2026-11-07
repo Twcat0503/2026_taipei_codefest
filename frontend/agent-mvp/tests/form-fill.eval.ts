@@ -37,6 +37,7 @@ import { guardValues } from '../src/agent/skills/form-guard';
 import { REHAB_HELDOUT, REPORT_HELDOUT, TOUR_FORM, TOUR_HELDOUT } from './form-fill-heldout';
 import { REHAB_CORRECTION, REPORT_CORRECTION, TOUR_CORRECTION } from './form-fill-correction';
 import { TOWNPASS_CASES } from './form-fill-townpass';
+import { TOWNPASS_CASES_2 } from './form-fill-townpass2';
 import { TOWNPASS_FORMS } from '../src/agent/skills/townpass-forms';
 import type { ToolDefinition } from '../src/agent/types';
 
@@ -683,27 +684,30 @@ const HELDOUT = process.env.FORM_EVAL_SET === 'heldout';
 const CORRECTION = process.env.FORM_EVAL_SET === 'correction';
 /** FORM_EVAL_SET=townpass: every Town Pass form (townpass-forms.ts), 5 cases each. */
 const TOWNPASS = process.env.FORM_EVAL_SET === 'townpass';
-const SUITES: [FormSpec, Case[]][] = TOWNPASS
-  ? TOWNPASS_FORMS.filter((spec) => TOWNPASS_CASES[spec.id]).map((spec) => [
-      spec,
-      TOWNPASS_CASES[spec.id]!,
-    ])
-  : CORRECTION
-    ? [
-        [CITIZEN_REPORT_FORM, REPORT_CORRECTION],
-        [REHAB_BUS_FORM, REHAB_CORRECTION],
-        [TOUR_FORM, TOUR_CORRECTION],
-      ]
-    : HELDOUT
+/** FORM_EVAL_SET=townpass2: fresh cases for the weak spots found in the first Town Pass run. */
+const TOWNPASS_2 = process.env.FORM_EVAL_SET === 'townpass2';
+const townpassSuite = (cases: Record<string, Case[]>): [FormSpec, Case[]][] =>
+  TOWNPASS_FORMS.filter((spec) => cases[spec.id]).map((spec) => [spec, cases[spec.id]!]);
+const SUITES: [FormSpec, Case[]][] = TOWNPASS_2
+  ? townpassSuite(TOWNPASS_CASES_2)
+  : TOWNPASS
+    ? townpassSuite(TOWNPASS_CASES)
+    : CORRECTION
       ? [
-          [CITIZEN_REPORT_FORM, REPORT_HELDOUT],
-          [REHAB_BUS_FORM, REHAB_HELDOUT],
-          [TOUR_FORM, TOUR_HELDOUT],
+          [CITIZEN_REPORT_FORM, REPORT_CORRECTION],
+          [REHAB_BUS_FORM, REHAB_CORRECTION],
+          [TOUR_FORM, TOUR_CORRECTION],
         ]
-      : [
-          [CITIZEN_REPORT_FORM, REPORT_CASES],
-          [REHAB_BUS_FORM, REHAB_CASES],
-        ];
+      : HELDOUT
+        ? [
+            [CITIZEN_REPORT_FORM, REPORT_HELDOUT],
+            [REHAB_BUS_FORM, REHAB_HELDOUT],
+            [TOUR_FORM, TOUR_HELDOUT],
+          ]
+        : [
+            [CITIZEN_REPORT_FORM, REPORT_CASES],
+            [REHAB_BUS_FORM, REHAB_CASES],
+          ];
 for (const [spec, cases] of SUITES)
   for (const condition of CONDITIONS) {
     if (condition === 'rule' && spec.id !== 'citizen_report') continue;

@@ -72,10 +72,14 @@ function cjkOverlap(value: string, request: string) {
 
 const HOME_VALUE = /^(?:我的?家|家裡?|家里|住家|自宅|(?:我)?家門口|home|my home|my house)$/i;
 const HOME_START = /^(?:我的?家|家門口|家裡|住家)/;
-const HOME_CUE = /我家|家裡|家里|家門口|住家|回家|家附近|從家|到家|\bhome\b/i;
+const HOME_CUE = /我家|家裡|家里|家門口|住家|回家|家附近|從家|到家|住的地方|現在住的|\bhome\b/i;
 
 /** Spoken fillers a model may copy in front of a place: 「那個…和信醫院」. */
 const FILLER = /^(?:(?:嗯|呃|欸|那個|就是|這個)[….。，,、\s]*)+/;
+
+/** Words that say where exactly, for a 地點描述 field. */
+const WHERE_DETAIL =
+  /旁|對面|附近|門口|路口|樓|出口|入口|後面|前面|裡面|最裡|轉角|巷|弄|隔壁|之間|交叉|側|角落|底|上方|下方|opposite|next to|behind|in front|corner/i;
 
 /** Greetings and "I want to …" phrases at the start; not part of the problem. */
 const LEADING =
@@ -145,11 +149,23 @@ const lastOf = (mentions: Mention[], text?: string) =>
     )?.value;
 
 /** Every day the text names, resolved against today. Each phrase is consumed once. */
-export function resolveDates(text: string, context: FormContext = {}): string[] {
-  return unique(dateMentions(text, context));
+export function resolveDates(
+  text: string,
+  context: FormContext = {},
+  when: 'past' | 'future' = 'future',
+): string[] {
+  return unique(dateMentions(text, context, when));
 }
 
-export function dateMentions(text: string, context: FormContext = {}): Mention[] {
+/**
+ * `when` decides which way a date without a year points: 「十月三十日」「星期一」 is the next one
+ * for a booking, the last one for when something happened or a birthday.
+ */
+export function dateMentions(
+  text: string,
+  context: FormContext = {},
+  when: 'past' | 'future' = 'future',
+): Mention[] {
   const today = todayOf(context);
   const year = today.getUTCFullYear();
   const found: Mention[] = [];
@@ -170,8 +186,14 @@ export function dateMentions(text: string, context: FormContext = {}): Mention[]
   const upcoming = (month: number, day: number) => {
     if (cohortYear) return validDate(cohortYear + 1911, month, day);
     const date = validDate(year, month, day);
+    if (when === 'past') return date && date > today ? validDate(year - 1, month, day) : date;
     return date && date < today ? validDate(year + 1, month, day) : date;
   };
+  /** A weekday without 上/下/這: the next one, or for past dates the last one (today counts). */
+  const nearestWeekday = (target: number) =>
+    when === 'past'
+      ? addDays(today, -((isoWeekday(today) - target + 7) % 7))
+      : addDays(today, (target - isoWeekday(today) + 7) % 7);
   // 民國 years (民國50年3月2日 = 1961-03-02), common for birthdays.
   take(
     /民國\s*([0-9]{1,3}|[一二三四五六七八九十]{1,3})\s*年\s*([0-9一二三四五六七八九十]{1,3})\s*月\s*([0-9一二三四五六七八九十]{1,3})\s*[日號]?/g,
@@ -217,10 +239,7 @@ export function dateMentions(text: string, context: FormContext = {}): Mention[]
   const weekStart = addDays(today, 1 - isoWeekday(today));
   take(/(上上|上個?|下下|下個?|這個?|本)?\s*(?:週|周|禮拜|星期)([一二三四五六日天])/g, (m) => {
     const target = WEEKDAY[m[2]!]!;
-    if (!m[1]) {
-      const ahead = (target - isoWeekday(today) + 7) % 7;
-      return addDays(today, ahead);
-    }
+    if (!m[1]) return nearestWeekday(target);
     const weeks =
       m[1] === '下下'
         ? 2
@@ -237,7 +256,7 @@ export function dateMentions(text: string, context: FormContext = {}): Mention[]
     const target = EN_WEEKDAY.indexOf(m[2]!.toLowerCase()) + 1;
     if (m[1]?.toLowerCase().startsWith('next')) return addDays(weekStart, 7 + target - 1);
     if (m[1]?.toLowerCase().startsWith('last')) return addDays(weekStart, target - 1 - 7);
-    return addDays(today, (target - isoWeekday(today) + 7) % 7);
+    return nearestWeekday(target);
   });
   return found;
 }
@@ -394,6 +413,36 @@ export function numbersIn(text: string): number[] {
   return found;
 }
 
+const CLAUSE = /[，,。；;！!？?]/;
+const NUMBER_TOKEN = /\d+(?:\.\d+)?|[零一二兩三四五六七八九十百千]+/g;
+/**
+ * The number said closest to each mention of `cue`, within a few characters either side:
+ * 「三盞路燈不亮」→ 3 for 不亮, 「長大概二十公尺」→ 20 for 長. Sorted by where the cue was said.
+ */
+export function numbersNear(text: string, cue: string, reach = 6): Mention[] {
+  const plain = text.normalize('NFKC');
+  const lowerText = plain.toLowerCase();
+  const found: Mention[] = [];
+  for (const hit of lowerText.matchAll(new RegExp(escape(cue.toLowerCase()), 'g'))) {
+    const start = hit.index;
+    const end = start + hit[0].length;
+    // Stay inside the clause: 「三盞路燈不亮，一盞倒了」 — the 一 belongs to 倒, not 不亮.
+    const left = plain
+      .slice(Math.max(0, start - reach), start)
+      .split(CLAUSE)
+      .at(-1)!;
+    const right = plain.slice(end, end + reach).split(CLAUSE)[0]!;
+    const before = [...left.matchAll(NUMBER_TOKEN)].at(-1);
+    const after = [...right.matchAll(NUMBER_TOKEN)][0];
+    const beforeGap = before ? left.length - (before.index + before[0].length) : Infinity;
+    const afterGap = after ? after.index : Infinity;
+    const token = beforeGap <= afterGap ? before : after;
+    const value = token ? numbersIn(token[0])[0] : undefined;
+    if (value !== undefined) found.push({ value: String(value), index: start });
+  }
+  return found.sort((a, b) => a.index - b.index);
+}
+
 /**
  * Longest run of `a` that also appears in `b` but in none of `others`: 「中山地政事務所」 names
  * 地政事務所 through 地政, not through 事務所, which 戶政事務所 has too.
@@ -440,7 +489,9 @@ function optionScores(field: FormField, request: string): number[] {
     const aliases = (field.aliases?.[option] ?? []).map(gnorm);
     const at = [core, ...aliases].map((word) => said.indexOf(word)).find((i) => i >= 0);
     if (at !== undefined && RULED_OUT.test(said.slice(Math.max(0, at - 4), at))) return 0;
-    if (aliases.some((alias) => alias && said.includes(alias))) return 100;
+    // A longer alias is the more specific one (房子失火 over 失火).
+    const alias = Math.max(0, ...aliases.filter((a) => a && said.includes(a)).map((a) => a.length));
+    if (alias) return 100 + alias;
     // Options that contain this one whole (訂閱 in 取消訂閱) are not rivals for its words.
     const others = cores.filter((other, i) => i !== index && !other.includes(core));
     const run = sharedRun(core, said, others);
@@ -486,7 +537,6 @@ export function guardValues(spec: FormSpec, values: FormValues, input: GuardInpu
   const member = context.memberAddress?.trim();
   const out: FormValues = {};
   const ofType = (type: FormField['type']) => spec.fields.filter((field) => field.type === type);
-  const dates = resolveDates(clean, context);
   const times = extractTimes(clean);
   // After a correction, the last thing they said wins for values read from the words.
   const corrected = correctionEnd(clean);
@@ -521,6 +571,20 @@ export function guardValues(spec: FormSpec, values: FormValues, input: GuardInpu
         cjkOverlap(value, clean) >= 0.6 &&
         (!latinOnly || !!groundSpan(value, clean) || !/[一-鿿]/.test(clean));
       out[field.id] = (ok ? value : problem).slice(0, 500);
+    } else if (field.kind === 'detail') {
+      // A short phrase saying where exactly (對面、門口、巷子裡面), not the whole story.
+      const span = value ? groundSpan(value.replace(FILLER, ''), clean) : '';
+      const main = spec.fields
+        .filter((other) => other.type === 'text' && !other.kind && other.id !== field.id)
+        .map((other) => gnorm(values[other.id] ?? ''))
+        .filter(Boolean);
+      out[field.id] =
+        span &&
+        span.length <= 20 &&
+        WHERE_DETAIL.test(span) &&
+        !main.some((place) => gnorm(span).includes(place) || place.includes(gnorm(span)))
+          ? span
+          : '';
     } else if (!value) {
       out[field.id] = '';
     } else if (HOME_VALUE.test(value) || HOME_START.test(value)) {
@@ -561,11 +625,13 @@ export function guardValues(spec: FormSpec, values: FormValues, input: GuardInpu
         break;
       }
       case 'date': {
+        const when = field.when ?? 'future';
+        const dates = resolveDates(clean, context, when);
         if (ofType('date').length === 1 && dates.length === 1) out[field.id] = dates[0]!;
         else if (ofType('date').length === 1 && corrected >= 0 && dates.length > 1)
-          out[field.id] = lastOf(dateMentions(clean, context), clean.normalize('NFKC')) ?? '';
+          out[field.id] = lastOf(dateMentions(clean, context, when), clean.normalize('NFKC')) ?? '';
         else {
-          const phrase = resolveDates(value, context);
+          const phrase = resolveDates(value, context, when);
           const stated = gnorm(clean).includes(gnorm(value));
           out[field.id] =
             phrase.length === 1 && (stated || dates.includes(phrase[0]!)) ? phrase[0]! : '';
@@ -589,6 +655,18 @@ export function guardValues(spec: FormSpec, values: FormValues, input: GuardInpu
       case 'yesno':
       case 'count': {
         const cues = cuesOf(field).map((cue) => cue.toLowerCase());
+        if (field.type === 'count' && field.readNear) {
+          // 「兩張全票」「全票兩張」; after a correction the last one counts.
+          const near = cues.flatMap((cue) => numbersNear(clean, cue));
+          if (near.length) {
+            const said = Number(numbersIn(value)[0]);
+            out[field.id] =
+              corrected >= 0 || !near.some((m) => Number(m.value) === said)
+                ? lastOf(near)!
+                : String(said);
+            break;
+          }
+        }
         const at = cues
           .flatMap((cue) =>
             [...lower.matchAll(new RegExp(escape(cue), 'g'))].map((m) => ({ cue, index: m.index })),
@@ -701,6 +779,12 @@ export function guardValues(spec: FormSpec, values: FormValues, input: GuardInpu
       }
       case 'number': {
         const cues = cuesOf(field).map((cue) => cue.toLowerCase());
+        // The number said right next to its cue word (三盞不亮、長二十公尺) is the best evidence.
+        const near = cues.flatMap((cue) => numbersNear(clean, cue));
+        if (near.length) {
+          out[field.id] = corrected >= 0 ? lastOf(near)! : near[0]!.value;
+          break;
+        }
         const said = numbersIn(clean);
         // The model may write 二十 as well as 20.
         const number = numbersIn(value)[0];
@@ -712,5 +796,56 @@ export function guardValues(spec: FormSpec, values: FormValues, input: GuardInpu
       }
     }
   }
+
+  // One address split over several fields (縣市 / 區 / 路名): fill them all from the same address.
+  const parts = spec.fields.filter((field) => field.address);
+  const source = parts.length && member && HOME_CUE.test(clean) ? member : findAddress(clean);
+  if (parts.length && source) {
+    const split = splitAddress(source);
+    for (const field of parts) {
+      const part = split[field.address!];
+      out[field.id] =
+        field.type === 'select' ? (matchOptionIn(field.options ?? [], part) ?? '') : part;
+    }
+  }
   return out;
+}
+
+const ADDRESS_NUM = '[\\d一二三四五六七八九十]+';
+const COUNTY_NAME =
+  /(?:臺|台)(?:北|中|南|東)[市縣]|新北市|桃園市|高雄市|基隆市|新竹[市縣]|苗栗縣|彰化縣|南投縣|雲林縣|嘉義[市縣]|屏東縣|宜蘭縣|花蓮縣|澎湖縣|金門縣|連江縣/;
+const STREET = new RegExp(
+  `^[一-鿿]{1,8}?(?:路|街|大道)(?:${ADDRESS_NUM}段)?(?:${ADDRESS_NUM}巷)?(?:${ADDRESS_NUM}弄)?${ADDRESS_NUM}號(?:之${ADDRESS_NUM})?(?:${ADDRESS_NUM}樓)?`,
+);
+
+/**
+ * An address said in full, down to the house number (新北市板橋區文化路一段100號, or a Taipei
+ * district without the city). Starts at a real county or district name, never mid-sentence.
+ */
+export function findAddress(text: string): string {
+  const plain = text.replace(/\s+/g, '');
+  const county = plain.match(COUNTY_NAME);
+  if (county) {
+    const after = plain.slice(county.index! + county[0].length);
+    const town = after.match(/^[一-鿿]{1,3}?[區鄉鎮市]/)?.[0] ?? '';
+    const street = after.slice(town.length).match(STREET)?.[0];
+    if (street) return county[0] + town + street;
+  }
+  for (const district of DISTRICT_NAMES) {
+    const at = plain.indexOf(district);
+    const street = at >= 0 ? plain.slice(at + district.length).match(STREET)?.[0] : undefined;
+    if (street) return district + street;
+  }
+  return '';
+}
+
+/** 「新北市板橋區文化路一段100號」→ 新北市 / 板橋區 / 文化路一段100號. A Taipei district implies 臺北市. */
+export function splitAddress(address: string): { county: string; town: string; street: string } {
+  let rest = address.replace(/\s+/g, '');
+  const county = rest.match(/^(?:臺|台)?[一-鿿]{1,2}[市縣](?=[一-鿿]{1,3}[區鄉鎮市])/)?.[0] ?? '';
+  rest = rest.slice(county.length);
+  const town = rest.match(/^[一-鿿]{1,3}?[區鄉鎮市](?=[一-鿿])/)?.[0] ?? '';
+  rest = rest.slice(town.length);
+  const inTaipei = DISTRICT_NAMES.includes(town);
+  return { county: county || (inTaipei ? '臺北市' : ''), town, street: rest };
 }

@@ -64,15 +64,58 @@ export const DISASTER_CATEGORIES = [
   '其他(前述以外火災)',
 ];
 
+/** What people say for each disaster category. */
+export const DISASTER_ALIASES: Record<string, string[]> = {
+  '電線(桿)或纜線受損': ['電線', '電桿', '纜線', '電纜', 'utility pole', 'power line'],
+  '變電所、電廠受災': ['變電', '電廠', '電箱'],
+  路燈故障: ['路燈', 'street light', 'streetlight'],
+  電力停電: ['停電', '沒電', '斷電', '沒有電', 'power outage', 'blackout'],
+  橋樑基礎沖刷: ['橋墩', '沖刷', '掏空'],
+  橋樑斷裂: ['橋斷', '斷橋', '橋樑斷', '橋梁斷', '橋斷掉', '橋裂'],
+  前述以外之橋梁災情: ['淹上橋', '漫過橋', '橋面'],
+  土石流: ['土石流', '泥流', '泥漿', 'mudslide', 'debris flow'],
+  土石崩落: ['崩落', '落石', '坍方', '山崩', '崩塌', '滑下來', 'landslide', 'rockfall'],
+  堰塞湖: ['堰塞'],
+  建築物火災: [
+    '房子失火',
+    '房子著火',
+    '房子冒火',
+    '大樓失火',
+    '公寓失火',
+    '住家失火',
+    '失火',
+    '著火',
+    '起火',
+    '冒火',
+    '火災',
+    'fire',
+  ],
+  危險物品火災: ['瓦斯', '爆炸', '油罐', '化學', '危險物品', '加油站'],
+  工廠火災: ['工廠'],
+  '其他(前述以外火災)': ['車子起火', '機車起火', '車子著火', '垃圾', '草叢', '樹林'],
+};
+
 export const TOWNPASS_FORMS: FormSpec[] = [
   CITIZEN_REPORT_FORM,
   {
     id: 'disaster_report',
     title: '災情通報',
     fields: [
-      { id: 'category', label: '災情分類', type: 'select', options: DISASTER_CATEGORIES },
+      {
+        id: 'category',
+        label: '災情分類',
+        type: 'select',
+        options: DISASTER_CATEGORIES,
+        aliases: DISASTER_ALIASES,
+      },
       { id: 'location', label: '災情發生地點', type: 'text', hint: '可直接定位或輸入完整地址' },
-      { id: 'location_desc', label: '地點描述', type: 'text', hint: '地點位置補充說明' },
+      {
+        id: 'location_desc',
+        label: '地點描述',
+        type: 'text',
+        kind: 'detail',
+        hint: '地點位置補充說明',
+      },
       { ...CASUALTIES, options: [...CASUALTIES.options] },
       { ...TRAFFIC, options: [...TRAFFIC.options] },
       {
@@ -119,9 +162,15 @@ export const TOWNPASS_FORMS: FormSpec[] = [
       { id: 'mobile_number', label: '手機號碼', type: 'mobile' },
       { id: 'contact_number', label: '住家電話', type: 'phone' },
       { id: 'mail', label: '電子信箱', type: 'email' },
-      { id: 'county', label: '通訊地址縣市', type: 'select', options: COUNTIES },
-      { id: 'city', label: '通訊地址區域', type: 'text', hint: '鄉鎮市區' },
-      { id: 'address', label: '通訊地址詳細地址', type: 'text', hint: '路名、巷弄、門牌' },
+      { id: 'county', label: '通訊地址縣市', type: 'select', options: COUNTIES, address: 'county' },
+      { id: 'city', label: '通訊地址區域', type: 'text', hint: '鄉鎮市區', address: 'town' },
+      {
+        id: 'address',
+        label: '通訊地址詳細地址',
+        type: 'text',
+        hint: '路名、巷弄、門牌',
+        address: 'street',
+      },
     ],
   },
   {
@@ -152,7 +201,7 @@ export const TOWNPASS_FORMS: FormSpec[] = [
         },
       },
       { id: 'location', label: '發生地點', type: 'text' },
-      { id: 'date_of_incident', label: '發生日期', type: 'date' },
+      { id: 'date_of_incident', label: '發生日期', type: 'date', when: 'past' },
       { id: 'time', label: '發生時間', type: 'time' },
       {
         id: 'case_summary',
@@ -168,9 +217,9 @@ export const TOWNPASS_FORMS: FormSpec[] = [
     title: '交通違規申訴',
     fields: [
       { id: 'mail', label: '電子信箱', type: 'email' },
-      { id: 'county', label: '縣市', type: 'select', options: COUNTIES },
-      { id: 'city', label: '鄉鎮(市)區', type: 'text' },
-      { id: 'address', label: '通訊地址', type: 'text' },
+      { id: 'county', label: '縣市', type: 'select', options: COUNTIES, address: 'county' },
+      { id: 'city', label: '鄉鎮(市)區', type: 'text', address: 'town' },
+      { id: 'address', label: '通訊地址', type: 'text', address: 'street' },
       { id: 'name', label: '違規駕駛人姓名', type: 'text' },
       {
         id: 'apply',
@@ -188,7 +237,7 @@ export const TOWNPASS_FORMS: FormSpec[] = [
         options: ['現場圖', '現場照片'],
         aliases: { 現場圖: ['現場圖', '圖'], 現場照片: ['照片', '相片'] },
       },
-      { id: 'date', label: '肇事日期', type: 'date' },
+      { id: 'date', label: '肇事日期', type: 'date', when: 'past' },
     ],
   },
   {
@@ -232,7 +281,7 @@ export const TOWNPASS_FORMS: FormSpec[] = [
     id: 'fee_medical',
     title: '繳費：聯合醫院醫療費',
     fields: [
-      { id: 'date', label: '出生日期', type: 'date' },
+      { id: 'date', label: '出生日期', type: 'date', when: 'past' },
       {
         id: 'office',
         label: '院區',
@@ -347,15 +396,16 @@ export const TOWNPASS_FORMS: FormSpec[] = [
     id: 'buy_ticket',
     title: '購票：掘光而行：洪瑞麟',
     fields: [
-      { id: 'adult', label: '全票', type: 'count', cues: ['全票', '大人', '成人'] },
+      { id: 'adult', label: '全票', type: 'count', readNear: true, cues: ['全票', '大人', '成人'] },
       {
         id: 'concession',
         label: '優待票',
+        readNear: true,
         type: 'count',
         cues: ['優待', '敬老', '學生', '愛心', '身障', '老人'],
       },
-      { id: 'citizen', label: '台北市民票', type: 'count', cues: ['市民'] },
-      { id: 'group', label: '團體票', type: 'count', cues: ['團體'] },
+      { id: 'citizen', label: '台北市民票', type: 'count', readNear: true, cues: ['市民'] },
+      { id: 'group', label: '團體票', type: 'count', readNear: true, cues: ['團體'] },
     ],
   },
   {
