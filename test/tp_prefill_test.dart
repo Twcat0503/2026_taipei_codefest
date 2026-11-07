@@ -45,6 +45,19 @@ void main() {
     expect(script, contains('HTMLTextAreaElement'));
   });
 
+  test('accepts contact details only in strict formats', () {
+    expect(
+      sanitizePrefill({
+        'mobile_number': '0932166777',
+        'mail': 'ist83903@bcaoo.com',
+      }),
+      {'mobile_number': '0932166777', 'mail': 'ist83903@bcaoo.com'},
+    );
+    expect(sanitizePrefill({'mobile_number': '02-27208889'}), isNull);
+    expect(sanitizePrefill({'mail': 'not an email'}), isNull);
+    expect(sanitizePrefill({'mail': '"><script>@x.io'}), isNull);
+  });
+
   test('fills only Town Pass in-app service pages', () {
     expect(
       canPrefill(

@@ -20,8 +20,18 @@ const Map<String, int> kTextFields = {
   'description': 500,
 };
 
+/// 聯絡資料（線上報案）：各自有嚴格格式。
+final Map<String, RegExp> kContactFields = {
+  'mobile_number': RegExp(r'^09\d{8}$'),
+  'mail': RegExp(r'^[^\s@<>"]{1,64}@[^\s@<>"]{1,63}\.[A-Za-z]{2,24}$'),
+};
+
 /// 可帶入的欄位：表單輸入框的 id。
-final Set<String> kPrefillFields = {...kCodeFields, ...kTextFields.keys};
+final Set<String> kPrefillFields = {
+  ...kCodeFields,
+  ...kTextFields.keys,
+  ...kContactFields.keys,
+};
 
 final RegExp _code = RegExp(r'^[A-Za-z0-9-]{1,20}$');
 // 除了換行以外的控制字元都不接受。
@@ -29,6 +39,8 @@ final RegExp _control = RegExp(r'[\x00-\x09\x0B-\x1F\x7F]');
 
 bool _validValue(String field, String value) {
   if (kCodeFields.contains(field)) return _code.hasMatch(value);
+  final RegExp? contact = kContactFields[field];
+  if (contact != null) return contact.hasMatch(value);
   final int? max = kTextFields[field];
   return max != null &&
       value.trim().isNotEmpty &&
