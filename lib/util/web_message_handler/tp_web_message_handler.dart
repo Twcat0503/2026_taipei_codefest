@@ -240,11 +240,18 @@ class OpenLinkMessageHandler extends TPWebMessageHandler {
       case String uri:
         await TPRoute.openUri(uri: uri);
       // 安心助手可附上要替民眾填好的欄位；欄位與值都會再經 sanitizePrefill 過濾。
+      // 開頁前先回覆通過過濾的欄位，助手才能告訴民眾哪些要自己填
+      // （openUri 要等網頁關閉才結束，不能等它）。舊版 App 不認得這種格式，會回 false。
       case {'url': String uri}:
-        await TPRoute.openUri(
-          uri: uri,
-          prefill: sanitizePrefill((message as Map)['prefill']),
+        final Map<String, String>? prefill = sanitizePrefill(
+          (message as Map)['prefill'],
         );
+        onReply?.call(
+          replyWebMessage(
+            data: {'accepted': prefill?.keys.toList() ?? const <String>[]},
+          ),
+        );
+        await TPRoute.openUri(uri: uri, prefill: prefill);
       default:
         onReply?.call(replyWebMessage(data: false));
     }

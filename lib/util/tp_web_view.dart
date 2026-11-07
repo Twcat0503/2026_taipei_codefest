@@ -53,6 +53,15 @@ class TPWebView extends StatelessWidget {
 
   final RxBool canGoBack = RxBool(false);
 
+  /// 帶入失敗時以 SnackBar 提示（TalkBack 會朗讀），沒有失敗的欄位就不顯示。
+  void _showPrefillFailure(BuildContext context, Iterable<String> fields) {
+    final String? message = prefillFailureMessage(fields);
+    if (message == null) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 10)),
+    );
+  }
+
   /// 網頁內還有上一頁就回上一頁，否則離開這個網頁。左上返回鍵與系統返回手勢共用。
   Future<void> _goBack() async {
     final InAppWebViewController? controller = webViewController.value;
@@ -139,13 +148,27 @@ class TPWebView extends StatelessWidget {
             },
             onLoadStop: (controller, page) async {
               final Map<String, String>? values = prefill;
-              if (values == null || _prefilled.value || !canPrefill(page)) {
+              if (values == null || _prefilled.value) return;
+              _prefilled.value = true;
+              // 不是台北通站內頁面就不填，並告訴民眾要自己填，不能讓他以為已帶入。
+              if (!canPrefill(page)) {
+                _showPrefillFailure(context, values.keys);
                 return;
               }
-              _prefilled.value = true;
-              await controller.evaluateJavascript(
-                source: prefillScript(values),
-              );
+              List<String> missing;
+              try {
+                final CallAsyncJavaScriptResult? result = await controller
+                    .callAsyncJavaScript(functionBody: prefillScript(values));
+                missing = result == null || result.error != null
+                    ? values.keys.toList()
+                    : [
+                        ...(result.value as List? ?? const [])
+                            .whereType<String>(),
+                      ];
+              } catch (_) {
+                missing = values.keys.toList();
+              }
+              if (context.mounted) _showPrefillFailure(context, missing);
             },
             onUpdateVisitedHistory: (_, _, _) async {
               canGoBack.value =

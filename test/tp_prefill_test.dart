@@ -86,4 +86,22 @@ void main() {
     expect(script, contains('{"water_number":"1234567890"}'));
     expect(script, contains("dispatchEvent(new Event('input'"));
   });
+
+  test('is an async function body that reports fields it could not fill', () {
+    final String script = prefillScript({'water_number': '1234567890'});
+    expect(script.trimLeft(), startsWith('return new Promise('));
+    expect(script, contains('resolve([])'));
+    expect(script, contains('resolve(Object.keys(values).filter('));
+  });
+
+  test('names the fields that were not filled, never their values', () {
+    expect(prefillFailureMessage(const []), isNull);
+    expect(
+      prefillFailureMessage(const ['water_number', 'tax_id']),
+      '有些資料沒能自動帶入，請自行填寫：水號、身分證字號',
+    );
+    for (final String field in kPrefillFields) {
+      expect(kPrefillFieldLabels, contains(field));
+    }
+  });
 }

@@ -8,7 +8,7 @@ import { draftReport, type ReportDraft } from '../agent/skills/report-draft';
 import type { ReportVision } from '../agent/skills/report-vision';
 import { DISTRICTS, DISTRICT_SOURCE, PETITION_SOURCE } from '../agent/open-data/taipei';
 import { pickReportPhoto } from '../platform/image';
-import { openLink } from '../platform/location';
+import { openLink, openWithPrefill, type PrefillOutcome } from '../platform/location';
 import { serviceOrigin } from '../platform/service-navigation';
 import { maskIdNo, maskPhone, readMember, type Member } from '../platform/member';
 import {
@@ -178,6 +178,8 @@ async function onPhotoPicked(event: Event) {
 
 // A new card (even for the same service) starts from the new request.
 const leftFor = ref(false);
+/** What the app said about the fields to fill in; declared before the navigation watcher resets it. */
+const prefillOutcome = ref<PrefillOutcome | null>(null);
 watch(
   () => props.navigation,
   () => {
@@ -193,6 +195,7 @@ watch(
     editingWater.value = false;
     waterError.value = false;
     leftFor.value = false;
+    prefillOutcome.value = null;
     member.value = null;
     // 報案草稿的「我家」地址與電話／Email 都來自會員資料。
     if (isReport.value || needsMember.value) void loadMember();
@@ -219,9 +222,48 @@ watch(
 );
 onBeforeUnmount(() => props.cancelDescribe());
 
+const FIELD_LABEL = {
+  water_number: 'fieldWaterNumber',
+  tax_id: 'fieldIdNo',
+  title: 'fieldTitle',
+  description: 'fieldDescription',
+  location: 'fieldLocation',
+  mobile_number: 'fieldMobile',
+  mail: 'fieldMail',
+} as const;
+const OUTCOME_TEXT = {
+  requested: 'prefillRequested',
+  unsupported: 'prefillUnsupported',
+  unconfirmed: 'prefillUnconfirmed',
+  browser: 'prefillBrowser',
+} as const satisfies Record<PrefillOutcome['kind'], string>;
+/** Never says the details were filled in: the app cannot confirm that, only that it will try. */
+const prefillMessage = computed(() => {
+  const outcome = prefillOutcome.value;
+  if (!outcome) return null;
+  if (outcome.kind === 'requested' && outcome.dropped.length)
+    return t.value.prefillDropped.replace(
+      '{fields}',
+      outcome.dropped
+        .map((field) => t.value[FIELD_LABEL[field as keyof typeof FIELD_LABEL]] ?? field)
+        .join(t.value.listSeparator),
+    );
+  return t.value[OUTCOME_TEXT[outcome.kind]];
+});
+/** Problems need attention right away; the ordinary reminder is polite. */
+const prefillProblem = computed(
+  () =>
+    !!prefillOutcome.value &&
+    (prefillOutcome.value.kind !== 'requested' || prefillOutcome.value.dropped.length > 0),
+);
 function go(url: string, prefill?: Record<string, string>) {
-  openLink(url, prefill);
+  prefillOutcome.value = null;
   leftFor.value = true;
+  if (!prefill || !Object.keys(prefill).length) {
+    openLink(url);
+    return;
+  }
+  void openWithPrefill(url, prefill).then((outcome) => (prefillOutcome.value = outcome));
 }
 function goNavigation() {
   const prefill: Record<string, string> = {};
@@ -422,5 +464,9 @@ function goNavigation() {
       <button type="button" class="text-button" @click="emit('stay')">{{ t.leaveStay }}</button>
     </div>
     <p v-if="leftFor" class="small-note" role="status">{{ t.leaveRequested }}</p>
+    <p v-if="prefillMessage && prefillProblem" class="field-error" role="alert">
+      {{ prefillMessage }}
+    </p>
+    <p v-else-if="prefillMessage" class="small-note" role="status">{{ prefillMessage }}</p>
   </section>
 </template>
