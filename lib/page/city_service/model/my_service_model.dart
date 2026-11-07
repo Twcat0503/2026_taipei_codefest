@@ -29,6 +29,7 @@ enum MyServiceItemId {
   library,
   locationSearch,
   zoo,
+  a11yService,
 }
 
 extension MyServiceIdExt on MyServiceItemId {
@@ -179,6 +180,15 @@ extension MyServiceIdExt on MyServiceItemId {
         category: MyServiceCategory.explore,
         destinationUrl:
             'https://taipei-pass-service.vercel.app/surrounding-service/',
+      ),
+      MyServiceItemId.a11yService => MyServiceItem(
+        title: '用得了',
+        description: '無障礙申辦與溝通入口',
+        icon: Assets.svg.iconDistrictOffice.svg(),
+        category: MyServiceCategory.cityService,
+        // 示範站；正式部署後改為正式網址
+        destinationUrl: 'https://taipei-pass-service.vercel.app/',
+        forceWebViewTitle: '用得了',
       ),
       MyServiceItemId.zoo => MyServiceItem(
         title: '愛遊動物園',
