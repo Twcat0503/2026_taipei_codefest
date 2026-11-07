@@ -59,7 +59,7 @@ fvm dart run build_runner build
 fvm flutter run -d <device-id>
 ```
 
-完整指令、開發規範與協作流程見 [AGENTS.md](AGENTS.md) 與 [CONTRIBUTING.md](CONTRIBUTING.md)。
+完整指令、開發規範與協作流程見 [AGENTS.md](AGENTS.md) 與 [CONTRIBUTING.md](CONTRIBUTING.md)，待辦事項見 [TODO.md](TODO.md)。
 
 ## 資料來源
 
