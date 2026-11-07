@@ -171,7 +171,7 @@ SERIAL="your-explicit-device-serial"
 - 拒絕既有 `no_backup/tts/models`（包含 symlink／dangling symlink）及不安全的父目錄。使用 app private 的唯一 `no_backup/tts/.install-<隨機值>` staging；`adb exec-in run-as` 以檔案 stdin 串流寫入，不把約 2 GB 放入 Python RAM，亦不用 `/sdcard` 或 `/data/local/tmp` 中轉。
 - 裝置端 `sha256sum` 必須回傳兩個完整且符合的 hash；再檢查 app 已停止、目的仍不存在，才以不覆蓋的目錄 rename 發布為 `no_backup/tts/models`。不混用新舊檔，也不讀取其他 app 資料。
 - 發布前會在裝置上以空目錄探測 `mv -nT`（不覆蓋，也不巢狀移動）。依 [AOSP android-9.0.0_r1 的 toybox `mv` 原始碼](https://android.googlesource.com/platform/external/toybox/+/android-9.0.0_r1/toys/posix/cp.c)，Android 9 的 `mv` 沒有 `-T`；探測失敗時工具在傳輸任何模型前就拒絕，不會退回不安全的 `mv` 形式。
-- `adb exec-in` 返回只代表 host 已送出 stdin，不代表遠端 `cat` 已完成（見 [AOSP adb 用戶端原始碼](https://android.googlesource.com/platform/packages/modules/adb/+/refs/heads/main/client/commandline.cpp)）。每個檔案由遠端 shell 自行寫入 `.ok` 或 `.fail` 結果；工具等待該結果（上限 1,200 秒，`.fail` 立即失敗）後才計算 SHA。
+- `adb exec-in` 返回只代表 host 已送出 stdin，不代表遠端 `cat` 已完成（見 [AOSP adb 用戶端原始碼](https://android.googlesource.com/platform/packages/modules/adb/+/refs/heads/main/client/commandline.cpp)）。每個檔案由遠端 shell 自行寫入 `.ok` 或 `.fail` 結果；工具等待該結果（上限 1,200 秒，任一結果出現就結束等待），再要求裝置上是一般檔案且大小與 `models.json` 完全相同，才計算 SHA。`cat` 的結束碼本身不作為依據：Pixel 10 Pro XL（Android 17）上，`cat` 寫完所有位元組後讀到 exec-in 串流結尾時會回報 `I/O error`，因此留下 `.fail`，但檔案完整。大小不符時立即失敗，完整性仍由後續的 SHA-256 把關。
 - 命令 timeout 30 秒、每檔傳輸與完成結果等待各 1,200 秒、兩檔 SHA 600 秒。成功 exit 0；安裝失敗 exit 1；CLI 缺參數 exit 2；中斷 exit 130。
 - 失敗只嘗試刪除本次**確認建立成功**的 staging，不刪 `models` 或其他資料；cleanup 失敗會報出 staging 路徑。若建立／rename 時失去裝置回覆，結果可能不確定：工具回報失敗，不猜測成功，也不刪除未確認屬於本次的目錄。請人工檢查，不要盲目重跑或刪除 app 資料。
 
@@ -333,9 +333,10 @@ async function speakOnce(text) {
 ```bash
 # 來源／量化工具：10 tests；含真 PyTorch weights-only 載入測試，需離線轉換環境的 torch。
 "$PY" -I -B -X utf8 "$REPO/tools/tts-android/test_model_tools.py"
-# 安裝工具：24 tests；需 host sh／coreutils（Windows 從 Git Bash 跑）。
+# 安裝工具：26 tests；需 host sh／coreutils（Windows 從 Git Bash 跑）。macOS 用內建工具即可：
+# BSD mv 沒有 -T，測試會自動放一個只給產生的 shell 指令用的 `mv -nT` 替代品，不需裝 GNU coreutils。
 "$PY" -I -B -X utf8 "$REPO/tools/tts-android/test_install_models.py"
-# Android 發布保護：1 test；使用假的 cmake／readelf，需 Git Bash，不接觸 NDK。
+# Android 發布保護：1 test；使用假的 cmake／readelf，需 bash（Git Bash 或 macOS 內建的 bash 3.2），不接觸 NDK。
 "$PY" -I -B -X utf8 "$REPO/tools/tts-android/test_build_publish.py"
 ```
 

@@ -158,14 +158,22 @@ def install_models(models, serial, executable='adb'):
                     + f'if cat > {target}; then : > {ok}; else : > {failed}; fi',
                     f'Transfer failed for {name}', stdin=source, timeout=TRANSFER_TIMEOUT,
                 )
-            # Wait for that record before hashing. A failure record ends the wait at once;
+            # Wait for that record before hashing. Either record ends the wait at once;
             # the loop bound stays below the host-side command timeout.
+            # The record only says the remote cat has exited. Its exit status alone
+            # is not trusted: on some devices (seen on a Pixel 10 Pro XL, Android 17)
+            # cat reports EIO when reading the end of the exec-in stream after every
+            # byte was written. A regular file of exactly the expected size is
+            # required either way, and the SHA-256 check below still gates publishing.
+            size = expected[name]['bytes']
             adb.private_shell(
                 stage_checks + 'n=0; '
                 + f'while [ ! -f {ok} ] && [ ! -f {failed} ]; do n=$((n+1)); '
                 + '[ "$n" -le 1100 ] || exit 1; sleep 1; done; '
-                + f'[ -f {ok} ]; rm -f -- {ok} {failed}',
-                f'Transfer completion not confirmed for {name}', timeout=TRANSFER_TIMEOUT,
+                + f'[ -f {target} ]; [ ! -L {target} ]; '
+                + f'[ "$(wc -c < {target} | tr -d " ")" -eq {size} ]; rm -f -- {ok} {failed}',
+                f'Transfer completion not confirmed for {name} (missing or incomplete on device)',
+                timeout=TRANSFER_TIMEOUT,
             )
         hashes = adb.run(
             ['shell', 'run-as', PACKAGE, 'sha256sum']
