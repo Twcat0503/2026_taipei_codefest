@@ -233,7 +233,8 @@ void main() {
     final systemCalls = <MethodCall>[];
     messenger.setMockMethodCallHandler(systemChannel, (call) async {
       systemCalls.add(call);
-      return 1;
+      // The system tts handler checks the language before speaking.
+      return call.method == 'isLanguageAvailable' ? true : 1;
     });
     final handler = TPWebMessageListener.messageHandler.singleWhere(
       (handler) => handler.name == 'tts',
