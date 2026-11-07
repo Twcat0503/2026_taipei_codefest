@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { planService } from "../src/registry/plan.js";
 import type { ServiceObservation } from "../src/registry/inspect.js";
 
@@ -89,14 +90,10 @@ describe("頁面計畫：模型只選擇觀測到的控制項", () => {
     });
   });
 
-  it("未列出的控制項不成為參數", () => {
-    const partial = { tools: [{ ...coursePlan.tools[0], controls: { "#count": "count" } }] };
-    const service = planService(courses).assemble(partial);
-    expect(Object.keys(service.tools[0]!.inputSchema.properties)).toEqual(["count"]);
-    expect(service.tools[0]!.execution).toMatchObject({ steps: [
-      { action: "fill", selector: "#count" },
-      { action: "click", selector: "#find-courses" },
-    ] });
+  it("每個觀測到的輸入控制項都必須有參數名稱，缺漏時拒絕", () => {
+    const { schema } = planService(courses);
+    expect(schema.safeParse({ tools: [{ ...coursePlan.tools[0], controls: { "#count": "count" } }] }).success).toBe(false);
+    expect(schema.safeParse({ tools: [{ ...coursePlan.tools[0], controls: {} }] }).success).toBe(false);
   });
 
   it("按鈕、結果區與選項值不能成為輸入控制項", () => {
@@ -126,9 +123,18 @@ describe("頁面計畫：模型只選擇觀測到的控制項", () => {
     expect(schema.safeParse({ tools: [coursePlan.tools[0]] }).success).toBe(true);
   });
 
-  it("沒有任何輸入控制項被列出時拒絕", () => {
-    const { assemble } = planService(courses);
-    expect(() => assemble({ tools: [{ ...coursePlan.tools[0], controls: {} }] })).toThrow(/至少需要一個輸入控制項/);
+  it("時間欄位的值是 HH:MM（HTML 格式），接受 14:30，拒絕其他字串", () => {
+    const observed: ServiceObservation = { kind: "page", url: courseUrl, title: "預約", elements: [
+      { selector: "#start", tag: "input", type: "time", label: "開始時間", required: true },
+      { selector: "#book", tag: "button", type: "submit", text: "預約" },
+      { selector: "#booked", tag: "output", text: "" },
+    ] };
+    const service = planService(observed).assemble({ tools: [{
+      name: "book_slot", description: "預約時段", controls: { "#start": "start" }, submit: "#book", resultSelector: "#booked",
+    }] });
+    const validate = z.fromJSONSchema(service.tools[0]!.inputSchema);
+    expect(validate.safeParse({ start: "14:30" }).success).toBe(true);
+    expect(validate.safeParse({ start: "2pm" }).success).toBe(false);
   });
 
   it("沒有可填寫的輸入控制項時，不呼叫模型，直接說明原因", () => {
@@ -156,7 +162,7 @@ describe("頁面計畫：模型只選擇觀測到的控制項", () => {
 
   it("同一參數名稱用在兩個控制項時拒絕", () => {
     const { assemble } = planService(courses);
-    const duplicateParameter = { tools: [{ ...coursePlan.tools[0], controls: { "#count": "value", "#district": "value" } }] };
+    const duplicateParameter = { tools: [{ ...coursePlan.tools[0], controls: { "#count": "value", "#district": "value", "#step-free": "stepFree" } }] };
     expect(() => assemble(duplicateParameter)).toThrow(/參數名稱重複/);
   });
 
@@ -170,16 +176,30 @@ describe("頁面計畫：模型只選擇觀測到的控制項", () => {
 describe("API 計畫：模型只選擇文件中的操作", () => {
   const key = "POST http://127.0.0.1:5173/test-data/applications";
 
-  it("工具名稱重複時拒絕", () => {
+  it("兩個不同操作使用相同工具名稱時拒絕", () => {
+    const twoOperations: ServiceObservation = { kind: "openapi", url: "https://rooms.example/search", document: {
+      openapi: "3.1.0", servers: [{ url: "https://rooms.example" }],
+      paths: {
+        "/a": { get: { responses: { "200": { description: "結果" } } } },
+        "/b": { post: { responses: { "200": { description: "結果" } } } },
+      },
+    } };
+    const { assemble } = planService(twoOperations);
+    expect(() => assemble({ operations: {
+      "GET https://rooms.example/a": { name: "same_name", description: "甲" },
+      "POST https://rooms.example/b": { name: "same_name", description: "乙" },
+    } })).toThrow(/工具名稱重複/);
+  });
+
+  it("沒有選擇任何操作時拒絕", () => {
     const { assemble } = planService(applicationApi);
-    const tool = { name: "submit_test_application", description: "送出申請", operation: key };
-    expect(() => assemble({ tools: [tool, tool] })).toThrow(/工具名稱重複/);
+    expect(() => assemble({ operations: {} })).toThrow(/沒有選擇任何 OpenAPI 操作/);
   });
 
   it("JSON body 欄位綁定到同名參數，OpenAPI 結構字不成為欄位", () => {
     const { schema, assemble } = planService(applicationApi);
-    expect(schema.safeParse({ tools: [{ name: "submit_test_application", description: "送出申請", operation: key }] }).success).toBe(true);
-    const service = assemble({ tools: [{ name: "submit_test_application", description: "送出申請", operation: key }] });
+    expect(schema.safeParse({ operations: { [key]: { name: "submit_test_application", description: "送出申請" } } }).success).toBe(true);
+    const service = assemble({ operations: { [key]: { name: "submit_test_application", description: "送出申請" } } });
     expect(service).toEqual({
       url: applicationUrl,
       title: "測試申請 API",
@@ -218,7 +238,7 @@ describe("API 計畫：模型只選擇文件中的操作", () => {
       } } },
     } };
     const operation = "GET https://rooms.example/rooms/{id}";
-    const service = planService(observed).assemble({ tools: [{ name: "find_room", description: "查詢場地", operation }] });
+    const service = planService(observed).assemble({ operations: { [operation]: { name: "find_room", description: "查詢場地" } } });
     expect(service.tools[0]).toEqual({
       name: "find_room",
       description: "查詢場地",
@@ -243,7 +263,7 @@ describe("API 計畫：模型只選擇文件中的操作", () => {
         responses: { "200": { description: "結果" } },
       } } },
     } };
-    const service = planService(observed).assemble({ tools: [{ name: "room", description: "房間", operation: `POST ${endpoint}` }] });
+    const service = planService(observed).assemble({ operations: { [`POST ${endpoint}`]: { name: "room", description: "房間" } } });
     expect(service.tools[0]!.execution).toMatchObject({ kind: "http", url: endpoint, method: "POST" });
   });
 
@@ -259,6 +279,6 @@ describe("API 計畫：模型只選擇文件中的操作", () => {
 
   it("模型只能選擇文件中已列出的操作", () => {
     const { schema } = planService(applicationApi);
-    expect(schema.safeParse({ tools: [{ name: "x", description: "x", operation: "GET https://rooms.example/admin" }] }).success).toBe(false);
+    expect(schema.safeParse({ operations: { "GET https://rooms.example/admin": { name: "x", description: "x" } } }).success).toBe(false);
   });
 });
