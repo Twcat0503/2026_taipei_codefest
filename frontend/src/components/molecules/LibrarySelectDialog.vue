@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue';
 import LibrarySelectTabsView from '@/components/organisms/LibrarySelectTabsView.vue';
 import type { Library } from '@/interfaces/library-book.interface';
 import { useGoogleMapsStore } from '@/stores/googleMaps';
+import MapUnavailableNotice from '@/components/molecules/MapUnavailableNotice.vue';
 
 const props = defineProps<{
   libraries: Library[];
@@ -20,6 +21,8 @@ const activeTab = ref(0);
 
 const googleMapsStore = useGoogleMapsStore();
 const isMapReady = ref(false);
+/** 沒有 API key 或地圖載入失敗：無法依距離排序 */
+const isMapFailed = ref(false);
 
 /**
  * 目前位置
@@ -58,6 +61,10 @@ const areaList = computed(() => {
 });
 
 onMounted(() => {
+  if (!googleMapsStore.isMapAvailable) {
+    isMapFailed.value = true;
+    return;
+  }
   initMap();
 });
 
@@ -65,10 +72,16 @@ onMounted(() => {
  * 初始化地圖
  */
 const initMap = () => {
-  googleMapsStore.loader.load().then(async () => {
-    // get current location
-    getPositionClick();
-  });
+  googleMapsStore.loader
+    .load()
+    .then(async () => {
+      // get current location
+      getPositionClick();
+    })
+    .catch((error) => {
+      console.error('Failed to load Google Maps:', error);
+      isMapFailed.value = true;
+    });
 };
 
 const getPositionClick = () => {
@@ -132,7 +145,11 @@ const onSelectClick = () => {
               <div class="px-4 text-sm mt-4 mb-2">
                 <LibrarySelectTabsView v-model="activeTab">
                   <template #tab0>
-                    <template v-if="isMapReady">
+                    <MapUnavailableNotice
+                      v-if="isMapFailed"
+                      detail="無法依距離排序，請改用「行政區」分頁選擇分館。"
+                    />
+                    <template v-else-if="isMapReady">
                       <div
                         v-for="(library, index) in formatLibraries.sort(
                           (a, b) => a.distance - b.distance

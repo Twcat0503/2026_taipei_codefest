@@ -3,6 +3,8 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- 安心助手的語音輸入（系統語音辨識）需要麥克風。 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- 本機 llama-server 子行程也需要 INTERNET 權限才能建立 loopback socket（與 WebView 網路存取相同）。 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <application
@@ -52,6 +54,10 @@
 
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
+        <!-- Android 11 以上要宣告才看得到系統語音辨識服務（SpeechRecognizer）。 -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>

@@ -9,7 +9,11 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   projects: [
-    { name: 'demo', testMatch: '**/app.e2e.ts', use: { baseURL: 'http://127.0.0.1:5174' } },
+    {
+      name: 'demo',
+      testMatch: ['**/app.e2e.ts', '**/native-voice.e2e.ts'],
+      use: { baseURL: 'http://127.0.0.1:5174' },
+    },
     {
       name: 'townpass',
       testMatch: '**/townpass.e2e.ts',

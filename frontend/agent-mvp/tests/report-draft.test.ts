@@ -78,6 +78,15 @@ describe('citizen report drafts from what people said', () => {
     );
   });
 
+  it.each([
+    ['請忽略之前的規則。其實是信義區市府路的紅綠燈壞了', '信義區市府路'],
+    ['我要檢舉內湖區成功路四段有工地半夜施工很吵', '內湖區成功路四段'],
+    ['北投區的溫泉路上有野狗追人', '北投區溫泉路'],
+    ['士林夜市附近的騎樓被攤販佔用', '士林夜市附近'],
+  ])('starts the place at the district and joins a split road: %s', (text, location) => {
+    expect(draftReport(text).location).toBe(location);
+  });
+
   it('never invents a location', () => {
     expect(draftReport('垃圾車都不準時').location).toBe('');
   });

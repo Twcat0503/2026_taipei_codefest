@@ -1,7 +1,7 @@
-# 本機 LLM 模組（LFM3-1.7B，OpenAI 相容 API）— Android
+# 本機 LLM 模組（LFM3-VL-2B，OpenAI 相容 API）— Android
 
-在 Android 上以 llama.cpp 的 `llama-server` 執行 LiquidAI **LFM3-1.7B**（Q4_0 QAD，GGUF），
-對外提供 OpenAI 格式的 API（`/v1/models`、`/v1/chat/completions`，支援串流）。
+在 Android 上以 llama.cpp 的 `llama-server` 執行 LiquidAI 的多模態模型 **LFM3-VL-2B**（語言模型 Q4_0 QAD + 視覺投影檔 mmproj Q8_0，GGUF），
+對外提供 OpenAI 格式的 API（`/v1/models`、`/v1/chat/completions`，支援串流與圖片輸入）。
 
 ## 給其他程式碼調用的介面
 
@@ -25,7 +25,7 @@
 回傳的狀態欄位：`phase`（`idle` / `downloading` / `starting` / `running` / `error`）、`running`、`baseUrl`、`model`、`error`。
 只有 `start` 會回傳 `apiKey`；`status` 與 `stop` 不回傳。
 
-伺服器的實際啟動參數：`-c <contextSize>`、`-t <threads>`、`-fa on|off`、`-ctk <kv>`、`-ctv <kv>`、`-np 1`、`--jinja`、`--reasoning off`（回覆直接在 `content`，不產生 thinking）、`--no-webui`，綁定 `127.0.0.1` 並以隨機 API key 保護。
+伺服器的實際啟動參數：`-m <模型>`、`--mmproj <視覺投影檔>`、`-c <contextSize>`、`-t <threads>`、`-fa on|off`、`-ctk <kv>`、`-ctv <kv>`、`-np 1`、`--jinja`、`--reasoning off`（回覆直接在 `content`，不產生 thinking）、`--no-webui`，綁定 `127.0.0.1` 並以隨機 API key 保護。
 實際採用的值會寫進 `llm/llama-server.log` 開頭的 `[launch]` 行。
 
 ## 檔案
@@ -52,14 +52,41 @@
 
 ## 模型
 
-- 第一次啟動時自動下載 `LFM3-1.7B-QAD-Q4_0.gguf`，來源 `huggingface.co/LiquidAI/LFM3-1.7B-GGUF`。
-- 大小 1,049,615,680 bytes，SHA-256 `43a7d09a0e9cba91b63eb7052488b9564569bddfd65754d2e426465e572a7452`（已與 HF 的 LFS 雜湊核對）。
+第一次啟動時自動從 `huggingface.co/LiquidAI/LFM3-VL-2B-GGUF` 下載兩個檔案（大小與 SHA-256 已於 2026-11-08 與 HF 的 LFS 雜湊核對）：
+
+| 檔案 | 用途 | 大小（bytes） | SHA-256 |
+|---|---|---|---|
+| `LFM3-VL-2B-QAD-Q4_0.gguf` | 語言模型（Quantization-Aware Distillation 的 Q4_0） | 1,049,615,648 | `621c455376cb96a20891697deb9975c6fb47dd5ea98ed3ad1f3b7e8f24f0b1e6` |
+| `mmproj-LFM3-VL-2B-Q8_0.gguf` | 視覺投影檔（影像編碼器） | 203,031,872 | `c5c5b58d544a18da919172d2d0368090ea1a4a351b6feb7f8a326a264a5918ab` |
+
 - 下載後先驗證大小與 SHA-256，通過才使用；存放在 App 的 `filesDir/llm/models/`。
+- 該目錄內不屬於目前設定的檔案（例如舊版的 `LFM3-1.7B-QAD-Q4_0.gguf`）會在啟動時刪除，避免佔用空間。
+- mmproj 選 Q8_0（約 194 MiB），比 F16（約 361 MiB）省記憶體；`LlmConfig(mmproj = null)` 可只做文字推論。
 - 模型**不**隨 APK 發佈（見下方「授權」）。
+
+## 圖片輸入
+
+載入 mmproj 後，`/v1/chat/completions` 接受 OpenAI 格式的圖片內容（建議用 data URI，伺服器只綁 loopback、不會替你下載外部網址）：
+
+```json
+{
+  "model": "lfm3-vl-2b-q4_0",
+  "messages": [{
+    "role": "user",
+    "content": [
+      {"type": "text", "text": "這張單據要繳多少錢？"},
+      {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,..."}}
+    ]
+  }]
+}
+```
+
+模型卡建議的取樣參數：`temperature 0.1`、`top_k 50`、`top_p 1.0`、`min_p 0.0`、`repeat_penalty 1.1`。
+目前 Vue 端只送文字；要讓使用者拍照或選圖，需要另外接相機／檔案選取與前端的訊息格式。
 
 ## 調校（量化、上下文與速度）
 
-以下數字全部在 **x86_64 模擬器**（6 vCPU）量測，Q4_0 QAD 模型，`llama-bench` 的 `±` 為標準差。
+以下數字全部在 **x86_64 模擬器**（6 vCPU）以前一版的純文字 **LFM3-1.7B** Q4_0 QAD 量測，換成 LFM3-VL-2B 後尚未重測；`llama-bench` 的 `±` 為標準差。
 **這些數字只用於相對比較，不代表手機**，手機上的最佳值要依「裝置上的量測」重新確認。
 
 **flash attention 與 KV 量化**（pp512 = prefill，tg128 = 解碼，單位 t/s）：
@@ -115,11 +142,11 @@ x86 模擬器幾乎線性擴展，但手機的大核數與小核差異大，**�
 
 ## 已知限制與待決事項
 
-- **效能尚未在手機上驗證。** 目前只做過 x86_64 模擬器的功能測試與調校量測，上述數字**不代表手機**。
+- **效能尚未在手機上驗證。** 換成 LFM3-VL-2B 後也還沒在模擬器重測。目前只做過 x86_64 模擬器的功能測試與調校量測，上述數字**不代表手機**。
   執行緒自動偵測、KV 與 flash attention 的預設，都要在實機上用上面的步驟確認。
 - 最低支援 Android 9（API 28）。Flutter 專案的 `minSdk` 已對齊 28。
-- **授權未決。** 模型標示為 `lfm1.0`；二手說明為 LFM Open License v1.0（年營收 1,000 萬美元以下可免費商用，超過需付費授權）。
-  打包進 APK 或對外散布前，需要確認官方授權全文與 AGPL-3.0 的相容性。目前模型只在執行時下載。
+- **授權相容性未決。** 模型採 [LFM Open License v1.0](https://huggingface.co/LiquidAI/LFM3-VL-2B-GGUF/blob/main/LICENSE)：年營收達 1,000 萬美元以上的法人做商業使用不在授權範圍。
+  打包進 APK 或對外散布前，需要確認它與 AGPL-3.0 的相容性。目前模型只在執行時下載。
 - 橋接白名單目前只有開發環境 `http://10.0.2.2:5173` 、`http://localhost:5173` 與 `http://127.0.0.1:5173`。正式網域要加入 `kLlmAllowedOrigins` 前需經審查，因為 API key 會交給白名單來源。
 - 其他既有的橋接 handler 仍未做來源檢查，這是專案原本就存在的問題，不屬於本模組。
 - WebView 中的 https 頁面請求 `http://127.0.0.1` 會遇到混合內容限制，尚未驗證。目前的測試都是 Dart 直接呼叫。

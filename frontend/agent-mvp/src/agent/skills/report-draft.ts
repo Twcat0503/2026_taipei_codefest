@@ -28,7 +28,31 @@ const TRAILING =
 
 /** Places people mention: a road with optional section/lane/number, a junction, or a landmark. */
 const LOCATION =
-  /(?:[一-鿿]{2}區)?(?:(?![的我你在家])[一-鿿]){1,6}(?:路|街|大道)(?![燈樹面邊上線過人況])(?:[一二三四五六七八九十\d]+段)?(?:\d+巷)?(?:\d+弄)?(?:\d+號)?(?:[一-鿿]{0,4}(?:路口|口|前|旁|附近|對面))?|(?:捷運)?[一-鿿]{2,6}(?:站|公園|國小|國中|市場|醫院)(?:[一-鿿]{0,2}(?:出口|門口|前|旁|附近))?|[一-鿿]{2}區/;
+  /(?:[一-鿿]{2}區)?(?:(?![的我你在家])[一-鿿]){1,6}(?:路|街|大道)(?![燈樹面邊上線過人況])(?:[一二三四五六七八九十\d]+段)?(?:\d+巷)?(?:\d+弄)?(?:\d+號)?(?:[一-鿿]{0,4}(?:路口|口|前|旁|附近|對面))?|(?:捷運)?[一-鿿]{2,6}(?:站|公園|國小|國中|市場|夜市|醫院)(?:[一-鿿]{0,2}(?:出口|門口|前|旁|附近))?|[一-鿿]{2}區/;
+
+/** A road on its own, for "北投區的溫泉路上" where the district and road are split by 的. */
+const ROAD =
+  /(?:(?![的我你在家上])[一-鿿]){1,6}(?:路|街|大道)(?![燈樹面邊線過人況])(?:[一二三四五六七八九十\d]+段)?(?:\d+巷)?(?:\d+弄)?(?:\d+號)?/;
+const DISTRICT_IN = /[一-鿿]{2}區/;
+
+/**
+ * The regex can start a character early ("其實是信義區…" → "是信義區…", "檢舉內湖區…" →
+ * "舉內湖區…"): a district inside the match is where the place really starts. A bare district
+ * followed by a road ("北投區的溫泉路") becomes district + road.
+ */
+function tidyLocation(match: string, text: string): string {
+  const district = match.match(DISTRICT_IN);
+  let place =
+    district && district.index! > 0 && findDistrict(district[0])
+      ? match.slice(district.index)
+      : match;
+  if (findDistrict(place) === place) {
+    const after = text.slice(text.indexOf(place) + place.length);
+    const road = after.match(ROAD);
+    if (road && road.index! <= 2) place += road[0];
+  }
+  return place;
+}
 
 /** "我家門口" etc. mean the person's own address, which the app knows. */
 const AT_HOME = /我家|家門口|家裡|住家|我住的地方|家附近/;
@@ -39,8 +63,10 @@ export function draftReport(request: string, homeAddress?: string): ReportDraft 
   const rule = REPORT_RULES.find(({ keywords }) => keywords.test(text));
   const subject = rule?.subject ?? problem.replace(/[，。！？,.!?].*$/, '').slice(0, 20);
   const location =
-    (text.match(LOCATION)?.[0] ?? '').replace(/^(?:就在|位於|附近的?|旁邊的?|在|於)/, '') ||
-    (homeAddress && AT_HOME.test(text) ? homeAddress : '');
+    tidyLocation(
+      (text.match(LOCATION)?.[0] ?? '').replace(/^(?:就在|位於|附近的?|旁邊的?|在|於)/, ''),
+      text,
+    ) || (homeAddress && AT_HOME.test(text) ? homeAddress : '');
   return {
     title: subject.slice(0, 40),
     description: problem.slice(0, 500),

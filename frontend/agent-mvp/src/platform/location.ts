@@ -76,3 +76,67 @@ export function openLink(url: string, prefill?: Record<string, string>) {
   }
   window.open(url, '_blank', 'noopener');
 }
+
+/**
+ * What happened to the fields we asked the app to fill in. Even when the app accepts them the
+ * page may not get filled (the form changed, the page failed), so nothing here means "filled":
+ * the app itself tells the person on the page when fields are missing.
+ * - requested: the app accepted the request; `dropped` are fields it refused (not allowlisted
+ *   or bad values), which the person has to enter themselves.
+ * - unsupported: an older app that cannot fill in; the page was opened without the details.
+ * - unconfirmed: no answer from the app, so we cannot say whether anything will be filled in.
+ * - browser: outside the app nothing can be filled in.
+ */
+export type PrefillOutcome =
+  | { kind: 'requested'; dropped: string[] }
+  | { kind: 'unsupported' }
+  | { kind: 'unconfirmed' }
+  | { kind: 'browser' };
+
+const PREFILL_ACK_MS = 1500;
+
+/** Open a Town Pass service page and ask the app to fill in `prefill` on arrival. */
+export function openWithPrefill(
+  url: string,
+  prefill: Record<string, string>,
+): Promise<PrefillOutcome> {
+  const bridge = window.flutterObject;
+  if (!bridge) {
+    window.open(url, '_blank', 'noopener');
+    return Promise.resolve({ kind: 'browser' });
+  }
+  if (!bridge.addEventListener || !bridge.removeEventListener) {
+    openLink(url, prefill);
+    return Promise.resolve({ kind: 'unconfirmed' });
+  }
+  return new Promise((resolve) => {
+    const finish = (outcome: PrefillOutcome) => {
+      clearTimeout(timer);
+      bridge.removeEventListener!('message', listen);
+      resolve(outcome);
+    };
+    const listen = (event: { data: string }) => {
+      let reply: { name?: unknown; data?: unknown };
+      try {
+        reply = JSON.parse(event.data);
+      } catch {
+        return; /* A reply for another bridge message. */
+      }
+      if (reply?.name !== 'open_link') return;
+      const accepted = (reply.data as { accepted?: unknown } | null)?.accepted;
+      if (Array.isArray(accepted)) {
+        finish({
+          kind: 'requested',
+          dropped: Object.keys(prefill).filter((field) => !accepted.includes(field)),
+        });
+      } else if (reply.data === false) {
+        // An older app rejects the {url, prefill} form without opening anything.
+        bridge.postMessage(JSON.stringify({ name: 'open_link', data: url }));
+        finish({ kind: 'unsupported' });
+      }
+    };
+    const timer = setTimeout(() => finish({ kind: 'unconfirmed' }), PREFILL_ACK_MS);
+    bridge.addEventListener!('message', listen);
+    openLink(url, prefill);
+  });
+}

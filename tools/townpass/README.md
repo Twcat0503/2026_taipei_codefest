@@ -1,6 +1,6 @@
 # townpass tools
 
-把臺北市的官方資料與服務入口包成唯讀工具，由瀏覽器裡的 agent 直接呼叫，不需要另外架 server。App 預設只用真實資料：YouBike 即時資料、停管處停車場資料、環保局公廁資料，以及經確認的官方服務入口；示範站的模擬資料只在開發時提供。
+把臺北市的官方資料與服務入口包成唯讀工具，由瀏覽器裡的 agent 直接呼叫，不需要另外架 server。例外是 `src/registry` 的共用服務工具庫：它需要另外啟動 server（`pnpm registry`），並設定環境變數，見 [docs/service-registry.md](docs/service-registry.md)。App 預設只用真實資料：YouBike 即時資料、停管處停車場資料、環保局公廁資料，以及經確認的官方服務入口；示範站的模擬資料只在開發時提供。
 
 ```sh
 mise install && pnpm install

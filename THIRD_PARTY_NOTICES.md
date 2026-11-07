@@ -12,7 +12,7 @@ This project is licensed under [AGPL-3.0](LICENSE). The components below come fr
 | --- | --- | --- | --- |
 | [Town Pass](https://github.com/taipei-doit/TownPass)（臺北市政府資訊局 Taipei City Government DOIT） | repo 根目錄的 Flutter app · the Flutter app at the repo root | GPL-3.0 | 本 repo 以其快照為基礎；GPL-3.0 的部分依 GPLv3 第 13 條併入 AGPL-3.0 的成品。· This repo starts from a snapshot of it; the GPL-3.0 parts are combined into the AGPL-3.0 work under GPLv3 section 13. |
 | Town Pass 圖示與圖片 · icons and images | `assets/` | 隨上游 Town Pass · as in upstream Town Pass | 隨快照帶入。· Came with the snapshot. |
-| [TownPass-Services](https://github.com/taipei-doit/TownPass-Services) | `frontend/` | 未附授權條款 · no license file | 依城市通開發文件的指示 fork 使用，正式散布前需向主辦單位確認。· Forked as the Town Pass developer guide instructs; confirm with the organizers before wider distribution. |
+| [TownPass-Services](https://github.com/taipei-doit/TownPass-Services) | `frontend/` | 未附授權條款 · no license file | 依城市通開發文件的指示 fork 使用，正式散布前需向臺北市政府資訊局確認授權。· Forked as the Town Pass developer guide instructs; confirm the license with the Department of Information Technology before wider distribution. |
 | PingFang TC 字型 · fonts | `fonts/` | Apple 專有字型 · Apple proprietary | 隨上游 Town Pass 快照帶入，**不在本專案的 AGPL-3.0 授權範圍內**，計畫改用開源字型。· Came with the upstream snapshot and is **not covered by this project's AGPL-3.0 license**; to be replaced with an open font. |
 
 ## 本機 AI 執行環境 · On-device AI runtimes
@@ -33,7 +33,7 @@ This project is licensed under [AGPL-3.0](LICENSE). The components below come fr
 
 | 模型 Model | 授權 License | 說明 Notes |
 | --- | --- | --- |
-| [LFM3-1.7B](https://huggingface.co/LiquidAI)（Liquid AI） | 模型卡標示 `lfm1.0`（二手資料指為 LFM Open License v1.0，全文待確認）· tagged `lfm1.0` (reported as LFM Open License v1.0; full text not yet verified) | 執行時另行下載；打包或散布前需確認授權全文。· Downloaded at run time; check the full license before bundling or redistributing. |
+| [LFM3-VL-2B](https://huggingface.co/LiquidAI/LFM3-VL-2B-GGUF)（Liquid AI） | [LFM Open License v1.0](https://huggingface.co/LiquidAI/LFM3-VL-2B-GGUF/blob/main/LICENSE)（年營收達 1,000 萬美元以上的商業使用不在授權範圍）· commercial use by entities with annual revenue of US$10M or more is not licensed | 執行時另行下載；打包或散布前需確認與 AGPL-3.0 的相容性。· Downloaded at run time; check compatibility with AGPL-3.0 before bundling or redistributing. |
 | [Taiwan-Tongues-ASR-CE-v1.0](https://huggingface.co/adi-gov-tw/Taiwan-Tongues-ASR-CE-v1.0)（adi-gov-tw） | [TRAIL-M](https://huggingface.co/adi-gov-tw/Taiwan-Tongues-ASR-CE-v1.0/blob/main/LICENSE) | 需自行轉換與安裝；不發布衍生權重。· Converted and installed by each developer; derived weights are not published. |
 | [BlueMagpie-TTS](https://huggingface.co/OpenFormosa/BlueMagpie-TTS)（OpenFormosa） | `other`（限研究與評估）· research and evaluation only | 不散布權重、衍生權重或生成語音。· Weights, derived weights and generated speech are not distributed. |
 

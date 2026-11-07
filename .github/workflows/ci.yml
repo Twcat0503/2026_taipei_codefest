@@ -21,6 +21,8 @@ jobs:
       frontend: ${{ steps.filter.outputs.frontend }}
       flutter: ${{ steps.filter.outputs.flutter }}
       agent: ${{ steps.filter.outputs.agent }}
+      kotlin_tts: ${{ steps.filter.outputs.kotlin_tts }}
+      python_tts: ${{ steps.filter.outputs.python_tts }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -63,6 +65,19 @@ jobs:
             agent=true
           fi
           echo "agent=$agent" >> "$GITHUB_OUTPUT"
+
+          kotlin_tts=false
+          if [ "$workflow_changed" = true ] ||
+            grep -qE '^android/app/src/(main|test)/kotlin/com/example/townpass/tts/' <<<"$changed"; then
+            kotlin_tts=true
+          fi
+          echo "kotlin_tts=$kotlin_tts" >> "$GITHUB_OUTPUT"
+
+          python_tts=false
+          if [ "$workflow_changed" = true ] || grep -qE '^tools/tts-android/' <<<"$changed"; then
+            python_tts=true
+          fi
+          echo "python_tts=$python_tts" >> "$GITHUB_OUTPUT"
           echo "frontend=$frontend flutter=$flutter"
 
   frontend:
@@ -106,6 +121,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
         working-directory: tools/townpass
       - run: pnpm typecheck
+        working-directory: tools/townpass
+      # 服務觀測測試需要 Chromium；先於 tools 測試安裝，避免 browserType.launch 失敗。
+      - run: pnpm exec playwright install --with-deps chromium
         working-directory: tools/townpass
       - run: pnpm test
         working-directory: tools/townpass
@@ -154,10 +172,71 @@ jobs:
       # Compile native Kotlin and merge manifests; model runtime is tested on a device.
       - run: flutter build apk --debug --target-platform android-arm64
 
+  # TtsLifecycleTest.kt is a plain main() program (no JUnit, no Android), so
+  # `gradlew testDebugUnitTest` would run nothing; compile it with kotlinc instead.
+  kotlin-tts:
+    name: Kotlin TTS lifecycle tests
+    needs: changes
+    if: needs.changes.outputs.kotlin_tts == 'true'
+    runs-on: ubuntu-latest
+    env:
+      KOTLIN_VERSION: "2.4.0"
+      # Official release asset digest (github.com/JetBrains/kotlin, v2.4.0).
+      KOTLIN_SHA256: ba1b9e6eb6ddc3275079224f2e9ea4a2b02eef7d59ce2d38404f04b22613c20a
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install kotlinc
+        run: |
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/kotlinc.zip" \
+            "https://github.com/JetBrains/kotlin/releases/download/v${KOTLIN_VERSION}/kotlin-compiler-${KOTLIN_VERSION}.zip"
+          echo "${KOTLIN_SHA256}  $RUNNER_TEMP/kotlinc.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/kotlinc.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/kotlinc/bin" >> "$GITHUB_PATH"
+
+      - name: Compile and run TtsLifecycleTest
+        run: |
+          set -euo pipefail
+          tts=android/app/src/main/kotlin/com/example/townpass/tts
+          kotlinc -include-runtime -d "$RUNNER_TEMP/tts-lifecycle.jar" \
+            "$tts/TtsOperations.kt" "$tts/TtsStartup.kt" "$tts/TtsChild.kt" \
+            android/app/src/test/kotlin/com/example/townpass/tts/TtsLifecycleTest.kt
+          java -cp "$RUNNER_TEMP/tts-lifecycle.jar" com.example.townpass.tts.TtsLifecycleTestKt
+
+  python-tts:
+    name: Python TTS tool tests
+    needs: changes
+    if: needs.changes.outputs.python_tts == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      # test_model_tools.py has one real weights-only torch.load check.
+      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      # test_tokenizer_repair.py needs gguf and a llama shared library built on a
+      # model machine, so it is not run here (see tools/tts-android/README.md).
+      - name: Run host tests
+        run: |
+          set -euo pipefail
+          for t in test_model_tools test_install_models test_build_publish; do
+            python -I -B -X utf8 "tools/tts-android/$t.py"
+          done
+
   # Single required check for branch protection; skipped jobs count as passing.
   result:
     name: CI result
-    needs: [changes, frontend, agent, flutter]
+    needs: [changes, frontend, agent, flutter, kotlin-tts, python-tts]
     if: always()
     runs-on: ubuntu-latest
     steps:

@@ -68,7 +68,7 @@ const onSubmitClick = async (subscription: Subscription) => {
 
 <template>
   <div class="h-screen px-5 py-8 bg-grey-50 overflow-y-auto">
-    <h5 class="text-primary-500 mb-8 text-[26px] title">訂閱臺北市政府最新消息</h5>
+    <h5 class="text-primary-500 mb-8 text-[1.625rem] title">訂閱臺北市政府最新消息</h5>
     <p class="text-grey-700 mb-4">您已訂閱 {{ subscriptionCount }} 項</p>
     <div
       class="subscription-wrapper"
