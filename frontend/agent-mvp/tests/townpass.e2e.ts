@@ -9,6 +9,7 @@ test.beforeEach(async ({ page }) => {
   await page.getByText('開發者檢視與接點設定', { exact: true }).click();
   await page.getByLabel('模型來源').selectOption('demo');
   await page.getByRole('button', { name: '套用接點', exact: true }).click();
+  await page.getByText('開發者檢視與接點設定', { exact: true }).click();
   await page.getByRole('button', { name: '關閉設定', exact: true }).click();
 });
 
