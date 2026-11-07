@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    # main plus the long-lived frontend integration branch
+    branches: [main, frontend]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      flutter: ${{ steps.filter.outputs.flutter }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - id: filter
+        name: Decide which stacks to check
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            changed="$(git diff --name-only "$BASE_SHA...$HEAD_SHA")"
+          else
+            # Pushes to long-lived branches check everything that exists.
+            changed="$(git ls-files)"
+          fi
+
+          workflow_changed=false
+          if grep -qE '^\.github/workflows/' <<<"$changed"; then workflow_changed=true; fi
+
+          frontend=false
+          if [ -f frontend/package.json ] &&
+            { [ "$workflow_changed" = true ] || grep -qE '^frontend/' <<<"$changed"; }; then
+            frontend=true
+          fi
+
+          flutter=false
+          if [ "$workflow_changed" = true ] ||
+            grep -qE '^(lib|test|assets|fonts)/|^(pubspec\.(yaml|lock)|analysis_options\.yaml|\.fvmrc)$' <<<"$changed"; then
+            flutter=true
+          fi
+
+          echo "frontend=$frontend" >> "$GITHUB_OUTPUT"
+          echo "flutter=$flutter" >> "$GITHUB_OUTPUT"
+          echo "frontend=$frontend flutter=$flutter"
+
+  frontend:
+    name: Frontend (lint, format, test, build)
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+
+      # Installs the Node and pnpm versions pinned in frontend/mise.toml.
+      - uses: jdx/mise-action@v5
+        with:
+          working_directory: frontend
+          github_token: ${{ github.token }}
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm test
+      - run: pnpm build
+
+  flutter:
+    name: Flutter (format, analyze)
+    needs: changes
+    if: needs.changes.outputs.flutter == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version-file: .fvmrc
+          cache: true
+
+      - run: flutter pub get
+
+      # Run before build_runner so generated files are not checked.
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Generate code (json_serializable, flutter_gen)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - run: flutter analyze
+
+      # `flutter test` is intentionally not run yet: test/widget_test.dart is the
+      # template counter test and fails by design (see AGENTS.md). Add it here once fixed.
+
+  # Single required check for branch protection; skipped jobs count as passing.
+  result:
+    name: CI result
+    needs: [changes, frontend, flutter]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any job failed or was cancelled
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "job results: $RESULTS"
+          case " $RESULTS " in
+            *" failure "* | *" cancelled "*) exit 1 ;;
+          esac
