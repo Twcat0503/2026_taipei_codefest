@@ -63,12 +63,19 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 - 開發聯調：`pnpm dev --host`，app 內開 `http://<開發機IP>:5173`（模擬器 `http://10.0.2.2:5173`）；cleartext HTTP 需 AndroidManifest debug 設定（`usesCleartextTraffic` 或 networkSecurityConfig）。
 - 正式整合：SPA 部署為 https 靜態站；不將 `dist/` 打包進 Flutter assets。
 
-## 無障礙設計標準
+## 設計規範（競賽主題「用不了」）
 
-- 依台北市政府採用之國家標準：國發會「政府網頁無障礙規範」與「政府行動網路應用無障礙規範」，即 **WCAG 2.1 Level AA**。
-- 前端（Vue3）：語意化 HTML、有意義圖片給 `alt`、表單欄位有 `label`、鍵盤可操作且 focus 可見、內文對比 ≥ 4.5:1（大字 ≥ 3:1）、200% 縮放可正常閱讀；建議以 axe-core／vitest-axe 做自動化檢查。
-- Flutter：互動元件給 `Semantics` 標籤、觸控目標 ≥ 44×44 dp、支援系統字級放大、不以顏色作為唯一資訊線索。
-- PR 須附無障礙自檢結果（見 CONTRIBUTING.md）。
+主辦方指定主題 **「用不了」**：對象為身心障礙者、高齡者、孕婦、傷眼者、照顧者；方向為無障礙介面、語音輔助、字級調整、線上服務優化。無障礙是產品核心，功能取捨以「上述對象能否獨立完成任務」為準。法規依據、各對象設計要點與自檢方式見 CONTRIBUTING.md「設計規範」。
+
+- **標準**：以 **WCAG 2.1 Level AA** 實作（涵蓋數位發展部「網站無障礙規範」所參酌的 WCAG 2.0 AA）；App 面向另對照[城市通無障礙檢核表](https://tpe-guideline.web.app/docs/accessibility/accessibility.html)。
+- **無障礙介面**：語意化 HTML、圖片 `alt`、表單 `label`、icon 按鈕 `aria-label`；鍵盤可操作、focus 可見；內文對比 ≥ 4.5:1（大字與 icon ≥ 3:1），不以顏色為唯一線索；觸控目標 ≥ **48×48 dp**；不鎖螢幕方向、不自動輪播；Flutter 互動元件加 `Semantics`。
+- **字級調整**：頁內提供字級切換並記住偏好；字級用 `rem`，放大到 200% 不截斷、不需橫向捲動。
+- **語音輔助**：所有資訊都要有文字，語音只是輔助。Android WebView 不支援 `speechSynthesis`：app 內朗讀改走 bridge（新增 `TPWebMessageHandler`，由 Flutter 端 TTS 朗讀）或播放音檔；瀏覽器獨立執行時才用 `speechSynthesis`。
+- **線上服務優化**：一頁一件事、顯示進度、送出前預覽確認、可中斷續填，能從 `userinfo` 帶入的資料先帶入；用白話文。
+- **多語言**：預設正體中文（`zh-Hant-TW`）並提供英文，與 app 語系選項一致；UI 字串集中在字典檔，不寫死在 component；切換語言時同步 `<html lang>`，朗讀語言跟著 UI。
+- **個資**：`userinfo` 只取需要的欄位；身分證字號等敏感欄位顯示時遮罩、不寫入前端儲存；不蒐集病歷、障別等健康資料，改問使用偏好（大字、語音）。
+- **開放資料**：畫面依《政府資料開放授權條款》附件格式標示顯名聲明，未標示視同未取得授權。
+- PR 須附設計自檢結果（axe-core／vitest-axe、TalkBack 等，見 CONTRIBUTING.md）。
 
 ## 相關資源（競賽）
 
