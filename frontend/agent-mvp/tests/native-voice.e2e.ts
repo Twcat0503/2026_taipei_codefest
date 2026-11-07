@@ -117,7 +117,7 @@ test('phone voice can start before the text model is ready', async ({ page }) =>
   await expect(page.getByText(/^手機上的語音辨識模型尚未就緒/)).toBeVisible();
 });
 
-test('phone voice stays available after model startup and transcribes to editable text', async ({
+test('phone voice stays available after model startup, transcribes to editable text and has a visible back button', async ({
   page,
 }) => {
   await nativeVoice(page, false, true);
@@ -153,7 +153,7 @@ test('phone voice stays available after model startup and transcribes to editabl
   expect(
     await page.evaluate(() => localStorage.getItem('townpass-agent-conversation-v1')),
   ).toBeNull();
-  await expect(page.getByRole('button', { name: '返回首頁', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '返回首頁', exact: true })).toBeVisible();
   await page.waitForFunction(() => document.documentElement.dataset.voiceRecorded === 'yes');
   await page.getByRole('button', { name: '完成語音輸入', exact: true }).click();
   await expect(page.getByLabel('你想要做什麼？', { exact: true })).toHaveValue('幫我找圖書');
@@ -166,15 +166,19 @@ test('phone voice stays available after model startup and transcribes to editabl
     (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
       .violations,
   ).toEqual([]);
+  await page.getByRole('button', { name: '返回首頁', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '歡迎使用', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '開始語音輸入', exact: true })).toBeVisible();
 });
 
-test('leaving the page cancels capture', async ({
+test('back to home cancels capture and returns without needing WebView history', async ({
   page,
 }) => {
   await nativeVoice(page);
   await page.getByRole('button', { name: '開始語音輸入', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.voiceRecorded === 'yes');
-  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide')));
+  await page.getByRole('button', { name: '返回首頁', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '歡迎使用', exact: true })).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => document.documentElement.dataset.microphoneStopped))
     .toBe('yes');
