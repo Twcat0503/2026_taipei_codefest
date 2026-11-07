@@ -157,7 +157,7 @@ test('water fee asks for the account number once, then fills it in', async ({ pa
   await expect(page.getByRole('heading', { name: '繳水費', exact: true })).toBeVisible();
   await page.getByLabel('你的水號是？').fill('1-23-456789');
   await page.getByRole('button', { name: '前往', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('10 碼');
+  await expect(page.locator('.navigation-card').getByRole('alert')).toContainText('10 碼');
   expect(await posted(page)).toBeNull();
   await page.getByLabel('你的水號是？').fill('1-23-456789-0');
   expect(
@@ -206,7 +206,9 @@ test('a citizen report is drafted from what was said and opens the form filled i
   // People can correct the draft; a half-empty draft is caught before leaving.
   await page.getByLabel('案件主旨').fill('');
   await page.getByRole('button', { name: '前往', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('主旨和描述都要填');
+  await expect(page.locator('.navigation-card').getByRole('alert')).toContainText(
+    '主旨和描述都要填',
+  );
   expect(await posted(page)).toBeNull();
   await page.getByLabel('案件主旨').fill('路燈不亮');
   await page.getByRole('button', { name: '前往', exact: true }).click();
