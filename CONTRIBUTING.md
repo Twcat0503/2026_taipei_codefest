@@ -1,6 +1,6 @@
 # 貢獻指南（Contributing Guide）
 
-2026 台北秋季程式節工作坊的團隊協作規範。本 repo 為 [taipei-doit/TownPass](https://github.com/taipei-doit/TownPass) 快照（upstream 本體為 GPL-3.0）。**最終成品以 AGPL-3.0 授權**，所有貢獻同樣以 AGPL-3.0 釋出（GPL-3.0 元件依 GPL v3 §13 可併入 AGPL-3.0 成品）。
+本專案的團隊協作規範。本 repo 為 [taipei-doit/TownPass](https://github.com/taipei-doit/TownPass) 快照（upstream 本體為 GPL-3.0）。**最終成品以 AGPL-3.0 授權**，所有貢獻同樣以 AGPL-3.0 釋出（GPL-3.0 元件依 GPL v3 §13 可併入 AGPL-3.0 成品）。
 
 環境需求與建置指令見 [AGENTS.md](AGENTS.md)：Flutter 用 FVM 釘選版本（首次必跑 `build_runner`）；前端（`frontend/`）用 mise 釘選 Node／pnpm，套件管理用 pnpm。
 
@@ -167,11 +167,9 @@
 - 正式站出問題時，先到 Cloudflare dashboard 的 Deployments，把 production rollback 到上一個正常的 deployment，再開 `fix/` PR 修正。
 - SPA 路由不用另外設定：專案沒有 `404.html` 時，Pages 會把未知路徑交給 `index.html`。
 
-## 發表與提交
+## 釋出
 
-發表就是現場操作成品，發表用的版本就是正式 release，不另外做展示版。
-
-- **釋出**：確認 `main` 的 CI 通過、正式站已更新後，由維護者打 tag：
+- 確認 `main` 的 CI 通過、正式站已更新後，由維護者打 tag：
 
   ```sh
   git switch main && git pull --rebase
@@ -181,17 +179,6 @@
 
   APK 從同一個 tag build：`fvm flutter build apk --release`，產出在 `build/app/outputs/flutter-apk/app-release.apk`。目前 release 沿用 debug 簽章，可以直接安裝，但不能上架。
 - 釋出後只收 `fix/` PR；修完後打下一個 patch 版號（例如 `v1.0.1`），並重新 build APK。
-- **提交前檢查**（截止時間與欄位字數見 AGENTS.md「競賽限制」）：
-  - [ ] repo 已轉為 public，用無痕視窗打得開提交的 GitHub 連結
-  - [ ] 根目錄 README 是作品說明，資料來源與授權都已填寫
-  - [ ] 正式站的 `/about` 列出所有資料來源，開放資料依授權條款顯名
-  - [ ] `destinationUrl` 指向正式站，app 已從 release tag 重新 build
-  - [ ] 專案名稱、簡介、作品介紹符合字數限制；截圖連結的權限是「知道連結的人可檢視」
-- **發表設備**（現場只能操作成品，不能用簡報）：
-  - [ ] Android 實機或模擬器已安裝 release APK；實機可以用 scrcpy 投到筆電畫面
-  - [ ] 實際開過一次 TalkBack 與最大系統字級，主要流程都走得完
-  - [ ] 準備網路備案（例如手機熱點）；斷網時畫面會顯示錯誤提示，不會白屏
-  - [ ] HDMI 轉接器、充電器自備
 
 ## 設計規範
 
@@ -276,11 +263,11 @@
   - IDE／編輯器設定：`.idea/`、`.vscode/`、`*.iml`。
   - 本機 SDK 與路徑設定：`.fvm/`、`**/android/local.properties`、`**/ios/Flutter/Generated.xcconfig`。
   - 建置與快取：`.dart_tool/`、`build/`、`**/ios/Pods/`、`**/DerivedData/`、`.flutter-plugins*`。
-  - agent 工具目錄（worktree、暫存、個人設定）：`.claude/`、`.pi/` 整個目錄已列入 `.gitignore`；本機覆寫檔 `.mise.local.toml`、`pubspec_overrides.yaml` 亦同。
+  - AI 工具的工作目錄（worktree、暫存、個人設定）已整個列入 `.gitignore`；本機覆寫檔 `.mise.local.toml`、`pubspec_overrides.yaml` 亦同。
   - 個人 shell／工具設定、本機除錯用檔案、截圖與錄影原檔。
   - 上列多數已列於 `.gitignore`；新增這類檔案時同步補規則，或改用個人全域 gitignore。
 - **例外——團隊共用且可重現的設定要進 git**：`frontend/mise.toml`、`pnpm-lock.yaml`、`pubspec.lock`、`.fvmrc`、`.env.example` 等，讓其他人能重建相同環境。
-- **內部文件不進 git**：會議紀錄、個人筆記、內部草稿／簡報、選手手冊與主辦方附件、尚未公開的排程或廠商資料等，放團隊雲端硬碟或本機（本機可放 repo 根目錄的 `research/`，已列入 `.gitignore`）；repo 只放可公開的專案文件（`README.md`、`AGENTS.md`、`CONTRIBUTING.md`、`TODO.md`、`CODE_OF_CONDUCT.md`、`LICENSE`）。
+- **內部文件不進 git**：會議紀錄、個人筆記、內部草稿／簡報、尚未公開的排程或廠商資料等，放團隊雲端硬碟或本機；repo 只放可公開的專案文件（`README.md`、`AGENTS.md`、`CONTRIBUTING.md`、`TODO.md`、`CODE_OF_CONDUCT.md`、`LICENSE`）。
 - 不確定某個檔案屬「團隊共用」或「個人／內部」時，先問維護者再 commit。
 
 ## 相依套件
@@ -295,7 +282,6 @@
 | --- | --- |
 | TownPass 原始碼（upstream） | <https://github.com/taipei-doit/TownPass> |
 | 開發文件（中英） | <https://tpe-guideline.web.app> |
-| 活動官網・競賽須知 | <https://codefest.taipei/2026-fall> |
 | Figma UI Kit | <https://www.figma.com/community/file/1409212309969674409/town-pass-open-source-gov-mobile-app-ui-kit-and-design-system> |
 | 開放資料 | <https://data.taipei>、<https://data.gov.tw>、<https://tdx.transportdata.tw> |
 | 城市儀表板（開源參考） | <https://github.com/taipei-doit/Taipei-City-Dashboard> |
@@ -307,6 +293,6 @@
 ## 其他
 
 - 發現與本規範不符的既有程式碼，可在 PR 內提出，但不要順手做大範圍重構。
-- 上游 TownPass 快照本體為 GPL-3.0，維持不變；本競賽最終成品（含前端與整合後 app）以 **AGPL-3.0** 授權，`LICENSE` 已換為 AGPL-3.0 全文。
+- 上游 TownPass 快照本體為 GPL-3.0，維持不變；本專案的成品（含前端與整合後 app）以 **AGPL-3.0** 授權，`LICENSE` 已換為 AGPL-3.0 全文。
 
-- 技術問題與討論請開 GitHub Issue；**競賽規則問題請洽承辦單位（台北市電腦商業同業公會）**。
+- 技術問題與討論請開 GitHub Issue。

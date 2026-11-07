@@ -3,7 +3,7 @@
 # 用得了 · Town Pass Care Assistant
 
 Find accessible facilities and get to Taipei city services with what the app already knows, by typing one sentence or tapping a suggestion inside the Town Pass app.<br>
-Built for the 2026 Taipei Autumn Codefest, theme "用不了" (*"I can't use it"*).
+For everyone who finds city services "用不了" (*"I can't use it"*), so they can say "用得了" (*"I can use it"*).
 
 [![CI](https://github.com/Twcat0503/2026_taipei_codefest/actions/workflows/ci.yml/badge.svg)](https://github.com/Twcat0503/2026_taipei_codefest/actions/workflows/ci.yml)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
@@ -164,7 +164,6 @@ This project is licensed under the [GNU Affero General Public License v3.0](LICE
 ## Acknowledgements
 
 - The **Department of Information Technology, Taipei City Government**, for open-sourcing [Town Pass](https://github.com/taipei-doit/TownPass) and [TownPass-Services](https://github.com/taipei-doit/TownPass-Services) and providing the [Town Pass developer guide](https://tpe-guideline.web.app) and design resources.
-- The organizers of the **2026 Taipei Autumn Codefest**, for the chance to build something for people who "can't use it".
 - **Open data providers**: the Department of Transportation, its Parking Management and Development Office, the Department of Environmental Protection, and the [Taipei Open Data platform](https://data.taipei).
 - **Open models and projects**: [Liquid AI](https://huggingface.co/LiquidAI) (LFM3), [OpenFormosa](https://huggingface.co/OpenFormosa) (BlueMagpie-TTS), [adi-gov-tw](https://huggingface.co/adi-gov-tw) (Taiwan-Tongues-ASR-CE), [ggml-org](https://github.com/ggml-org) (llama.cpp, whisper.cpp, ggml), [codec.cpp](https://github.com/mybigday/codec.cpp), and the Flutter, Vue, Vite, Playwright and axe-core communities.
 

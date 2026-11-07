@@ -1,6 +1,6 @@
-# 2026 Taipei Codefest — Town Pass Workshop
+# 用得了：城市通安心助手
 
-2026 台北秋季程式節工作坊專案。**主要開發為 Vue3 前端**（`frontend/`）；repo 根目錄為 [taipei-doit/TownPass](https://github.com/taipei-doit/TownPass) 快照（不帶 upstream 歷史）之 Flutter 行動端專案（upstream 本體為 GPL-3.0）。**最終成品以 AGPL-3.0 授權**。
+**主要開發為 Vue3 前端**（`frontend/`）；repo 根目錄為 [taipei-doit/TownPass](https://github.com/taipei-doit/TownPass) 快照（不帶 upstream 歷史）之 Flutter 行動端專案（upstream 本體為 GPL-3.0）。**最終成品以 AGPL-3.0 授權**。
 
 ## 技術棧與版本
 
@@ -99,9 +99,9 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 - 開發聯調：`pnpm dev --host`，app 內開 `http://<開發機IP>:5173`（模擬器 `http://10.0.2.2:5173`）；cleartext HTTP 需 AndroidManifest debug 設定（`usesCleartextTraffic` 或 networkSecurityConfig）。
 - 正式整合：SPA 部署為 https 靜態站；不將 `dist/` 打包進 Flutter assets。
 
-## 設計規範（競賽主題「用不了」）
+## 設計規範（讓「用不了」的人用得了）
 
-主辦方指定主題 **「用不了」**：對象為身心障礙者、高齡者、孕婦、傷眼者、照顧者；方向為無障礙介面、語音輔助、字級調整、線上服務優化。無障礙是產品核心，功能取捨以「上述對象能否獨立完成任務」為準。法規依據、各對象設計要點與自檢方式見 CONTRIBUTING.md「設計規範」。
+本專案的對象是覺得服務 **「用不了」** 的人：身心障礙者、高齡者、孕婦、傷眼者、照顧者；方向為無障礙介面、語音輔助、字級調整、線上服務優化。無障礙是產品核心，功能取捨以「上述對象能否獨立完成任務」為準。法規依據、各對象設計要點與自檢方式見 CONTRIBUTING.md「設計規範」。
 
 - **標準**：以 **WCAG 2.1 Level AA** 實作（涵蓋數位發展部「網站無障礙規範」所參酌的 WCAG 2.0 AA）；App 面向另對照[城市通無障礙檢核表](https://tpe-guideline.web.app/docs/accessibility/accessibility.html)。
 - **無障礙介面**：語意化 HTML、圖片 `alt`、表單 `label`、icon 按鈕 `aria-label`；鍵盤可操作、focus 可見；內文對比 ≥ 4.5:1（大字與 icon ≥ 3:1），不以顏色為唯一線索；觸控目標 ≥ **48×48 dp**；不鎖螢幕方向、不自動輪播；Flutter 互動元件加 `Semantics`。
@@ -113,38 +113,11 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 - **開放資料**：畫面依《政府資料開放授權條款》附件格式標示顯名聲明，未標示視同未取得授權。
 - PR 須附設計自檢結果（axe-core／vitest-axe、TalkBack 等，見 CONTRIBUTING.md）。
 
-## 競賽限制（來源：附件1_2026臺北秋季程式設計節選手須知手冊）
-
-- **時程**：2026/11/7（六）10:30 起 Hacking；**11/8（日）09:00 前要在上傳系統完成作品提交**；10:00–13:30 初選，14:10–16:40 決選。
-- **題目**：「用不了」（主辦方指定；對象與方向見上節「設計規範」）。
-- **提交欄位**：
-
-  | 欄位 | 限制 |
-  | --- | --- |
-  | 專案名稱 | ≤ 20 字 |
-  | 提案方向與簡介 | ≤ 50 字 |
-  | 作品介紹 | ≤ 200 字，含專案介紹、服務使用技術 |
-  | 使用開放資料名稱及連結 | 資料集名稱＋連結 |
-  | 程式碼連結 | GitHub 網址（http/https） |
-  | 服務畫面截圖連結 | 截圖或簡報檔放個人雲端的分享連結 |
-
-- **發表只能現場電腦 Demo，不得使用任何形式簡報（PPT、Canva 等）**。初選為評審輪桌，每隊 2 分鐘發表＋1 分鐘 Q&A；決選 15 隊、順序電腦抽籤，每隊 5 分鐘發表＋5 分鐘 Q&A。Demo 電腦自備，控台只提供 HDMI 線，轉接器自備。
-- **評分**：
-
-  | 階段 | 項目（配分） |
-  | --- | --- |
-  | 初選 | 服務應用 40（創意、與題目相符）、視覺呈現 30、技術完整度 30（架構清楚、資料來源正確、運行流暢） |
-  | 決選 | 服務應用 25、服務完整度 30（落地可能性與難易度）、技術穩定度 20（操作流暢、系統穩定）、視覺呈現 15、創意及公益性 10（活用開源技術、公共利益） |
-
-- **作品簡介建議涵蓋**：城市通微服務的理念與受眾、符合主題的應用場景、開發項目與引用技術、資料來源與服務應用方式。
-
-## 相關資源（競賽）
+## 相關資源
 
 - 開發文件（中英）：<https://tpe-guideline.web.app>，首頁含 Figma UI Kit／Town Pass Design Tokens 連結。
-- 活動官網・競賽須知：<https://codefest.taipei/2026-fall>。
 - 開放資料：<https://data.taipei>、<https://data.gov.tw>、<https://tdx.transportdata.tw>；城市儀表板（開源參考）：<https://github.com/taipei-doit/Taipei-City-Dashboard>。
 - Flutter 3.47 更新說明：<https://flutter.dev/blog/whats-new-in-flutter-3-47>（本專案 `.fvmrc` 釘選 3.47.6）。
-- 規則問題請洽承辦單位（台北市電腦商業同業公會），不適用 GitHub Issue。
 
 ## 環境變數
 
@@ -159,14 +132,14 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 - Commit message 用 Conventional Commits（英文，subject ≤72 字元、祈使句、無句號）；一個 commit／PR 一件事。
 - 生成檔（`*.g.dart`、`lib/gen/`）已被 gitignore、不進 commit；勿手動編輯，改來源後跑 `build_runner` 於本地產生。
 - API key 等機密不進 commit：`.env` 已 gitignore，key 名稱登記 `.env.example`，source code 不硬編碼。
-- 個人開發環境不進 git：IDE 設定、SDK／本機路徑、建置快取、agent 工具目錄（`.claude/`、`.pi/`）、個人工具設定等一律不 commit；團隊共用且可重現的設定才進 git（如 `frontend/mise.toml`、`pnpm-lock.yaml`、`pubspec.lock`、`.fvmrc`）。
-- 內部文件不進 git：會議紀錄、個人筆記、內部草稿／簡報、主辦方附件與尚未公開的資料放團隊雲端或本機（本機可放已 gitignore 的 `research/`）；repo 只放可公開的專案文件（`README.md`、`AGENTS.md`、`CONTRIBUTING.md`、`LICENSE` 等）。不確定可否公開先問維護者。
+- 個人開發環境不進 git：IDE 設定、SDK／本機路徑、建置快取、AI 工具的設定與暫存目錄、個人工具設定等一律不 commit；團隊共用且可重現的設定才進 git（如 `frontend/mise.toml`、`pnpm-lock.yaml`、`pubspec.lock`、`.fvmrc`）。
+- 內部文件不進 git：會議紀錄、個人筆記、內部草稿／簡報與尚未公開的資料放團隊雲端或本機；repo 只放可公開的專案文件（`README.md`、`AGENTS.md`、`CONTRIBUTING.md`、`LICENSE` 等）。不確定可否公開先問維護者。
 - 新增相依套件須為開源且與 **AGPL-3.0** 相容（MIT／BSD／Apache-2.0 可），PR 內說明選用理由。
 
 ## 程式碼慣例
 
 - 註解可用繁中或英文，同一個檔案內保持一致；identifier 與 commit message 用英文。
-- repo 會公開：程式碼、註解、commit message、PR 內文都不得引用 `research/` 等內部路徑或內部文件內容；需要佐證時附公開來源的 URL。
+- repo 會公開：程式碼、註解、commit message、PR 內文都不得引用內部路徑或內部文件內容；需要佐證時附公開來源的 URL。
 
 ## 資料來源與穩定性
 
@@ -176,11 +149,9 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 - **不能白屏**：每個 bridge 呼叫都要考慮失敗與一直沒有回覆的情況（不在 app 內時沒有 `flutterObject`，也不會有回覆）；資料載入失敗時，要顯示看得到的錯誤訊息與重試方式。
 - **app 外也能用**：主要流程在純瀏覽器（沒有 `window.flutterObject`）也要能完整走完；原生能力改用瀏覽器實作，或明確告知目前無法使用。
 
-## Agent 工作守則
+## AI coding agent 守則
 
-多個 agent（Claude Code、pi 等）同時參與開發時：
-
-- 開工前先 `git fetch --prune`，確認目前的 branch 沒有被合併（見 CONTRIBUTING.md「日常 Git 操作」）；一個任務一個 branch，平行作業用 worktree（放在已 gitignore 的 `.claude/worktrees/`），不在 `main` 上修改。
+- 開工前先 `git fetch --prune`，確認目前的 branch 沒有被合併（見 CONTRIBUTING.md「日常 Git 操作」）；一個任務一個 branch，不在 `main` 上修改。
 - 依改動的目錄選 base branch：`frontend/` → `frontend`、`agent/` → `agent`、`model/` → `model`、`tools/` → `tools`，其他從 `main` 切出（見 CONTRIBUTING.md「常駐 branch」）；跨線介面的改動先 PR 到 `main`。
 - 只改任務範圍內的檔案；順手發現的問題寫進回報或 PR 內文，不要一起改。
 - 宣稱完成前，先跑所屬棧的自檢指令（見「指令」）；失敗就照實回報。

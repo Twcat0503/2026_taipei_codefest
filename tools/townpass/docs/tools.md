@@ -106,4 +106,4 @@ await client.callTool({ name: "find_nearby_youbike", arguments: { near_me: true 
 - **下載量：** 第一次查停車場會載入官方資料檔約 2.9MB、YouBike 約 0.9MB，之後有快取；公廁資料打包在程式內，不需下載。
 - **停車場：** 官方「剩餘車位」檔停在舊時間點，所以只用靜態欄位（總車位、身障與孕婦車位、費率），並在來源說明寫出官方資料時間。
 - **公廁快照：** data.taipei 的 API 與 CSV 都沒有開放跨網域，WebView 讀不到，所以用 `node scripts/fetch-official-toilets.mjs` 產生 `src/data/toilets.generated.ts`，保留官方匯入日期；提交前可重跑更新。
-- **資料授權：** 真實資料依《政府資料開放授權條款－第1版》顯名。示範站的資料來自 TownPass-Services，repo 沒有 LICENSE，授權仍待向主辦單位確認，App 預設不使用。
+- **資料授權：** 真實資料依《政府資料開放授權條款－第1版》顯名。示範站的資料來自 TownPass-Services，repo 沒有 LICENSE，授權仍待向臺北市政府資訊局確認，App 預設不使用。
