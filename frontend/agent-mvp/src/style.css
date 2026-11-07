@@ -622,6 +622,27 @@ a {
   display: grid;
   gap: 1rem;
 }
+.parking-actions,
+.parking-district {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+}
+.parking-actions {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--pale);
+}
+.parking-district {
+  width: 100%;
+}
+.parking-district label {
+  font-weight: 600;
+}
+.parking-district select {
+  width: 100%;
+}
 .result-card,
 .bill-list li {
   display: grid;

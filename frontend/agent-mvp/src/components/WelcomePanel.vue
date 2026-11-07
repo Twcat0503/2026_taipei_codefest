@@ -11,12 +11,21 @@ const props = defineProps<{
   disabled: boolean;
   hasTask: boolean;
   pendingDraft: boolean;
+  nearbyParking: boolean;
+  nearbyParkingDisabled: boolean;
   native: boolean;
   modelNeedsStart: boolean;
   modelStarting: boolean;
   modelStatus: string;
 }>();
-defineEmits<{ request: [text: string]; voice: []; resume: []; settings: []; startModel: [] }>();
+defineEmits<{
+  request: [text: string];
+  voice: [];
+  resume: [];
+  settings: [];
+  startModel: [];
+  nearbyParking: [];
+}>();
 const t = computed(() => messages[props.locale]);
 const panel = ref<HTMLElement>();
 const suggestionStage = ref<HTMLElement>();
@@ -113,6 +122,15 @@ const suggestions = computed(() => [
         },
       ]
     : []),
+  ...(props.nearbyParking
+    ? [
+        {
+          title: t.value.nearestParking,
+          hint: t.value.nearestParkingHint,
+          action: 'parking' as const,
+        },
+      ]
+    : []),
   { title: t.value.rehabRequest, hint: t.value.rehabHint, action: 'request' as const },
   { title: t.value.benefitsRequest, hint: t.value.benefitsHint, action: 'request' as const },
   { title: t.value.accessibleRequest, hint: t.value.accessibleHint, action: 'request' as const },
@@ -172,10 +190,18 @@ const visibleSuggestions = computed(() => suggestions.value.slice(0, visibleCoun
           :key="suggestion.title"
           class="welcome-suggestion"
           :class="{ 'is-resume': suggestion.action === 'resume' }"
-          :disabled="suggestion.action !== 'resume' && disabled"
+          :disabled="
+            suggestion.action === 'parking'
+              ? nearbyParkingDisabled
+              : suggestion.action === 'request' && disabled
+          "
           :aria-label="suggestion.title"
           @click="
-            suggestion.action === 'resume' ? $emit('resume') : $emit('request', suggestion.title)
+            suggestion.action === 'resume'
+              ? $emit('resume')
+              : suggestion.action === 'parking'
+                ? $emit('nearbyParking')
+                : $emit('request', suggestion.title)
           "
         >
           <UiIcon :name="suggestion.action === 'resume' ? 'clock' : 'chat'" />

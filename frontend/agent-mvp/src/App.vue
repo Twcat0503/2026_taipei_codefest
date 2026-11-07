@@ -63,7 +63,11 @@ const resumed = ref(restoreTask(state));
 const input = ref('');
 const lastRequest = ref('');
 const busy = ref(false);
-const stage = ref<'routing' | 'searching'>('routing');
+const stage = ref<'routing' | 'searching' | 'locating'>('routing');
+type ParkingSpace = 'disabled' | 'pregnancy';
+type ParkingSearch = { space: ParkingSpace; radius: 1000 | 3000; area: string | null };
+const parkingSearch = ref<ParkingSearch | null>(null);
+const parkingDistrict = ref('');
 const resultHeading = ref<HTMLElement>();
 const requestInput = ref<HTMLTextAreaElement>();
 const photoInput = ref<HTMLInputElement>();
@@ -126,12 +130,18 @@ let adapter: ModelAdapter =
 // 都走這條路；示範帳單面板（withDemoBills）會攔下繳費需求，所以只在示範資料模式提供。
 // VITE_TOOL_SOURCE=townpass-demo 加回示範站模擬資料與示範帳單，=demo 為完全虛構的資料。
 const toolSource = import.meta.env.VITE_TOOL_SOURCE;
+const lookupLocation = async (signal: AbortSignal) => {
+  if (parkingSearch.value && !parkingSearch.value.area) stage.value = 'locating';
+  const position = await getLocation(signal);
+  if (!signal.aborted && parkingSearch.value) stage.value = 'searching';
+  return position;
+};
 const toolClient =
   toolSource === 'demo'
     ? undefined
     : toolSource === 'townpass-demo'
-      ? withDemoBills(createAgentToolClient({ getLocation }), billReadTool)
-      : createAgentToolClient({ getLocation, includeDemo: false });
+      ? withDemoBills(createAgentToolClient({ getLocation: lookupLocation }), billReadTool)
+      : createAgentToolClient({ getLocation: lookupLocation, includeDemo: false });
 const realData = toolSource !== 'demo' && toolSource !== 'townpass-demo';
 let runner = new AgentRunner(adapter, state, toolClient);
 // 台北通會員資料：只在 App 內讀一次、只留在記憶體，供選項、草稿與「我的資料」使用。
@@ -396,8 +406,49 @@ function typeInstead() {
   voiceOpen.value = false;
   void focusInput();
 }
+async function searchParking(
+  space: ParkingSpace = 'disabled',
+  radius: 1000 | 3000 = 1000,
+  area: string | null = null,
+  newRequest = true,
+) {
+  if (busy.value || state.draft || !toolClient) return;
+  if (newRequest) archiveTurn();
+  parkingSearch.value = { space, radius, area };
+  lastRequest.value =
+    space === 'disabled' ? t.value.parkingSuggestion : t.value.pregnancyParkingSuggestion;
+  home.value = false;
+  resumed.value = false;
+  stage.value = area ? 'searching' : 'locating';
+  busy.value = true;
+  await focusResult();
+  try {
+    await runner.runTool('places', 'find_nearby_parking', {
+      accessible: true,
+      parking_space: space,
+      ...(area ? { area } : { near_me: true, radius_m: radius }),
+    });
+  } catch {
+    if (state.failure?.code === 'LOCATION_UNAVAILABLE') {
+      state.notice = 'needLocation';
+      parkingDistrict.value = homeDistrict.value ?? '';
+    }
+  } finally {
+    busy.value = false;
+    persistConversation();
+    await focusResult();
+  }
+}
+function parkingPhone(record: TaskState['records'][number]) {
+  if (state.lastTool !== 'find_nearby_parking') return null;
+  const phone = record.fields?.find((field) => field.label['zh-Hant-TW'] === '電話')?.value[
+    'zh-Hant-TW'
+  ];
+  return phone && /^[+\d][\d\s()-]{5,24}$/.test(phone) ? phone.replace(/[^+\d]/g, '') : null;
+}
 async function submit(text = input.value) {
   if (inputDisabled.value || !text.trim()) return;
+  parkingSearch.value = null;
   if (/^(?:你好|您好|嗨|哈囉|hello|hi)[!！。,.，\s]*$/iu.test(text.trim())) {
     archiveTurn();
     lastRequest.value = text.trim();
@@ -490,6 +541,7 @@ function reset() {
   speaking.value = false;
   clearTask();
   clearConversation();
+  parkingSearch.value = null;
   conversationSaveFailed.value = false;
   Object.assign(state, initialState());
   turns.value = [];
@@ -678,6 +730,8 @@ onBeforeUnmount(() => {
           :disabled="inputDisabled"
           :has-task="hasConversation"
           :pending-draft="!!state.draft"
+          :nearby-parking="realData && !!toolClient"
+          :nearby-parking-disabled="busy || !!state.draft"
           :native="native || mode === 'phone'"
           :model-needs-start="mode === 'phone' && !phoneState.ready"
           :model-starting="phoneStarting"
@@ -685,6 +739,7 @@ onBeforeUnmount(() => {
             phoneState.error ? t[`phoneError_${phoneState.error}`] : t[`phone_${phoneState.phase}`]
           "
           @request="submit"
+          @nearby-parking="searchParking()"
           @voice="startVoice"
           @start-model="startPhone"
           @resume="home = false"
@@ -813,6 +868,14 @@ onBeforeUnmount(() => {
                         <dd>{{ field.value[locale] }}</dd></template
                       >
                     </dl>
+                    <button
+                      v-if="parkingPhone(record)"
+                      class="outline-button"
+                      :aria-label="t.callParking.replace('{name}', record.title[locale])"
+                      @click="openLink(`tel:${parkingPhone(record)}`)"
+                    >
+                      {{ t.callParkingButton }}
+                    </button>
                     <template v-if="record.url">
                       <div
                         v-if="confirmingLink === record.id"
@@ -840,6 +903,83 @@ onBeforeUnmount(() => {
                     </template>
                   </li>
                 </ul>
+                <section
+                  v-if="
+                    parkingSearch &&
+                    state.domain === 'places' &&
+                    !busy &&
+                    (state.notice === 'results' ||
+                      state.notice === 'needLocation' ||
+                      (state.notice === 'empty' && !parkingSearch.area))
+                  "
+                  class="parking-actions"
+                  :aria-label="t.parkingActions"
+                >
+                  <p v-if="state.notice === 'results' && parkingSearch.area" class="small-note">
+                    {{ t.parkingAreaNote }}
+                  </p>
+                  <p v-if="state.notice === 'results' && !parkingSearch.area" class="small-note">
+                    {{ t.parkingDistanceNote }}
+                  </p>
+                  <p v-if="state.notice === 'empty' && !parkingSearch.area" class="small-note">
+                    {{
+                      t.parkingNoResults.replace('{radius}', String(parkingSearch.radius / 1000))
+                    }}
+                  </p>
+                  <button
+                    v-if="
+                      state.notice === 'empty' &&
+                      parkingSearch.radius === 1000 &&
+                      !parkingSearch.area
+                    "
+                    class="outline-button"
+                    @click="searchParking(parkingSearch.space, 3000, null, false)"
+                  >
+                    {{ t.parkingExpand }}
+                  </button>
+                  <button
+                    v-if="state.notice === 'needLocation'"
+                    class="outline-button"
+                    @click="searchParking(parkingSearch.space, parkingSearch.radius, null, false)"
+                  >
+                    {{ t.parkingRetryLocation }}
+                  </button>
+                  <div
+                    v-if="
+                      state.notice === 'needLocation' ||
+                      (state.notice === 'empty' &&
+                        parkingSearch.radius === 3000 &&
+                        !parkingSearch.area)
+                    "
+                    class="parking-district"
+                  >
+                    <label for="parking-district">{{ t.parkingChooseDistrict }}</label>
+                    <select id="parking-district" v-model="parkingDistrict">
+                      <option value="">{{ t.parkingDistrictPlaceholder }}</option>
+                      <option
+                        v-for="district in TAIPEI_DISTRICTS"
+                        :key="district"
+                        :value="district"
+                      >
+                        {{ district }}
+                      </option>
+                    </select>
+                    <button
+                      class="outline-button"
+                      :disabled="!parkingDistrict"
+                      @click="
+                        searchParking(
+                          parkingSearch.space,
+                          parkingSearch.radius,
+                          parkingDistrict,
+                          false,
+                        )
+                      "
+                    >
+                      {{ t.parkingSearchDistrict }}
+                    </button>
+                  </div>
+                </section>
                 <ProfilePanel
                   v-if="state.notice === 'profile'"
                   :member="memberInfo"
@@ -872,11 +1012,30 @@ onBeforeUnmount(() => {
                   <template v-if="state.source.truncated">{{
                     t.truncated.replace('{total}', String(state.source.total))
                   }}</template>
+                  <button
+                    v-if="
+                      state.lastTool === 'find_nearby_parking' &&
+                      state.source.url.startsWith('https://data.taipei/')
+                    "
+                    class="text-button"
+                    @click="openLink(state.source.url)"
+                  >
+                    {{ t.parkingSourceLink }}
+                  </button>
                 </p>
                 <button
                   v-if="state.notice === 'error' && lastRequest"
                   class="primary-button"
-                  @click="submit(lastRequest)"
+                  @click="
+                    parkingSearch
+                      ? searchParking(
+                          parkingSearch.space,
+                          parkingSearch.radius,
+                          parkingSearch.area,
+                          false,
+                        )
+                      : submit(lastRequest)
+                  "
                 >
                   {{ t.retry }}
                 </button>
@@ -928,7 +1087,7 @@ onBeforeUnmount(() => {
                   </section>
                 </Transition>
                 <section
-                  v-if="choices"
+                  v-if="choices && !(parkingSearch && state.notice === 'needLocation')"
                   class="choices"
                   :class="{ 'choices-ask': choices.kind === 'choose' }"
                   aria-labelledby="choices-title"

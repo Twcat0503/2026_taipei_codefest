@@ -31,7 +31,7 @@ export const TOOLS: Record<string, { domain: ToolDomain | ToolDomain[]; args: st
   find_nearby_youbike: { domain: 'places', args: ['near_me', 'radius_m', 'area', 'keyword'] },
   find_nearby_parking: {
     domain: 'places',
-    args: ['near_me', 'radius_m', 'area', 'keyword', 'accessible'],
+    args: ['near_me', 'radius_m', 'area', 'keyword', 'accessible', 'parking_space'],
   },
   find_nearby_toilets: {
     domain: 'places',

@@ -565,6 +565,12 @@ export class AgentRunner {
           if (ACCESSIBLE_PLACE.test(ruleText) || this.preferences.accessible)
             call.arguments.accessible = true;
         }
+        if (call.name === 'find_nearby_parking') {
+          if (/身障|身心障礙|輪椅|disabled|wheelchair/i.test(ruleText))
+            call.arguments.parking_space = 'disabled';
+          else if (/孕婦|懷孕|pregnan/i.test(ruleText)) call.arguments.parking_space = 'pregnancy';
+          else delete call.arguments.parking_space;
+        }
       }
       trace(domain, 'tool_requested', `${call.name} ${JSON.stringify(call.arguments)}`);
       // Only the bounded transport can finish the lookup; no final LLM completion pass.

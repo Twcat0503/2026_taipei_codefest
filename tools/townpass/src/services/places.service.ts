@@ -13,6 +13,8 @@ export interface PlaceQuery {
   keyword?: string | undefined;
   /** 只要有無障礙設施的地點：公廁有無障礙廁座、停車場有身障或孕婦車位。 */
   accessible?: boolean | undefined;
+  /** A requested parking space must match this type, not just any priority space. */
+  parking_space?: "disabled" | "pregnancy" | undefined;
   limit: number;
 }
 
@@ -139,7 +141,14 @@ export class PlacesService {
       officialTime(data.UPDATETIME),
       "車位數是格位總數，不是即時空位；身障、孕婦車位請以現場為準。",
     );
-    return this.respond(spots, query, source, PARKING_DATASET_URL);
+    const matching = spots.filter((spot) =>
+      query.parking_space === "disabled"
+        ? spot.output.handicap_spaces > 0
+        : query.parking_space === "pregnancy"
+          ? spot.output.pregnancy_spaces > 0
+          : true,
+    );
+    return this.respond(matching, query, source, PARKING_DATASET_URL);
   }
 
   async toilets(query: PlaceQuery) {
