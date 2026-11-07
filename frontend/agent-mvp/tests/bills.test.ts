@@ -29,6 +29,14 @@ function fixedModel(category = 'water', period = 'current', action = 'read'): Mo
 }
 
 describe('bill skill orchestration', () => {
+  it('does not let a model broaden an unspecified bill request to all categories', async () => {
+    const state = initialState();
+    const mcp = client();
+    const call = vi.spyOn(mcp, 'callTool');
+    await new AgentRunner(fixedModel('all'), state, mcp).run('我想看到我這期的帳單與繳費狀態');
+    expect(state.notice).toBe('billCategory');
+    expect(call).not.toHaveBeenCalled();
+  });
   it('rejects malformed intent slots before invoking MCP', async () => {
     for (const arguments_ of [
       { category: 'water', period: ['current'], action: 'read' },

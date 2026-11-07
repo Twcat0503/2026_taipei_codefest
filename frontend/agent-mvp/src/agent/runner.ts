@@ -188,7 +188,9 @@ export class AgentRunner {
             this.state.notice = 'billUnsupported';
             return;
           }
-          if (args.category === 'unknown') {
+          // Small models may default to all; absence of a category must ask, not broaden scope.
+          const broadLookupExplicit = /全部|所有|各種|\ball\b|\bevery\b/i.test(request);
+          if (args.category === 'unknown' || (args.category === 'all' && !broadLookupExplicit)) {
             this.state.pendingBillCategory = true;
             this.state.notice = 'billCategory';
             return;
