@@ -3,7 +3,7 @@
 # 用得了：城市通安心助手
 
 在城市通（Town Pass）裡，打一句話或點一下，就能找到無障礙設施，帶著已知的資料前往台北通服務。<br>
-2026 臺北秋季程式設計節作品，回應競賽主題「用不了」。
+讓覺得城市服務「用不了」的人，也能用得了。
 
 [![CI](https://github.com/Twcat0503/2026_taipei_codefest/actions/workflows/ci.yml/badge.svg)](https://github.com/Twcat0503/2026_taipei_codefest/actions/workflows/ci.yml)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
@@ -164,7 +164,6 @@ App 預設只用下列真實資料與官方服務，不拿模擬資料回答使�
 ## 致謝
 
 - **臺北市政府資訊局**開源 [Town Pass](https://github.com/taipei-doit/TownPass) 與 [TownPass-Services](https://github.com/taipei-doit/TownPass-Services)，並提供[城市通開發文件](https://tpe-guideline.web.app)與設計資源。
-- **2026 臺北秋季程式設計節**的主辦與承辦單位，讓我們有機會為「用不了」的人做點事。
 - **開放資料提供機關**：臺北市政府交通局、交通局停車管理工程處、環境保護局，以及[臺北市資料大平臺](https://data.taipei)。
 - **開源模型與專案**：[Liquid AI](https://huggingface.co/LiquidAI)（LFM3）、[OpenFormosa](https://huggingface.co/OpenFormosa)（BlueMagpie-TTS）、[adi-gov-tw](https://huggingface.co/adi-gov-tw)（Taiwan-Tongues-ASR-CE）、[ggml-org](https://github.com/ggml-org)（llama.cpp、whisper.cpp、ggml）、[codec.cpp](https://github.com/mybigday/codec.cpp)，以及 Flutter、Vue、Vite、Playwright、axe-core 等社群。
 

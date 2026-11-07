@@ -57,12 +57,6 @@
 
 - [ ] GitHub ruleset：保護 `main` 與四條常駐 branch（禁止刪除與 force push，`main` 需要走 PR）
 - [ ] Cloudflare Pages：連結 repo，Build watch paths 只包含 `frontend/*`（設定見 CONTRIBUTING.md「部署」）
-- [ ] 向主辦單位確認 TownPass-Services 的授權
+- [ ] 向臺北市政府資訊局確認 TownPass-Services 的授權
 - [ ] `fonts/` 的 PingFang TC 是 Apple 專有字型（隨上游帶入），改用開源字型（例如 Noto Sans TC），見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 - [ ] 確認 LFM3 模型的授權全文（目前只知標示為 `lfm1.0`）
-
-## 提交（11/8 09:00 前）
-
-- [ ] 確認 AGENTS.md「競賽限制」的內容可以公開，再把 repo 轉為 public
-- [ ] 打 release tag，並從同一個 tag build APK
-- [ ] 完成提交前檢查與發表設備檢查（見 CONTRIBUTING.md「發表與提交」）
