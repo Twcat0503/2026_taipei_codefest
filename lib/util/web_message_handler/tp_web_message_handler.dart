@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:town_pass/gen/assets.gen.dart';
 import 'package:town_pass/service/account_service.dart';
 import 'package:town_pass/service/device_service.dart';
@@ -275,5 +277,88 @@ class QRCodeScanMessageHandler extends TPWebMessageHandler {
   }) async {
     final result = await Get.toNamed(TPRoute.qrCodeScan);
     onReply?.call(replyWebMessage(data: result));
+  }
+}
+
+/// 朗讀（TTS）。
+///
+/// Android WebView 沒有 `speechSynthesis`（見 research/09），所以網頁端的
+/// 「唸給我聽」一律走這支 handler。參數：
+/// `{"text": "...", "lang": "zh-TW"}` 或 `{"stop": true}`。
+class TtsMessageHandler extends TPWebMessageHandler {
+  static final FlutterTts _tts = FlutterTts();
+  static bool _configured = false;
+
+  @override
+  String get name => 'tts';
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
+    final Map data = message is Map ? message : const {};
+
+    // 停止朗讀：使用者按了「停止」或換頁時呼叫
+    if (data['stop'] == true) {
+      await _tts.stop();
+      onReply?.call(replyWebMessage(data: true));
+      return;
+    }
+
+    final String text = (data['text'] ?? '').toString().trim();
+    if (text.isEmpty) {
+      await _tts.stop();
+      onReply?.call(replyWebMessage(data: false));
+      return;
+    }
+
+    if (!_configured) {
+      await _tts.setLanguage((data['lang'] ?? 'zh-TW').toString());
+      // Android 的 speech rate 0.5 約等於正常語速
+      await _tts.setSpeechRate(0.5);
+      await _tts.setVolume(1.0);
+      await _tts.setPitch(1.0);
+      _configured = true;
+    }
+
+    await _tts.stop();
+    final dynamic result = await _tts.speak(text);
+    onReply?.call(replyWebMessage(data: result == 1 || result == true));
+  }
+}
+
+/// 系統分享。
+///
+/// `navigator.share` 在 Android WebView 同樣不支援，溝通卡要靠這支 handler
+/// 才能傳給家人或櫃檯。參數：`{"text": "...", "subject": "..."}`。
+class ShareMessageHandler extends TPWebMessageHandler {
+  @override
+  String get name => 'share';
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
+    final Map data = message is Map ? message : const {};
+    final String text = (data['text'] ?? '').toString().trim();
+
+    if (text.isEmpty) {
+      onReply?.call(replyWebMessage(data: false));
+      return;
+    }
+
+    final ShareResult result = await SharePlus.instance.share(
+      ShareParams(text: text, subject: (data['subject'] ?? '').toString()),
+    );
+
+    onReply?.call(
+      replyWebMessage(data: result.status == ShareResultStatus.success),
+    );
   }
 }
