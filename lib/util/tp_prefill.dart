@@ -79,6 +79,8 @@ const Map<String, String> kPrefillFieldLabels = {
   'description': '描述',
   'mobile_number': '手機',
   'mail': 'Email',
+  'desc': '地點描述',
+  'additional_disc': '補充描述',
 };
 
 /// 有欄位沒能帶入時的提示；[fields] 為空時回傳 null。

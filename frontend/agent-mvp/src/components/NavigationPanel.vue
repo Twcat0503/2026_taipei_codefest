@@ -326,6 +326,8 @@ const FIELD_LABEL = {
   location: 'fieldLocation',
   mobile_number: 'fieldMobile',
   mail: 'fieldMail',
+  desc: 'fieldLocationDesc',
+  additional_disc: 'fieldMoreDetails',
 } as const;
 const OUTCOME_TEXT = {
   requested: 'prefillRequested',
