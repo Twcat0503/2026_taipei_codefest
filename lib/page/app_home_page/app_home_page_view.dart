@@ -14,9 +14,7 @@ class AppHomePageView extends GetView<AppHomePageController> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: TPColors.white,
-      appBar: const TPAppBar(
-        title: '偏好設定',
-      ),
+      appBar: const TPAppBar(title: '偏好設定'),
       body: Obx(
         () => TPSettingList(
           children: [

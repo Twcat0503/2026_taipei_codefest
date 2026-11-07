@@ -51,31 +51,32 @@ class NewsBannerWidget extends StatelessWidget {
                 autoPlay: true,
                 onPageChanged: (index, _) => controller.carouselIndex = index,
               ),
-              items: controller.list?.data.map<Widget>(
-                    (item) {
-                      return GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () async => await TPRoute.openUri(uri: item.webUrl),
-                        child: Semantics(
-                          label: item.title,
-                          child: _BannerRectangle(
-                            child: CachedNetworkImage(
-                              imageUrl: item.imageUrl,
-                              height: double.infinity,
-                              width: double.infinity,
-                              fit: BoxFit.fitWidth,
-                              placeholder: (context, url) => const Center(
-                                child: CircularProgressIndicator(
-                                  color: TPColors.primary500,
-                                ),
+              items:
+                  controller.list?.data.map<Widget>((item) {
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () async =>
+                          await TPRoute.openUri(uri: item.webUrl),
+                      child: Semantics(
+                        label: item.title,
+                        child: _BannerRectangle(
+                          child: CachedNetworkImage(
+                            imageUrl: item.imageUrl,
+                            height: double.infinity,
+                            width: double.infinity,
+                            fit: BoxFit.fitWidth,
+                            placeholder: (context, url) => const Center(
+                              child: CircularProgressIndicator(
+                                color: TPColors.primary500,
                               ),
-                              errorWidget: (context, url, error) => const Icon(Icons.error),
                             ),
+                            errorWidget: (context, url, error) =>
+                                const Icon(Icons.error),
                           ),
                         ),
-                      );
-                    },
-                  ).toList() ??
+                      ),
+                    );
+                  }).toList() ??
                   <Widget>[],
             ),
             const SizedBox(height: 8),
@@ -86,7 +87,9 @@ class NewsBannerWidget extends StatelessWidget {
                 scrollDirection: Axis.horizontal,
                 itemCount: controller.list?.data.length ?? 0,
                 separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (_, index) => _DotIndicator(isSelected: controller.carouselIndex == index),
+                itemBuilder: (_, index) => _DotIndicator(
+                  isSelected: controller.carouselIndex == index,
+                ),
               ),
             ),
           ],

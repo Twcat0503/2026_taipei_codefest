@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:town_pass/gen/assets.gen.dart';
 import 'package:town_pass/service/account_service.dart';
 import 'package:town_pass/service/device_service.dart';
@@ -29,10 +31,7 @@ abstract class TPWebMessageHandler {
   });
 
   WebMessage replyWebMessage({required Object? data}) {
-    return TPWebStringMessageReply(
-      name: name,
-      data: data,
-    ).message;
+    return TPWebStringMessageReply(name: name, data: data).message;
   }
 }
 
@@ -47,9 +46,9 @@ class UserinfoWebMessageHandler extends TPWebMessageHandler {
     required bool isMainFrame,
     required onReply,
   }) async {
-    onReply?.call(replyWebMessage(
-      data: Get.find<AccountService>().account ?? [],
-    ));
+    onReply?.call(
+      replyWebMessage(data: Get.find<AccountService>().account ?? []),
+    );
   }
 }
 
@@ -65,16 +64,12 @@ class LaunchMapWebMessageHandler extends TPWebMessageHandler {
     required Function(WebMessage reply)? onReply,
   }) async {
     if (message == null || message is! String) {
-      onReply?.call(
-        replyWebMessage(data: false),
-      );
+      onReply?.call(replyWebMessage(data: false));
     }
     final Uri uri = Uri.parse(message as String);
     final bool canLaunch = await canLaunchUrl(uri);
 
-    onReply?.call(
-      replyWebMessage(data: canLaunch),
-    );
+    onReply?.call(replyWebMessage(data: canLaunch));
 
     if (canLaunch) {
       await launchUrl(uri);
@@ -94,9 +89,7 @@ class Agree1999MessageHandler extends TPWebMessageHandler {
     required Function(WebMessage reply)? onReply,
   }) async {
     if (message == null) {
-      onReply?.call(
-        replyWebMessage(data: false),
-      );
+      onReply?.call(replyWebMessage(data: false));
     }
     final Uri uri = Uri.parse('tel://1999');
 
@@ -106,11 +99,19 @@ class Agree1999MessageHandler extends TPWebMessageHandler {
       return;
     }
 
-    final bool userAgreement = SharedPreferencesService().instance.getBool(SharedPreferencesService.keyPhoneCallUserAgreement) ?? false;
+    final bool userAgreement =
+        SharedPreferencesService().instance.getBool(
+          SharedPreferencesService.keyPhoneCallUserAgreement,
+        ) ??
+        false;
     if (!userAgreement) {
       await Get.toNamed(TPRoute.phoneCallUserAgreement);
 
-      final bool userAgreement = SharedPreferencesService().instance.getBool(SharedPreferencesService.keyPhoneCallUserAgreement) ?? false;
+      final bool userAgreement =
+          SharedPreferencesService().instance.getBool(
+            SharedPreferencesService.keyPhoneCallUserAgreement,
+          ) ??
+          false;
       if (!userAgreement) {
         onReply?.call(replyWebMessage(data: false));
         return;
@@ -151,16 +152,12 @@ class PhoneCallMessageHandler extends TPWebMessageHandler {
     required Function(WebMessage reply)? onReply,
   }) async {
     if (message == null) {
-      onReply?.call(
-        replyWebMessage(data: false),
-      );
+      onReply?.call(replyWebMessage(data: false));
     }
     final Uri uri = Uri.parse('tel://${message!}');
     final bool canLaunch = await canLaunchUrl(uri);
 
-    onReply?.call(
-      replyWebMessage(data: canLaunch),
-    );
+    onReply?.call(replyWebMessage(data: canLaunch));
 
     if (canLaunch) {
       await launchUrl(uri);
@@ -188,9 +185,7 @@ class LocationMessageHandler extends TPWebMessageHandler {
       printError(info: error.toString());
     }
 
-    onReply?.call(replyWebMessage(
-      data: position?.toJson() ?? [],
-    ));
+    onReply?.call(replyWebMessage(data: position?.toJson() ?? []));
   }
 }
 
@@ -205,9 +200,11 @@ class DeviceInfoMessageHandler extends TPWebMessageHandler {
     required bool isMainFrame,
     required Function(WebMessage reply)? onReply,
   }) async {
-    onReply?.call(replyWebMessage(
-      data: Get.find<DeviceService>().baseDeviceInfo?.data ?? [],
-    ));
+    onReply?.call(
+      replyWebMessage(
+        data: Get.find<DeviceService>().baseDeviceInfo?.data ?? [],
+      ),
+    );
   }
 }
 
@@ -236,13 +233,12 @@ class NotifyMessageHandler extends TPWebMessageHandler {
   String get name => 'notify';
 
   @override
-  Future<void> handle(
-      {required Object? message,
-      required WebUri? sourceOrigin,
-      required bool isMainFrame,
-      required Function(
-        WebMessage replyWebMessage,
-      )? onReply}) async {
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
     switch (message) {
       case Object json when json is Map<String, dynamic>:
         NotificationService.showNotification(
@@ -251,10 +247,14 @@ class NotifyMessageHandler extends TPWebMessageHandler {
         );
         final String content = json['content'];
         if (RegExp(r'已訂閱(.+)').hasMatch(content)) {
-          final String target = RegExp(r'已訂閱(.+)').firstMatch(content)!.group(1)!;
+          final String target = RegExp(r'已訂閱(.+)')
+              .firstMatch(content)!
+              .group(1)!;
           Get.find<SubscriptionService>().addSubscription(title: target);
         } else if (RegExp(r'已取消訂閱(.+)').hasMatch(content)) {
-          final String target = RegExp(r'已取消訂閱(.+)').firstMatch(content)!.group(1)!;
+          final String target = RegExp(r'已取消訂閱(.+)')
+              .firstMatch(content)!
+              .group(1)!;
           Get.find<SubscriptionService>().removeSubscription(title: target);
         }
       default:
@@ -276,8 +276,89 @@ class QRCodeScanMessageHandler extends TPWebMessageHandler {
     required onReply,
   }) async {
     final result = await Get.toNamed(TPRoute.qrCodeScan);
+    onReply?.call(replyWebMessage(data: result));
+  }
+}
+
+/// 朗讀（TTS）。
+///
+/// Android WebView 沒有 `speechSynthesis`（見 research/09），所以網頁端的
+/// 「唸給我聽」一律走這支 handler。參數：
+/// `{"text": "...", "lang": "zh-TW"}` 或 `{"stop": true}`。
+class TtsMessageHandler extends TPWebMessageHandler {
+  static final FlutterTts _tts = FlutterTts();
+  static bool _configured = false;
+
+  @override
+  String get name => 'tts';
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
+    final Map data = message is Map ? message : const {};
+
+    // 停止朗讀：使用者按了「停止」或換頁時呼叫
+    if (data['stop'] == true) {
+      await _tts.stop();
+      onReply?.call(replyWebMessage(data: true));
+      return;
+    }
+
+    final String text = (data['text'] ?? '').toString().trim();
+    if (text.isEmpty) {
+      await _tts.stop();
+      onReply?.call(replyWebMessage(data: false));
+      return;
+    }
+
+    if (!_configured) {
+      await _tts.setLanguage((data['lang'] ?? 'zh-TW').toString());
+      // Android 的 speech rate 0.5 約等於正常語速
+      await _tts.setSpeechRate(0.5);
+      await _tts.setVolume(1.0);
+      await _tts.setPitch(1.0);
+      _configured = true;
+    }
+
+    await _tts.stop();
+    final dynamic result = await _tts.speak(text);
+    onReply?.call(replyWebMessage(data: result == 1 || result == true));
+  }
+}
+
+/// 系統分享。
+///
+/// `navigator.share` 在 Android WebView 同樣不支援，溝通卡要靠這支 handler
+/// 才能傳給家人或櫃檯。參數：`{"text": "...", "subject": "..."}`。
+class ShareMessageHandler extends TPWebMessageHandler {
+  @override
+  String get name => 'share';
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
+    final Map data = message is Map ? message : const {};
+    final String text = (data['text'] ?? '').toString().trim();
+
+    if (text.isEmpty) {
+      onReply?.call(replyWebMessage(data: false));
+      return;
+    }
+
+    final ShareResult result = await SharePlus.instance.share(
+      ShareParams(text: text, subject: (data['subject'] ?? '').toString()),
+    );
+
     onReply?.call(
-      replyWebMessage(data: result),
+      replyWebMessage(data: result.status == ShareResultStatus.success),
     );
   }
 }

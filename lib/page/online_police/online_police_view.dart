@@ -22,25 +22,26 @@ class OnlinePoliceView extends StatelessWidget {
             const TPText('網路報案', style: TPTextStyles.h3SemiBold),
             const SizedBox(height: 4),
             _Card(
-                icon: Assets.svg.iconOnlineReporting.svg(),
-                onTap: () async => await TPRoute.openUri(
-                      uri: 'https://taipei-pass-service.vercel.app/police-report',
+              icon: Assets.svg.iconOnlineReporting.svg(),
+              onTap: () async => await TPRoute.openUri(
+                uri: 'https://taipei-pass-service.vercel.app/police-report',
+              ),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TPText('網路報案', style: TPTextStyles.h3SemiBold),
+                        TPText('性質如同110，為報案管道之一種，填寫相關資料，進行報案'),
+                      ],
                     ),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          TPText('網路報案', style: TPTextStyles.h3SemiBold),
-                          TPText('性質如同110，為報案管道之一種，填寫相關資料，進行報案'),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8.0),
-                    Assets.svg.iconExpand.svg(),
-                  ],
-                )),
+                  ),
+                  const SizedBox(width: 8.0),
+                  Assets.svg.iconExpand.svg(),
+                ],
+              ),
+            ),
             const SizedBox(height: 8),
             _Card(
               icon: Assets.svg.iconCaseSearch.svg(),
@@ -73,7 +74,8 @@ class OnlinePoliceView extends StatelessWidget {
                       Expanded(
                         child: _Card(
                           icon: Assets.svg.icon110.svg(),
-                          onTap: () async => await launchUrl(Uri.parse('tel://110')),
+                          onTap: () async =>
+                              await launchUrl(Uri.parse('tel://110')),
                           child: const Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -87,7 +89,8 @@ class OnlinePoliceView extends StatelessWidget {
                       Expanded(
                         child: _Card(
                           icon: Assets.svg.icon119.svg(),
-                          onTap: () async => await launchUrl(Uri.parse('tel://119')),
+                          onTap: () async =>
+                              await launchUrl(Uri.parse('tel://119')),
                           child: const Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -107,7 +110,8 @@ class OnlinePoliceView extends StatelessWidget {
                       Expanded(
                         child: _Card(
                           icon: Assets.svg.icon165.svg(),
-                          onTap: () async => await launchUrl(Uri.parse('tel://165')),
+                          onTap: () async =>
+                              await launchUrl(Uri.parse('tel://165')),
                           child: const Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -121,7 +125,8 @@ class OnlinePoliceView extends StatelessWidget {
                       Expanded(
                         child: _Card(
                           icon: Assets.svg.icon113.svg(),
-                          onTap: () async => await launchUrl(Uri.parse('tel://113')),
+                          onTap: () async =>
+                              await launchUrl(Uri.parse('tel://113')),
                           child: const Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -133,7 +138,7 @@ class OnlinePoliceView extends StatelessWidget {
                       ),
                     ],
                   ),
-                )
+                ),
               ],
             ),
           ],
@@ -147,11 +152,7 @@ class _Card extends TPCard {
   final GestureTapCallback? onTap;
   final Widget icon;
 
-  const _Card({
-    this.onTap,
-    required this.icon,
-    required super.child,
-  });
+  const _Card({this.onTap, required this.icon, required super.child});
 
   @override
   Widget build(BuildContext context) {
@@ -170,11 +171,7 @@ class _Card extends TPCard {
                 backgroundColor: TPColors.primary100,
               ),
             ),
-            Positioned(
-              top: 3.0,
-              left: 9.0,
-              child: icon,
-            ),
+            Positioned(top: 3.0, left: 9.0, child: icon),
             Padding(
               padding: const EdgeInsets.fromLTRB(76.0, 12.0, 12.0, 12.0),
               child: child,

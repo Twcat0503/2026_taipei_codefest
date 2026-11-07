@@ -11,10 +11,7 @@ import 'package:town_pass/util/tp_text.dart';
 class TPSettingList extends StatelessWidget {
   final List<TPSettingListTile> children;
 
-  const TPSettingList({
-    super.key,
-    required this.children,
-  });
+  const TPSettingList({super.key, required this.children});
 
   @override
   Widget build(BuildContext context) {
@@ -75,10 +72,7 @@ class TPSettingListTile extends StatelessWidget {
       onTap: onTap,
       child: Row(
         children: [
-          if (leading != null) ...[
-            leading,
-            const SizedBox(width: 16.0),
-          ],
+          if (leading != null) ...[leading, const SizedBox(width: 16.0)],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -93,14 +87,8 @@ class TPSettingListTile extends StatelessWidget {
               ],
             ),
           ),
-          if (content != null) ...[
-            const SizedBox(width: 8.0),
-            content,
-          ],
-          if (trailing != null) ...[
-            const SizedBox(width: 12.0),
-            trailing,
-          ],
+          if (content != null) ...[const SizedBox(width: 8.0), content],
+          if (trailing != null) ...[const SizedBox(width: 12.0), trailing],
         ],
       ),
     );
@@ -208,9 +196,7 @@ class TPSettingListTile extends StatelessWidget {
     return const TPSettingListTile(
       excludeFromSemantics: true,
       padding: EdgeInsets.zero,
-      child: TPLine.horizontal(
-        margin: EdgeInsets.symmetric(horizontal: 16),
-      ),
+      child: TPLine.horizontal(margin: EdgeInsets.symmetric(horizontal: 16)),
     );
   }
 
@@ -259,33 +245,31 @@ class _SettingSelectionList extends TPSettingListTile {
       child: Obx(
         () => TPSettingList(
           children: selections
-              .mapIndexed(
-                (index, item) {
-                  return [
-                    switch (index == currentIndex.value) {
-                      true => TPSettingListTile.listTile(
-                          leading: item.selectedLeading,
-                          title: TPText(
-                            item.title,
-                            style: TPTextStyles.h3SemiBold,
-                            color: TPColors.primary500,
-                          ),
-                          trailing: Assets.svg.iconCheckFouse.svg(),
-                        ),
-                      false => TPSettingListTile.listTile(
-                          leading: item.unselectedLeading,
-                          title: TPText(
-                            item.title,
-                            style: TPTextStyles.h3Regular,
-                            color: TPColors.grayscale950,
-                          ),
-                          onTap: () => currentIndex.value = index,
-                        ),
-                    },
-                    TPSettingListTile.line()
-                  ];
-                },
-              )
+              .mapIndexed((index, item) {
+                return [
+                  switch (index == currentIndex.value) {
+                    true => TPSettingListTile.listTile(
+                      leading: item.selectedLeading,
+                      title: TPText(
+                        item.title,
+                        style: TPTextStyles.h3SemiBold,
+                        color: TPColors.primary500,
+                      ),
+                      trailing: Assets.svg.iconCheckFouse.svg(),
+                    ),
+                    false => TPSettingListTile.listTile(
+                      leading: item.unselectedLeading,
+                      title: TPText(
+                        item.title,
+                        style: TPTextStyles.h3Regular,
+                        color: TPColors.grayscale950,
+                      ),
+                      onTap: () => currentIndex.value = index,
+                    ),
+                  },
+                  TPSettingListTile.line(),
+                ];
+              })
               .flattened
               .toList(),
         ),

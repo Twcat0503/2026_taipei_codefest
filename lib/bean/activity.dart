@@ -10,7 +10,8 @@ class ActivityList {
 
   const ActivityList({required this.data});
 
-  factory ActivityList.fromJson(Map<String, dynamic> json) => _$ActivityListFromJson(json);
+  factory ActivityList.fromJson(Map<String, dynamic> json) =>
+      _$ActivityListFromJson(json);
 
   Map<String, dynamic> toJson() => _$ActivityListToJson(this);
 }
@@ -46,7 +47,8 @@ class ActivityItem {
 
   TPDuration get duration => TPDuration(start: startDateTime, end: endDateTime);
 
-  factory ActivityItem.fromJson(Map<String, dynamic> json) => _$ActivityItemFromJson(json);
+  factory ActivityItem.fromJson(Map<String, dynamic> json) =>
+      _$ActivityItemFromJson(json);
 
   Map<String, dynamic> toJson() => _$ActivityItemToJson(this);
 }

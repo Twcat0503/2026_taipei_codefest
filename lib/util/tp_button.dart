@@ -25,84 +25,66 @@ final class TPButton extends StatelessWidget {
     required this.text,
   });
 
-  const TPButton.primary({
-    super.key,
-    this.enable,
-    this.text,
-    this.onPressed,
-  })  : backgroundColor = TPColors.primary500,
-        pressedBackgroundColor = TPColors.primary600,
-        borderColor = null,
-        pressedBorderColor = null,
-        textColor = TPColors.white;
+  const TPButton.primary({super.key, this.enable, this.text, this.onPressed})
+    : backgroundColor = TPColors.primary500,
+      pressedBackgroundColor = TPColors.primary600,
+      borderColor = null,
+      pressedBorderColor = null,
+      textColor = TPColors.white;
 
-  const TPButton.secondary({
-    super.key,
-    this.enable,
-    this.text,
-    this.onPressed,
-  })  : backgroundColor = TPColors.white,
-        pressedBackgroundColor = TPColors.primary50,
-        borderColor = TPColors.primary500,
-        pressedBorderColor = TPColors.primary500,
-        textColor = TPColors.primary500;
+  const TPButton.secondary({super.key, this.enable, this.text, this.onPressed})
+    : backgroundColor = TPColors.white,
+      pressedBackgroundColor = TPColors.primary50,
+      borderColor = TPColors.primary500,
+      pressedBorderColor = TPColors.primary500,
+      textColor = TPColors.primary500;
 
-  const TPButton.alarm({
-    super.key,
-    this.enable,
-    this.text,
-    this.onPressed,
-  })  : backgroundColor = TPColors.red500,
-        pressedBackgroundColor = TPColors.red300,
-        borderColor = null,
-        pressedBorderColor = null,
-        textColor = TPColors.white;
+  const TPButton.alarm({super.key, this.enable, this.text, this.onPressed})
+    : backgroundColor = TPColors.red500,
+      pressedBackgroundColor = TPColors.red300,
+      borderColor = null,
+      pressedBorderColor = null,
+      textColor = TPColors.white;
 
-  const TPButton.remainder({
-    super.key,
-    this.enable,
-    this.text,
-    this.onPressed,
-  })  : backgroundColor = TPColors.secondary500,
-        pressedBackgroundColor = TPColors.orange300,
-        borderColor = null,
-        pressedBorderColor = null,
-        textColor = TPColors.white;
+  const TPButton.remainder({super.key, this.enable, this.text, this.onPressed})
+    : backgroundColor = TPColors.secondary500,
+      pressedBackgroundColor = TPColors.orange300,
+      borderColor = null,
+      pressedBorderColor = null,
+      textColor = TPColors.white;
 
   @override
   Widget build(BuildContext context) {
     return TextButton(
       clipBehavior: Clip.antiAlias,
       style: ButtonStyle(
-        backgroundColor: WidgetStateProperty.all(
-          switch (enable) {
-            true || null => backgroundColor,
-            false => TPColors.grayscale100,
-          },
-        ),
-        side: WidgetStateProperty.resolveWith<BorderSide?>(
-          (Set<WidgetState> states) {
-            if (enable ?? true) {
-              if (states.contains(WidgetState.pressed)) {
-                if (pressedBorderColor != null) {
-                  return BorderSide(color: pressedBorderColor!);
-                }
-              }
-              if (borderColor != null) {
-                return BorderSide(color: borderColor!);
+        backgroundColor: WidgetStateProperty.all(switch (enable) {
+          true || null => backgroundColor,
+          false => TPColors.grayscale100,
+        }),
+        side: WidgetStateProperty.resolveWith<BorderSide?>((
+          Set<WidgetState> states,
+        ) {
+          if (enable ?? true) {
+            if (states.contains(WidgetState.pressed)) {
+              if (pressedBorderColor != null) {
+                return BorderSide(color: pressedBorderColor!);
               }
             }
-            return null;
-          },
+            if (borderColor != null) {
+              return BorderSide(color: borderColor!);
+            }
+          }
+          return null;
+        }),
+        shape: WidgetStateProperty.all(
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
-        shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
         overlayColor: WidgetStateProperty.all(pressedBackgroundColor),
-        foregroundColor: WidgetStateProperty.all(
-          switch (enable) {
-            true || null => textColor,
-            false => TPColors.grayscale500,
-          },
-        ),
+        foregroundColor: WidgetStateProperty.all(switch (enable) {
+          true || null => textColor,
+          false => TPColors.grayscale500,
+        }),
         textStyle: WidgetStateProperty.all(TPTextStyles.h3Regular),
       ),
       onPressed: switch (enable) {

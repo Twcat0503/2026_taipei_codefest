@@ -6,14 +6,69 @@
 
 ## 開發流程
 
-1. **不要直接在 `main` 上開工。** 先從最新 `main` 切出 feature branch，命名：
+1. **不要直接在 `main` 上開工。** 先更新 `main`，再切出 feature branch：
+
+   ```sh
+   git switch main && git pull --rebase
+   git switch -c feat/<short-name>
+   ```
+
+   命名：
    - `feat/<short-name>`：新功能
    - `fix/<short-name>`：修 bug
    - `docs/<short-name>`：文件
    - `refactor/<short-name>`、`chore/<short-name>`：其他
-2. 本地開發、自測（見下方「提交前自檢」）。
+2. 本地開發、自測（指令見下方「PR 規範」）。
 3. 開 PR 到 `main`，一個 PR 只做一件事。
 4. **PR 需至少一位 reviewer approve**，由維護者以 **squash merge** 併入 `main`。
+
+### 常駐 branch：`frontend`
+
+前端（`frontend/`）的開發集中在常駐的 `frontend` branch；其他工作仍以 `main` 為基準。
+
+- 前端功能從 `frontend` 切出 branch，PR 的 base 選 `frontend`，審過後 squash 合併：
+
+  ```sh
+  git switch frontend && git pull --rebase
+  git switch -c feat/<short-name>
+  ```
+
+- `frontend` 穩定時，由維護者開 PR 把 `frontend` 合進 `main`，**用 merge commit，不要 squash**，兩邊的歷史才不會分叉。
+- `main` 有更新（文件、CI、Flutter 等）時，由維護者把 `main` merge 回 `frontend` 保持同步；`frontend` 不 rebase、不 force push。
+- `frontend` 會自動部署成固定的預覽站 `https://frontend.<project>.pages.dev`（見「部署」），可以當作整合測試環境。
+
+### 日常 Git 操作
+
+- **開工前確認 branch 還沒被合併**：`git fetch --prune` 後跑 `git branch -vv`，標示 `[gone]` 的是已合併、GitHub 上已刪除的 branch，不要在上面繼續開發；新工作一律從最新的 `main` 開新 branch。
+- **同步 main**：PR 落後 `main` 或出現衝突時，用 rebase 同步，衝突在本機解決並重跑自檢：
+
+  ```sh
+  git fetch origin
+  git rebase origin/main
+  git push --force-with-lease
+  ```
+
+  不想在本機處理時，也可以按 PR 頁面的「Update branch」。
+- **force push 只用 `--force-with-lease`，而且只推自己的 branch**；不要改寫別人的 branch，`main` 一律禁止 force push。
+- **PR 要小、早點合併**：一個 PR 盡量在幾個小時內就能審完合併；branch 放越久，越容易跟別人衝突。
+- **疊加 PR**（B 依賴還沒合併的 A）：B 從 A 切出，PR 的 base 選 A。A 以 squash 合併後，在 B 上執行：
+
+  ```sh
+  git fetch origin
+  git rebase --onto origin/main A
+  git push --force-with-lease
+  ```
+
+  本機已經刪掉 A 的話，把 `A` 換成 A 合併前最後一個 commit 的 SHA。最後確認 B 的 PR base 已改回 `main`（A 的 branch 被刪除後，GitHub 通常會自動改）。
+- **合併後清理**：GitHub 會自動刪除已合併的 branch，本機再執行：
+
+  ```sh
+  git switch main && git pull --rebase
+  git fetch --prune
+  git branch -D <branch>
+  ```
+
+  squash 合併後用 `git branch -d` 會被拒絕（git 看不出內容已經合併），這是正常的；確認 PR 已合併後再用 `-D`。
 
 ## 開發基準：Android
 
@@ -31,11 +86,16 @@
 
 - 標題沿用 Conventional Commits 風格（squash merge 後即成為 `main` 上的 commit message）。
 - 內文寫清楚：改什麼、為什麼、如何驗證；UI 變更請附截圖或錄影。
-- 合併前無自動化門檻（本 repo 目前無 CI），但請**自行確認**變更所屬棧：
+- **合併條件：CI 通過，且至少一位 reviewer approve。** CI（`.github/workflows/ci.yml`）依改動路徑只檢查受影響的棧：
+  - 前端（`frontend/` 有改動）：`pnpm lint`、`pnpm format:check`、`pnpm test`、`pnpm build`。
+  - Flutter（`lib/`、`test/`、`assets/`、`fonts/`、`pubspec.*`、`analysis_options.yaml`、`.fvmrc` 有改動）：`dart format` 格式檢查，再跑 `build_runner` 與 `flutter analyze`。`flutter test` 尚未納入（範本測試目前必定失敗，見 AGENTS.md）。
+  - branch protection 只需要把「CI result」設為 required check。
+- push 前先在本機跑過同一組指令，結果貼在 PR 內文：
 
   Flutter（repo 根目錄）：
 
   ```sh
+  fvm dart format lib test
   fvm flutter analyze
   fvm flutter test
   ```
@@ -44,10 +104,10 @@
 
   ```sh
   pnpm lint
+  pnpm format:check
   pnpm test
+  pnpm build
   ```
-
-  結果貼在 PR 內文即可。
 
 ## 前端開發（`frontend/`）
 
@@ -65,6 +125,51 @@
 - Vue 端必須在 `window.flutterObject` 不存在時有瀏覽器 fallback（mock），確保前端可獨立執行。
 - 開發聯調：`pnpm dev --host` 後於 app 開 `http://<開發機IP>:5173`（模擬器 `10.0.2.2:5173`）；cleartext HTTP 僅開放給 debug 建置。
 - 正式部署：SPA 部署為 https 靜態站；`dist/` 不打包進 Flutter assets。
+
+## 部署（Cloudflare Pages）
+
+前端由 Cloudflare Pages 連結本 repo 自動部署（`<project>` 為 Pages 專案名稱）：
+
+| 項目 | 設定 |
+| --- | --- |
+| Production branch | `main` |
+| Root directory | `frontend` |
+| Build command | `pnpm build` |
+| Build output directory | `dist` |
+| 環境變數 | `NODE_VERSION`、`PNPM_VERSION`，值與 `frontend/mise.toml` 相同；改版本時兩邊一起改 |
+
+- 每次合併進 `main` 都會更新正式站 `https://<project>.pages.dev`。
+- 每個 PR 會自動產生預覽站，Cloudflare 會把網址留言在 PR 上；每個 branch 另有固定的別名，例如 `feat/foo` 對應 `https://feat-foo.<project>.pages.dev`。審 UI 變更時，用 Android 手機開預覽網址確認。
+- 預覽站預設公開，不要放機密或尚未公開的資料。
+- `lib/page/city_service/model/my_service_model.dart` 的 `destinationUrl` 只填正式站網址；要在 app 裡測預覽站，就在本機暫時修改，不要 commit。
+- 正式站出問題時，先到 Cloudflare dashboard 的 Deployments，把 production rollback 到上一個正常的 deployment，再開 `fix/` PR 修正。
+- SPA 路由不用另外設定：專案沒有 `404.html` 時，Pages 會把未知路徑交給 `index.html`。
+
+## 發表與提交
+
+發表就是現場操作成品，發表用的版本就是正式 release，不另外做展示版。
+
+- **釋出**：確認 `main` 的 CI 通過、正式站已更新後，由維護者打 tag：
+
+  ```sh
+  git switch main && git pull --rebase
+  git tag -a v1.0.0 -m "release v1.0.0"
+  git push origin v1.0.0
+  ```
+
+  APK 從同一個 tag build：`fvm flutter build apk --release`，產出在 `build/app/outputs/flutter-apk/app-release.apk`。目前 release 沿用 debug 簽章，可以直接安裝，但不能上架。
+- 釋出後只收 `fix/` PR；修完後打下一個 patch 版號（例如 `v1.0.1`），並重新 build APK。
+- **提交前檢查**（截止時間與欄位字數見 AGENTS.md「競賽限制」）：
+  - [ ] repo 已轉為 public，用無痕視窗打得開提交的 GitHub 連結
+  - [ ] 根目錄 README 是作品說明，資料來源與授權都已填寫
+  - [ ] 正式站的 `/about` 列出所有資料來源，開放資料依授權條款顯名
+  - [ ] `destinationUrl` 指向正式站，app 已從 release tag 重新 build
+  - [ ] 專案名稱、簡介、作品介紹符合字數限制；截圖連結的權限是「知道連結的人可檢視」
+- **發表設備**（現場只能操作成品，不能用簡報）：
+  - [ ] Android 實機或模擬器已安裝 release APK；實機可以用 scrcpy 投到筆電畫面
+  - [ ] 實際開過一次 TalkBack 與最大系統字級，主要流程都走得完
+  - [ ] 準備網路備案（例如手機熱點）；斷網時畫面會顯示錯誤提示，不會白屏
+  - [ ] HDMI 轉接器、充電器自備
 
 ## 設計規範
 

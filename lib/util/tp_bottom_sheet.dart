@@ -17,22 +17,14 @@ class TPBottomSheet extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: const BoxDecoration(
         color: TPColors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x19000000),
-            blurRadius: 6,
-          )
-        ],
+        boxShadow: [BoxShadow(color: Color(0x19000000), blurRadius: 6)],
       ),
       child: SafeArea(
         left: useSafeArea,
         top: useSafeArea,
         right: useSafeArea,
         bottom: useSafeArea,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [child],
-        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [child]),
       ),
     );
   }

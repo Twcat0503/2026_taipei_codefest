@@ -27,20 +27,12 @@ final class TPLine extends StatelessWidget {
   final _Axis _axis;
 
   /// A horizontal line
-  const TPLine.horizontal({
-    super.key,
-    this.color,
-    this.thickness,
-    this.margin,
-  }) : _axis = _Axis.horizontal;
+  const TPLine.horizontal({super.key, this.color, this.thickness, this.margin})
+    : _axis = _Axis.horizontal;
 
   /// A vertical line
-  const TPLine.vertical({
-    super.key,
-    this.color,
-    this.thickness,
-    this.margin,
-  }) : _axis = _Axis.vertical;
+  const TPLine.vertical({super.key, this.color, this.thickness, this.margin})
+    : _axis = _Axis.vertical;
 
   @override
   Widget build(BuildContext context) {
@@ -48,22 +40,18 @@ final class TPLine extends StatelessWidget {
       padding: margin ?? EdgeInsets.zero,
       child: switch (_axis) {
         _Axis.horizontal => Divider(
-            height: 0.0,
-            thickness: thickness ?? _defaultThickness,
-            color: color ?? _defaultColor,
-          ),
+          height: 0.0,
+          thickness: thickness ?? _defaultThickness,
+          color: color ?? _defaultColor,
+        ),
         _Axis.vertical => VerticalDivider(
-            width: 0.0,
-            thickness: thickness ?? _defaultThickness,
-            color: color ?? _defaultColor,
-          ),
+          width: 0.0,
+          thickness: thickness ?? _defaultThickness,
+          color: color ?? _defaultColor,
+        ),
       },
     );
   }
 }
 
-enum _Axis {
-  horizontal,
-  vertical,
-  ;
-}
+enum _Axis { horizontal, vertical }

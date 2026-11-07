@@ -5,14 +5,8 @@ class PhoneCallUserAgreementViewController extends GetxController {
   final RxBool checkboxValue = RxBool(false);
 
   Future<void> agree() async {
-    await SharedPreferencesService()
-        .instance
-        .setBool(
-          SharedPreferencesService.keyPhoneCallUserAgreement,
-          true,
-        )
-        .then(
-          (_) => Get.back(),
-        );
+    await SharedPreferencesService().instance
+        .setBool(SharedPreferencesService.keyPhoneCallUserAgreement, true)
+        .then((_) => Get.back());
   }
 }

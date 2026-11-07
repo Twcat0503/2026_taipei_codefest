@@ -20,20 +20,14 @@ class CityServiceView extends StatelessWidget {
         showLogo: true,
         title: '服務',
         leading: IconButton(
-          icon: Semantics(
-            label: '帳戶',
-            child: Assets.svg.iconPerson.svg(),
-          ),
+          icon: Semantics(label: '帳戶', child: Assets.svg.iconPerson.svg()),
           onPressed: () => Get.toNamed(TPRoute.account),
         ),
       ),
       body: ListView(
         physics: const BouncingScrollPhysics(),
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: _myServiceTitle(),
-          ),
+          Padding(padding: const EdgeInsets.all(16), child: _myServiceTitle()),
           PinnedServiceWidget(
             onMoreTap: () => Get.toNamed(TPRoute.serviceEdit),
           ),

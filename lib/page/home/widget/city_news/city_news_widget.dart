@@ -31,7 +31,7 @@ class CityNewsWidget extends StatelessWidget {
                 launchUrlString('tel://1999');
               },
             ),
-          )
+          ),
         ],
       ),
     );
@@ -43,11 +43,7 @@ class _Button extends StatelessWidget {
   final String text;
   final GestureTapCallback? onTap;
 
-  const _Button({
-    required this.icon,
-    required this.text,
-    this.onTap,
-  });
+  const _Button({required this.icon, required this.text, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +65,7 @@ class _Button extends StatelessWidget {
               blurRadius: 8,
               offset: Offset(0, 1),
               spreadRadius: 0,
-            )
+            ),
           ],
         ),
         child: Row(

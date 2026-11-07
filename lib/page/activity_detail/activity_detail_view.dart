@@ -26,7 +26,10 @@ class ActivityDetailView extends StatelessWidget {
         children: [
           CachedNetworkImage(imageUrl: activity.imageUrl),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
             child: TPText(
               activity.title,
               style: TPTextStyles.h3SemiBold,
@@ -39,7 +42,10 @@ class ActivityDetailView extends StatelessWidget {
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 11,
+                      vertical: 6,
+                    ),
                     child: _ActivityDurationWidget(
                       duration: TPDuration(
                         start: activity.startDateTime,
@@ -68,17 +74,16 @@ class ActivityDetailView extends StatelessWidget {
       bottomNavigationBar: switch (activity.webUrl) {
         null => null,
         String() => TPBottomSheet(
-            child: Column(
-              children: [
-                TPButton.primary(
-                  text: '網址連結',
-                  onPressed: () async => await TPRoute.openUri(
-                    uri: activity.webUrl ?? '',
-                  ),
-                ),
-              ],
-            ),
+          child: Column(
+            children: [
+              TPButton.primary(
+                text: '網址連結',
+                onPressed: () async =>
+                    await TPRoute.openUri(uri: activity.webUrl ?? ''),
+              ),
+            ],
           ),
+        ),
       },
     );
   }
@@ -87,9 +92,7 @@ class ActivityDetailView extends StatelessWidget {
 class _ActivityDurationWidget extends StatelessWidget {
   final TPDuration duration;
 
-  const _ActivityDurationWidget({
-    required this.duration,
-  });
+  const _ActivityDurationWidget({required this.duration});
 
   @override
   Widget build(BuildContext context) {

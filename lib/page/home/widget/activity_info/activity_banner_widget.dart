@@ -14,30 +14,33 @@ class ActivityBannerWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GetBuilder(
-      init: Get.put<ActivityBannerWidgetController>(ActivityBannerWidgetController()),
+      init: Get.put<ActivityBannerWidgetController>(
+        ActivityBannerWidgetController(),
+      ),
       builder: (controller) {
         return SizedBox(
           height: 180, //
           child: switch (controller.isLoading) {
             true => Shimmer.fromColors(
-                baseColor: Colors.grey.shade300,
-                highlightColor: Colors.grey.shade100,
-                child: ListView.separated(
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  scrollDirection: Axis.horizontal,
-                  itemCount: 3,
-                  separatorBuilder: (_, _) => const SizedBox(width: 16),
-                  itemBuilder: (_, _) => const _Banner(),
-                ),
-              ),
-            false => ListView.separated(
+              baseColor: Colors.grey.shade300,
+              highlightColor: Colors.grey.shade100,
+              child: ListView.separated(
+                physics: const NeverScrollableScrollPhysics(),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 scrollDirection: Axis.horizontal,
-                itemCount: controller.list!.data.length,
+                itemCount: 3,
                 separatorBuilder: (_, _) => const SizedBox(width: 16),
-                itemBuilder: (_, index) => _Banner(activity: controller.list!.data[index]),
+                itemBuilder: (_, _) => const _Banner(),
               ),
+            ),
+            false => ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              scrollDirection: Axis.horizontal,
+              itemCount: controller.list!.data.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 16),
+              itemBuilder: (_, index) =>
+                  _Banner(activity: controller.list!.data[index]),
+            ),
           },
         );
       },
@@ -60,29 +63,29 @@ class _Banner extends StatelessWidget {
         child: switch (activity == null) {
           true => _placeHolder(),
           false => Column(
-              children: [
-                TPCachedNetworkImage(
-                  height: 88,
-                  width: 132,
-                  fit: BoxFit.fitHeight,
-                  imageUrl: activity!.imageUrl,
-                ),
-                const SizedBox(height: 8),
-                Flexible(
-                  child: TPText(
-                    activity!.title,
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 2,
-                    style: const TextStyle(
-                      color: Color(0xFF666666),
-                      fontSize: 16,
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.w400,
-                    ),
+            children: [
+              TPCachedNetworkImage(
+                height: 88,
+                width: 132,
+                fit: BoxFit.fitHeight,
+                imageUrl: activity!.imageUrl,
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: TPText(
+                  activity!.title,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
+                  style: const TextStyle(
+                    color: Color(0xFF666666),
+                    fontSize: 16,
+                    fontFamily: 'Inter',
+                    fontWeight: FontWeight.w400,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
         },
       ),
     );

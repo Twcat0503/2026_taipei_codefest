@@ -32,8 +32,12 @@ class ActivityInfoWidget extends StatelessWidget {
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () async {
-                  final ActivityBannerWidgetController controller = Get.find<ActivityBannerWidgetController>();
-                  await Get.toNamed(TPRoute.activityList, arguments: controller.list);
+                  final ActivityBannerWidgetController controller =
+                      Get.find<ActivityBannerWidgetController>();
+                  await Get.toNamed(
+                    TPRoute.activityList,
+                    arguments: controller.list,
+                  );
                 },
                 child: Row(
                   children: [

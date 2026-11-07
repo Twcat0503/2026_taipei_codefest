@@ -38,10 +38,7 @@ class _ActivityItemWidget extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () async {
-        await Get.toNamed(
-          TPRoute.activityDetail,
-          arguments: item,
-        );
+        await Get.toNamed(TPRoute.activityDetail, arguments: item);
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 16),

@@ -35,7 +35,9 @@ class CityServiceEditView extends GetView<CityServiceEditViewController> {
                   Expanded(
                     child: TPButton.secondary(
                       enable: controller
-                          .pinnedServiceController.pinnedList.isNotEmpty,
+                          .pinnedServiceController
+                          .pinnedList
+                          .isNotEmpty,
                       text: '取消',
                       onPressed: () => controller.cancelEdit(),
                     ),
@@ -47,7 +49,7 @@ class CityServiceEditView extends GetView<CityServiceEditViewController> {
                       onPressed: () => controller.isEditMode.value =
                           !controller.isEditMode.value,
                     ),
-                  )
+                  ),
                 ],
               );
             } else {
@@ -71,16 +73,14 @@ class CityServiceEditView extends GetView<CityServiceEditViewController> {
                 color: TPColors.grayscale700,
               ),
             ),
-            Obx(
-              () {
-                return PinnedServiceWidget(
-                  isEditMode: controller.isEditMode.value,
-                  onMoreTap: () => controller.isEditMode.value =
-                      !controller.isEditMode.value,
-                  showAddInNewLine: true,
-                );
-              },
-            ),
+            Obx(() {
+              return PinnedServiceWidget(
+                isEditMode: controller.isEditMode.value,
+                onMoreTap: () =>
+                    controller.isEditMode.value = !controller.isEditMode.value,
+                showAddInNewLine: true,
+              );
+            }),
             const SizedBox(height: 13),
             Expanded(
               child: ListView.builder(
@@ -88,14 +88,16 @@ class CityServiceEditView extends GetView<CityServiceEditViewController> {
                 physics: const BouncingScrollPhysics(),
                 itemCount: controller.categoryMap.keys.length,
                 itemBuilder: (_, index) {
-                  final MyServiceCategory category =
-                      controller.categoryMap.keys.toList()[index];
+                  final MyServiceCategory category = controller.categoryMap.keys
+                      .toList()[index];
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 13),
+                          horizontal: 16,
+                          vertical: 13,
+                        ),
                         child: TPText(
                           category.title,
                           style: TPTextStyles.h3SemiBold,
@@ -109,98 +111,101 @@ class CityServiceEditView extends GetView<CityServiceEditViewController> {
                         itemBuilder: (_, index) {
                           final MyServiceItemId itemId =
                               controller.categoryMap[category]![index];
-                          return Obx(
-                            () {
-                              return GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () async {
-                                  if (controller.isEditMode.value) {
-                                    switch (controller
-                                        .pinnedServiceController.pinnedList
-                                        .contains(itemId)) {
-                                      case true:
-                                        controller.pinnedServiceController
-                                            .remove(itemId);
-                                      case false:
-                                        if (!controller.pinnedServiceController
-                                            .push(itemId)) {
-                                          Fluttertoast.showToast(
-                                              msg: '置頂服務已達上限(12個)');
-                                        }
-                                    }
-                                  } else {
-                                    if (itemId.item.destinationUrl.isNotEmpty) {
-                                      await TPRoute.openUri(
-                                        uri: itemId.item.destinationUrl,
+                          return Obx(() {
+                            return GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () async {
+                                if (controller.isEditMode.value) {
+                                  switch (controller
+                                      .pinnedServiceController
+                                      .pinnedList
+                                      .contains(itemId)) {
+                                    case true:
+                                      controller.pinnedServiceController.remove(
+                                        itemId,
                                       );
-                                    }
+                                    case false:
+                                      if (!controller.pinnedServiceController
+                                          .push(itemId)) {
+                                        Fluttertoast.showToast(
+                                          msg: '置頂服務已達上限(12個)',
+                                        );
+                                      }
                                   }
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16),
-                                  child: Row(
-                                    children: [
-                                      SizedBox.square(
-                                        dimension: 24,
-                                        child: itemId.item.icon,
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 10, vertical: 8.0),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              TPText(
-                                                itemId.item.title,
-                                                style:
-                                                    TPTextStyles.bodySemiBold,
-                                                color: TPColors.grayscale900,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                              const SizedBox(height: 4),
-                                              TPText(
-                                                itemId.item.description,
-                                                style: TPTextStyles.caption,
-                                                color: TPColors.grayscale700,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ],
-                                          ),
+                                } else {
+                                  if (itemId.item.destinationUrl.isNotEmpty) {
+                                    await TPRoute.openUri(
+                                      uri: itemId.item.destinationUrl,
+                                    );
+                                  }
+                                }
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                child: Row(
+                                  children: [
+                                    SizedBox.square(
+                                      dimension: 24,
+                                      child: itemId.item.icon,
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 8.0,
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            TPText(
+                                              itemId.item.title,
+                                              style: TPTextStyles.bodySemiBold,
+                                              color: TPColors.grayscale900,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 4),
+                                            TPText(
+                                              itemId.item.description,
+                                              style: TPTextStyles.caption,
+                                              color: TPColors.grayscale700,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                      if (controller.isEditMode.value) ...[
-                                        switch (controller
-                                            .pinnedServiceController.pinnedList
-                                            .contains(itemId)) {
-                                          true => Stack(
-                                              children: [
-                                                Assets.svg.iconUnchecked.svg(
-                                                  colorFilter:
-                                                      const ColorFilter.mode(
+                                    ),
+                                    if (controller.isEditMode.value) ...[
+                                      switch (controller
+                                          .pinnedServiceController
+                                          .pinnedList
+                                          .contains(itemId)) {
+                                        true => Stack(
+                                          children: [
+                                            Assets.svg.iconUnchecked.svg(
+                                              colorFilter:
+                                                  const ColorFilter.mode(
                                                     TPColors.primary500,
                                                     BlendMode.srcIn,
                                                   ),
-                                                ),
-                                                const Icon(
-                                                  Icons.check_outlined,
-                                                  color: TPColors.white,
-                                                ),
-                                              ],
                                             ),
-                                          false =>
-                                            Assets.svg.iconUnchecked.svg(),
-                                        },
-                                      ],
+                                            const Icon(
+                                              Icons.check_outlined,
+                                              color: TPColors.white,
+                                            ),
+                                          ],
+                                        ),
+                                        false => Assets.svg.iconUnchecked.svg(),
+                                      },
                                     ],
-                                  ),
+                                  ],
                                 ),
-                              );
-                            },
-                          );
+                              ),
+                            );
+                          });
                         },
                       ),
                     ],

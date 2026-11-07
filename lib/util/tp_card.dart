@@ -21,7 +21,9 @@ class TPCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: ShapeDecoration(
         color: backgroundColor ?? TPColors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(cornerRadius ?? 3)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(cornerRadius ?? 3),
+        ),
         shadows: const [
           BoxShadow(
             color: Color(0x0A000000),
