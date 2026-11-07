@@ -81,7 +81,7 @@ feedback('selection'); // 只有震動，沒有文字時用
 2. `haptic()`：`success`、`warning`、`error`、`selection` 對應同名震動，`info` 沒有震動。
 3. 只有同時符合下面三個條件才語音朗讀：偏好 `tp-voice-feedback` 是 `on`（預設 `off`）、`a11yState.screenReader !== true`、有 `message`。語言跟著 `<html lang>`（`en` 開頭用英文，其餘用繁體中文），速度固定 1。
 
-任何一個管道失敗都不會影響其他管道，`feedback()` 本身不會丟出錯誤。注意語音走 `readAloud()`，會中斷正在進行的朗讀；被中斷的那一次會呼叫它的 `finished`。
+任何一個管道失敗都不會影響其他管道，`feedback()` 本身不會丟出錯誤。注意語音走 `readAloud()`，會中斷正在進行的朗讀；被中斷的那一次會呼叫它的 `finished`。App 目前的 `feedback()` 呼叫都不帶文字，「語音回饋」自動朗讀回答是另一條路，見「目前接在哪裡」。
 
 ### `announce()`：只通知螢幕閱讀器
 
@@ -154,8 +154,25 @@ readAloud(
 - 只在請求剛結束時觸發；還原上次的對話與草稿時不會。
 - 結果對照表在 `src/agent/outcome-feedback.ts`，由 `tests/outcome-feedback.test.ts` 檢查。
 - 設定的「閱讀與語音」有「震動回饋」（`hapticsEnabled`、預設開）與「語音回饋」（`voiceFeedbackEnabled`、預設關）兩個核取方塊，偏好存在這支手機。
-- 語音回饋只念帶文字的 `feedback()`，上面的呼叫都不帶文字，所以「語音回饋」打開也還不會出聲。
-- 震動走 `haptic` bridge，所以測試裡假的 `window.flutterObject.postMessage` 會收到 `haptic` 訊息；只關心導向的測試要自己略過。
+- 「語音回饋」不是靠上面不帶文字的 `feedback()`，而是請求結束時自動朗讀回答，見下一節。
+- 震動走 `haptic` bridge，所以測試裡假的 `window.flutterObject.postMessage` 會收到 `haptic` 訊息，自動朗讀則會收到 `tts` 訊息；只關心導向的測試要自己略過。
+
+### 語音回饋：自動朗讀回答
+
+「語音回饋」打開時，請求剛結束就像按下「朗讀這段」一樣把回答唸出來，人不用再去找按鈕。同時符合下面四個條件才唸（`src/agent/auto-read.ts` 的 `shouldReadAnswerAloud()`，由 `tests/auto-read.test.ts` 檢查）：
+
+1. 偏好 `tp-voice-feedback` 是 `on`（`voiceFeedbackEnabled()`，預設 `off`）。
+2. `a11yState.screenReader === false`：App 回報**確定**沒開螢幕閱讀器。`true`、`null`、`undefined`（一般瀏覽器，或 App 無法判斷）都不唸，免得蓋過沒偵測到的螢幕閱讀器。
+3. 這個頁面可以朗讀（`speechSupported`，也就是畫面上有「朗讀這段」按鈕）。
+4. 請求結束的狀態有回答可念。
+
+- 走的是按鈕用的同一個函式 `startReading()`：唸的文字相同（回覆、找到的項目、可以點選的選項），語言與速度跟著設定，唸的時候 `speaking` 為 true、按鈕顯示「停止朗讀」，按下就停。唸出聲失敗時，也和按鈕一樣在回答下方顯示「朗讀未能啟動」。
+- 已經在朗讀的話，新的回答取代它：`startReading()` 先 `stopReading()`，舊的那一次的 `finished` 會先把 `speaking` 設回 false，再設成 true。順序不能反過來。
+- 觸發點和震動相同，都在 `feedbackForAnswer()`：`submit`、`showBookDetails`、`billAction`、`confirm`；另外還有對「你好」的回覆（打招呼沒有震動，但會唸）。還原上次的對話與草稿時不會唸，因為只有請求剛結束才呼叫。
+- 不唸：起始畫面（`welcome`）、使用者自己按了「停止」（`cancelled`），以及不是請求結束的狀態（`navigationDeclined`、`review`）。其他都唸，包括出錯、沒有結果、不支援，以及助手反問（問位置、問帳單種類，選項一起唸）。完整對照在 `src/agent/auto-read.ts`。
+- 唸的和按鈕一樣，所以緊急狀況只唸「這聽起來很緊急，請先照下面的方式求助。」，不唸緊急卡片上的撥號說明。
+- 一般瀏覽器的 `screenReader` 永遠是 `null`，所以不會自動朗讀；只有在 App 內，而且 App 回報沒開螢幕閱讀器時才會。
+- e2e（`tests/app.e2e.ts`）用假的 bridge 回報 `screenReader` 並記錄 `tts` 訊息：回報 `false` 且語音回饋打開才會有一則 `speak`，回報 `true`、`null` 或語音回饋關閉都沒有。
 
 ## 隱私：`screenReader`
 
@@ -172,9 +189,9 @@ readAloud(
 
 `a11yState.screenReader === true` 時，TalkBack 已經在念畫面，App 再自動朗讀會兩個聲音互相蓋過。建議：
 
-- **自動觸發**的朗讀（進頁面就念、結果出現就念、語音回饋）要先檢查 `a11yState.screenReader !== true`。`feedback()` 已經這樣做。
+- **自動觸發**的朗讀（進頁面就念、結果出現就念、語音回饋）要先檢查 `a11yState.screenReader`。帶文字的 `feedback()` 排除 `true`（`!== true`）；App 的自動朗讀回答更保守，要 `=== false` 才唸（見上面的「語音回饋：自動朗讀回答」）。
 - **使用者主動按下「朗讀」**的按鈕照常執行，因為那是明確的意圖。
-- `screenReader` 是 `null`（瀏覽器，或 App 無法判斷）代表不知道，不要當成「沒有螢幕閱讀器」而預設開啟自動朗讀；自動朗讀與語音回饋都維持預設關閉，讓使用者自己在設定頁打開。
+- `screenReader` 是 `null`（瀏覽器，或 App 無法判斷）代表不知道，不要當成「沒有螢幕閱讀器」而預設開啟自動朗讀；自動朗讀與語音回饋都維持預設關閉，讓使用者自己在設定頁打開。自動朗讀回答遇到 `null` 就不唸。
 
 ## 瀏覽器 fallback 與限制
 
@@ -192,6 +209,7 @@ readAloud(
 - Android 11 以前沒有 `success`、`warning`、`error` 專用的 haptic，這三種在舊機型上分不出差別（實際退化方式由 Flutter 端決定）。
 - App 與 web 必須搭配對應的 bridge 版本：App 太舊（沒有 `tts`、`haptic`、`a11y_state` handler）就不會有回覆，前端的處理是 `a11y_state` 1.5 秒後退回瀏覽器 fallback、`readAloud()` 5 秒後呼叫 `failed()`、`haptic()` 靜默沒有作用。UI 不能假設這些一定成功，所以文字一定要在畫面上。
 - 一般瀏覽器仍用 `speechSynthesis`；只有在 App 內朗讀才改走 `tts` bridge。
+- 「語音回饋」的自動朗讀要 App 回報 `screenReader === false`，所以一般瀏覽器不會觸發，按鈕仍然可以手動朗讀。
 
 ## 給 Figma 設計的檢核清單
 

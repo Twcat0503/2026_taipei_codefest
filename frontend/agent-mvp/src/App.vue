@@ -9,6 +9,7 @@ import UiIcon from './components/UiIcon.vue';
 import NavigationPanel from './components/NavigationPanel.vue';
 import EmergencyCard from './components/EmergencyCard.vue';
 import ProfilePanel from './components/ProfilePanel.vue';
+import { shouldReadAnswerAloud } from './agent/auto-read';
 import { followUps } from './agent/follow-ups';
 import { outcomeFeedback } from './agent/outcome-feedback';
 import { serviceOrigin } from './platform/service-navigation';
@@ -47,6 +48,7 @@ import {
   setPreference,
 } from './platform/storage';
 import { canReadAloud, readAloud, stopReading } from './platform/speech';
+import { a11yState } from './platform/a11y';
 import { feedback, setVoiceFeedbackEnabled, voiceFeedbackEnabled } from './platform/feedback';
 import { hapticsEnabled, setHapticsEnabled } from './platform/haptics';
 import { getLocation, openLink } from './platform/location';
@@ -464,11 +466,25 @@ function parkingPhone(record: TaskState['records'][number]) {
   ];
   return phone && /^[+\d][\d\s()-]{5,24}$/.test(phone) ? phone.replace(/[^+\d]/g, '') : null;
 }
-// 一輪請求結束時的震動：有結果、出錯、緊急各一種（對照見 agent/outcome-feedback.ts）。只在剛結束時
-// 呼叫，還原上次的對話或草稿時不會；不帶文字，因為畫面上的 role="status" 已經會播報。
+// 一輪請求結束時的回饋。震動：有結果、出錯、緊急各一種（對照見 agent/outcome-feedback.ts），不帶
+// 文字，因為畫面上的 role="status" 已經會播報。朗讀：「語音回饋」開著、而且確定沒開螢幕閱讀器時，
+// 像按下「朗讀這段」一樣把回答唸出來（條件與哪些回答會唸見 agent/auto-read.ts）。只在剛結束時
+// 呼叫，還原上次的對話或草稿時不會。
 function feedbackForAnswer() {
   const kind = outcomeFeedback(state.notice);
   if (kind) feedback(kind);
+  const readIt = shouldReadAnswerAloud(state.notice, {
+    voiceFeedback: voiceFeedbackEnabled(),
+    screenReader: a11yState.screenReader,
+    speechSupported: speechSupported.value,
+  });
+  if (!readIt) return;
+  try {
+    startReading();
+  } catch {
+    // 朗讀只是額外的回饋，出錯也不能讓這一輪的收尾（存檔、移動焦點）做不完。
+    speaking.value = false;
+  }
 }
 // 點選建議或選項：馬上震動一下，因為回答可能還要等幾秒。
 function pick(request: string) {
@@ -495,6 +511,7 @@ async function submit(text = input.value) {
     Object.assign(state, initialState(), { notice: 'greeting' });
     saveTask(state);
     persistConversation();
+    feedbackForAnswer();
     await focusResult();
     return;
   }
@@ -683,12 +700,10 @@ async function refreshPhone() {
     /* Adapter exposes status errors. */
   }
 }
-function speak() {
-  if (speaking.value) {
-    stopReading();
-    speaking.value = false;
-    return;
-  }
+// 開始朗讀目前的回答，「朗讀這段」與自動朗讀共用。已經在朗讀的話，新的取代舊的。
+function startReading() {
+  // 先結束還在進行的朗讀：它的 finished 會同步把 speaking 設回 false，不能發生在下面設成 true 之後。
+  stopReading();
   speechFailed.value = false;
   speaking.value = true;
   const extra = state.draft
@@ -725,6 +740,15 @@ function speak() {
       speechFailed.value = true;
     },
   );
+}
+// 「朗讀這段」按鈕：朗讀中再按一次就停止。
+function speak() {
+  if (speaking.value) {
+    stopReading();
+    speaking.value = false;
+    return;
+  }
+  startReading();
 }
 onBeforeUnmount(() => {
   window.visualViewport?.removeEventListener('resize', updateKeyboardViewport);
