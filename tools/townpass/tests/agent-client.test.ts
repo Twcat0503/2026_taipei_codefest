@@ -26,9 +26,17 @@ const COUNTERS_FIXTURE = {
     },
   ],
 };
+const youbike = (sno: string, act: string, lat: number) => ({
+  sno, sna: `站${sno}`, sarea: "大安區", ar: "路", act, updateTime: "2026-11-07 13:00:00", Quantity: 10,
+  available_rent_bikes: 4, available_return_bikes: 6, latitude: lat, longitude: 121.5,
+});
 const ROUTES: Record<string, unknown> = {
+  "https://tcgbusfs.blob.core.windows.net/dotapp/youbike/v2/youbike_immediate.json": [
+    youbike("far", "1", 25.1), youbike("near", "1", 25.0), youbike("off", "0", 25.0),
+  ],
   [`${BASE}/mock/library/library_book_list.json`]: { data: [book("b1", "神奇柑仔店"), book("b2", "底層邏輯")] },
   [`${BASE}/mock/counter_list.json`]: COUNTERS_FIXTURE,
+  [`${BASE}/mock/subscription_list.json`]: { data: { submit_target: {}, data: [{ id: "sub-3", name: "交通措施", is_subscribed: true, description: "交通管制訊息" }] } },
   [`${BASE}/mock/service_list.json`]: {
     data: [
       {
@@ -50,25 +58,30 @@ const parse = (result: { content: { text: string }[] }) => JSON.parse(result.con
 describe("createAgentToolClient", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("只列出 agent 放行的工具", async () => {
+  it("列出 16 支工具與 JSON Schema", async () => {
     const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch });
     const { tools } = await client.listTools({ signal: signal() });
-    expect(tools.map((tool) => tool.name)).toEqual(["search_books", "search_services"]);
+    expect(tools).toHaveLength(16);
+    expect(tools.map((tool) => tool.name)).toContain("find_nearby_youbike");
+    expect(tools.every((tool) => tool.inputSchema.type === "object")).toBe(true);
   });
 
   it("把書籍轉成 agent 要的欄位與來源", async () => {
     const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch });
-    const result = await client.callTool({ name: "search_books", arguments: { query: " 神奇 " } }, { signal: signal() });
+    const result = await client.callTool({ name: "search_library_books", arguments: { keyword: " 神奇 " } }, { signal: signal() });
     expect(result.isError).toBeUndefined();
     expect(result.content).toHaveLength(1);
-    expect(parse(result)).toEqual({
+    expect(parse(result)).toMatchObject({
       source: "demo",
+      source_label: "示範資料",
+      total: 1,
       records: [
         {
           id: "b1",
           title: { "zh-Hant-TW": "神奇柑仔店", en: "神奇柑仔店" },
           author: { "zh-Hant-TW": "廣嶋玲子", en: "廣嶋玲子" },
           category: { "zh-Hant-TW": "兒童故事", en: "兒童故事" },
+          url: `${BASE}/library-service/book-detail/b1`,
         },
       ],
     });
@@ -76,48 +89,69 @@ describe("createAgentToolClient", () => {
 
   it("空字串代表瀏覽全部，查無資料回空陣列", async () => {
     const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch });
-    const all = await client.callTool({ name: "search_books", arguments: { query: "" } }, { signal: signal() });
+    const all = await client.callTool({ name: "search_library_books", arguments: { keyword: "" } }, { signal: signal() });
     expect(parse(all).records).toHaveLength(2);
-    const none = await client.callTool({ name: "search_books", arguments: { query: "不存在的書zzz" } }, { signal: signal() });
-    expect(parse(none)).toEqual({ source: "demo", records: [] });
+    const none = await client.callTool({ name: "search_library_books", arguments: { keyword: "不存在的書zzz" } }, { signal: signal() });
+    expect(parse(none)).toMatchObject({ source: "demo", total: 0, records: [] });
   });
 
   it("服務查詢的泛稱視為瀏覽全部，具體關鍵字才篩選", async () => {
     const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch });
-    const generic = await client.callTool({ name: "search_services", arguments: { query: "申辦" } }, { signal: signal() });
+    const generic = await client.callTool({ name: "search_application_services", arguments: { keyword: "申辦" } }, { signal: signal() });
     expect(parse(generic).records).toHaveLength(2);
-    const specific = await client.callTool({ name: "search_services", arguments: { query: "補助" } }, { signal: signal() });
-    expect(parse(specific)).toEqual({
-      source: "demo",
-      records: [{ id: "s1", title: { "zh-Hant-TW": "老人補助", en: "老人補助" }, description: { "zh-Hant-TW": "長者津貼", en: "長者津貼" } }],
-    });
+    const specific = await client.callTool({ name: "search_application_services", arguments: { keyword: "補助" } }, { signal: signal() });
+    expect(parse(specific).records).toMatchObject([
+      { id: "s1", title: { "zh-Hant-TW": "老人補助", en: "老人補助" }, description: { "zh-Hant-TW": "長者津貼", en: "長者津貼" } },
+    ]);
   });
 
-  it("叫號查詢回傳櫃檯據點，不帶示範號碼", async () => {
+  it("櫃檯工具把號碼放進欄位", async () => {
     const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch });
-    const result = await client.callTool({ name: "search_services", arguments: { query: "叫號" } }, { signal: signal() });
-    expect(parse(result).records).toEqual([
-      {
-        id: "c-2-1",
-        title: { "zh-Hant-TW": "萬華區戶政事務所", en: "萬華區戶政事務所" },
-        description: { "zh-Hant-TW": "戶政事務所・和平西路三段120號", en: "戶政事務所・和平西路三段120號" },
-      },
-    ]);
-    expect(result.content[0]!.text).not.toContain("0379");
+    const result = await client.callTool({ name: "search_service_counters", arguments: {} }, { signal: signal() });
+    const [office] = parse(result).records;
+    expect(office.title["zh-Hant-TW"]).toBe("萬華區戶政事務所");
+    expect(office.fields.map((f: { label: { en: string } }) => f.label.en)).toEqual(["類別", "地址", "電話", "櫃檯"]);
+    expect(office.fields[3].value.en).toContain("0379");
+  });
+
+  it("附近查詢用呼叫端的定位，拿不到時回 LOCATION_UNAVAILABLE", async () => {
+    const located = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch, getLocation: async () => ({ lat: 25.0, lng: 121.5 }) });
+    const near = await located.callTool({ name: "find_nearby_youbike", arguments: { near_me: true } }, { signal: signal() });
+    expect(parse(near)).toMatchObject({ source: "live", records: [{ id: "near", url: "https://www.google.com/maps/search/?api=1&query=25,121.5" }] });
+    expect(parse(near).records[0].fields[0]).toEqual({ label: { "zh-Hant-TW": "距離", en: "距離" }, value: { "zh-Hant-TW": "0 公尺", en: "0 公尺" } });
+    const unlocated = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch });
+    const failed = await unlocated.callTool({ name: "find_nearby_youbike", arguments: { near_me: true } }, { signal: signal() });
+    expect(failed.isError).toBe(true);
+    expect(parse(failed).error.code).toBe("LOCATION_UNAVAILABLE");
+    const byArea = await unlocated.callTool({ name: "find_nearby_youbike", arguments: { area: "大安區" } }, { signal: signal() });
+    expect(parse(byArea).records.map((r: { id: string }) => r.id)).toEqual(["far", "near"]);
+  });
+
+  it("訂閱主題只列主題，不帶個人訂閱狀態", async () => {
+    const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch });
+    const result = await client.callTool({ name: "list_subscription_topics", arguments: { keyword: "交通" } }, { signal: signal() });
+    expect(parse(result).records).toMatchObject([{ id: "sub-3", title: { en: "交通措施" }, url: `${BASE}/subscription` }]);
+    expect(result.content[0]!.text).not.toContain("is_subscribed");
+  });
+
+  it("服務清單列出只能到頁面操作的服務", async () => {
+    const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch });
+    const result = await client.callTool({ name: "list_townpass_services", arguments: { keyword: "警政" } }, { signal: signal() });
+    expect(parse(result).records).toMatchObject([{ id: "police_report", url: `${BASE}/police-report`, fields: [{ value: { en: "到頁面操作" } }] }]);
   });
 
   it("上游失敗回 isError，不偽裝成查無資料", async () => {
     const client = createAgentToolClient({ baseUrl: BASE, fetchFn: (async () => json({}, "text/html")) as typeof fetch });
-    const result = await client.callTool({ name: "search_books", arguments: { query: "神奇" } }, { signal: signal() });
+    const result = await client.callTool({ name: "search_library_books", arguments: { keyword: "神奇" } }, { signal: signal() });
     expect(result.isError).toBe(true);
     expect(parse(result).error.code).toBe("UPSTREAM_FORMAT_CHANGED");
   });
 
   it("拒絕未知工具與錯誤參數", async () => {
     const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch });
-    const unknown = await client.callTool({ name: "reserve_book", arguments: { query: "x" } }, { signal: signal() });
+    const unknown = await client.callTool({ name: "reserve_book", arguments: { keyword: "x" } }, { signal: signal() });
     expect(parse(unknown).error.code).toBe("TOOL_NOT_FOUND");
-    const invalid = await client.callTool({ name: "search_books", arguments: {} }, { signal: signal() });
+    const invalid = await client.callTool({ name: "search_library_books", arguments: { keyword: 1 } }, { signal: signal() });
     expect(parse(invalid).error.code).toBe("INVALID_ARGUMENTS");
   });
 
@@ -125,7 +159,7 @@ describe("createAgentToolClient", () => {
     const pending = (() => new Promise<Response>(() => {})) as typeof fetch;
     const client = createAgentToolClient({ baseUrl: BASE, fetchFn: pending });
     const controller = new AbortController();
-    const call = client.callTool({ name: "search_books", arguments: { query: "神奇" } }, { signal: controller.signal });
+    const call = client.callTool({ name: "search_library_books", arguments: { keyword: "神奇" } }, { signal: controller.signal });
     controller.abort();
     await expect(call).rejects.toBeDefined();
   });
@@ -137,7 +171,7 @@ describe("createAgentToolClient", () => {
     });
     vi.stubGlobal("fetch", browserLikeFetch);
     const client = createAgentToolClient({ baseUrl: BASE });
-    const result = await client.callTool({ name: "search_books", arguments: { query: "神奇" } }, { signal: signal() });
+    const result = await client.callTool({ name: "search_library_books", arguments: { keyword: "神奇" } }, { signal: signal() });
     expect(parse(result).records).toHaveLength(1);
   });
 });

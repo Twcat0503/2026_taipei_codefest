@@ -1,6 +1,6 @@
 /** 工具入口把 AppError 轉成 { code, message, hint }；其他例外對外泛化，細節不外露。 */
 
-export type ErrorCode = "INVALID_INPUT" | "UPSTREAM_ERROR" | "UPSTREAM_FORMAT_CHANGED" | "INTERNAL";
+export type ErrorCode = "INVALID_INPUT" | "UPSTREAM_ERROR" | "UPSTREAM_FORMAT_CHANGED" | "LOCATION_UNAVAILABLE" | "INTERNAL";
 
 export class AppError extends Error {
   constructor(
@@ -29,6 +29,13 @@ export class UpstreamError extends AppError {
 export class UpstreamFormatError extends AppError {
   constructor(what: string) {
     super("UPSTREAM_FORMAT_CHANGED", `${what}的內容不符合預期`, "網站可能已改版；這不代表查無資料。");
+  }
+}
+
+/** 拿不到定位時不猜位置，請使用者改說行政區。 */
+export class LocationError extends AppError {
+  constructor() {
+    super("LOCATION_UNAVAILABLE", "無法取得目前位置", "請告訴我行政區或地名，例如「大安區的 YouBike」。");
   }
 }
 

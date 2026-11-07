@@ -31,7 +31,7 @@ flowchart TB
 | 前端 | Vue 3 聊天畫面與結果卡片，以 TownPass-Services 為範本 | 開發中 | `frontend/`（常駐 branch `frontend`） |
 | Agent | 對話流程、逐步拆解與工具呼叫、錯誤處理 | 規劃中 | `agent/`（常駐 branch `agent`） |
 | 模型 | 自訓模型（LFM3 1.7B、int4 量化）：理解問題、選工具、產生回覆 | 規劃中 | `model/`（常駐 branch `model`） |
-| 工具 | `townpass` tools：把台北通服務包裝成唯讀工具，經資料讀取層存取資料 | agent 可接圖書與服務查詢 | `tools/townpass/`（常駐 branch `tools`） |
+| 工具 | `townpass` tools：把台北通服務包裝成唯讀工具，經資料讀取層存取資料 | 16 支工具，agent 已接上 | `tools/townpass/`（常駐 branch `tools`） |
 
 ## 技術棧
 

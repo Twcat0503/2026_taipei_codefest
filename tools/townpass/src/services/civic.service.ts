@@ -7,6 +7,7 @@ import {
   FAQ,
   FEES,
   PERKS,
+  SUBSCRIPTIONS,
 } from "../adapters/datasets.js";
 import { DEMO, listResult, matches } from "../shared/result.js";
 
@@ -43,6 +44,15 @@ export class CivicService {
       .filter((q) => matches(keyword, q.category, q.name, q.content))
       .map((q) => ({ id: q.id, category: q.category, question: q.name, answer: q.content }));
     return listResult(results, limit, DEMO, this.page("/qna"));
+  }
+
+  /** 只列可訂閱的主題；是否已訂閱屬於個人狀態，不提供。 */
+  async subscriptions(keyword: string | undefined, limit: number) {
+    const { data } = await this.client.load(SUBSCRIPTIONS);
+    const results = data
+      .filter((s) => matches(keyword, s.name, s.description))
+      .map((s) => ({ id: s.id, name: s.name, description: s.description }));
+    return listResult(results, limit, DEMO, this.page("/subscription"));
   }
 
   async applications(keyword: string | undefined, limit: number) {
