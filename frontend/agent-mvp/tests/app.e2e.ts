@@ -362,14 +362,16 @@ test('welcome, settings and composer reflow at 200% in both orientations', async
     ]) {
       await page.setViewportSize(viewport);
       await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
-        true,
-      );
-      expect(
-        await page
-          .locator('.assistant-body')
-          .evaluate((element) => element.scrollWidth <= element.clientWidth),
-      ).toBe(true);
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+        .toBe(true);
+      await expect
+        .poll(() =>
+          page
+            .locator('.assistant-body')
+            .evaluate((element) => element.scrollWidth <= element.clientWidth),
+        )
+        .toBe(true);
       await expect
         .poll(() =>
           page
