@@ -114,7 +114,7 @@ App 首頁的「安心助手」入口會開啟助手。手機本機模型需要�
 | --- | --- | --- |
 | Flutter | `fvm flutter analyze`、`fvm flutter test` | 無 issue；204 個測試通過 |
 | 安心助手 | `pnpm lint`、`pnpm test`、`pnpm build`、`pnpm test:e2e` | 541 個單元測試、47 個 e2e 測試（含 axe 掃描）通過 |
-| 工具 | `pnpm typecheck`、`pnpm test`（`tools/townpass`） | 106 個測試通過 |
+| 工具 | `pnpm typecheck`、`pnpm test`（`tools/townpass`） | 114 個測試通過 |
 
 CI 會依改動的路徑只檢查受影響的部分，見 [CONTRIBUTING.md](CONTRIBUTING.md#pr-規範)。
 
