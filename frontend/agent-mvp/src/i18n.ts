@@ -1,6 +1,37 @@
 import type { Locale } from './agent/types';
 
 const zh = {
+  browseBills: '我想看到我這期的帳單與繳費狀態',
+  billTitle: '帳單與繳費狀態',
+  billItem: '示範帳單',
+  billCategory: '你想查哪一種帳單？也可以選擇全部。',
+  billAll: '全部帳單',
+  bills: '以下是本期帳單的示範查詢結果，並非你的真實帳單。',
+  billsEmpty: '此類別沒有示範帳單；這不代表你沒有實際欠款。',
+  billUnsupported:
+    '目前可查本期示範帳單與繳費狀態，不支援代繳、修改或歷史帳單查詢。你可以開啟服務範本，或重新提出本期查詢。',
+  billAuth: '服務要求登入。這個版本尚未接入正式登入；請在服務頁完成登入後重試。',
+  billUnavailable: '目前無法取得帳單資料。請重試，或開啟服務頁查看；不能據此判定是否已繳費。',
+  billDemo: '自製虛構帳單，僅供測試。金額、日期與狀態不代表你的帳務，也不會執行付款。',
+  billAsOf: '示範資料更新時間：',
+  billPeriod: '期別',
+  billAmount: '金額',
+  billDue: '繳費期限',
+  billStatus: '繳費狀態',
+  billStatus_paid: '已繳費',
+  billStatus_unpaid: '未繳費',
+  billStatus_processing: '處理中',
+  billStatus_unknown: '尚無法確認',
+  billStatusCaution: '請以服務端確認結果為準，不要因狀態未明而重複付款。',
+  billRetry: '重試帳單查詢',
+  billServicePages: '帳單服務入口',
+  billNavigationHint:
+    '以下連結是臺北通開發範本，不是正式帳務頁；不會帶入示範帳單，也無法保證定位本期或沿用登入。',
+  billOpen: '開啟範本：',
+  billHistory: '開啟繳費紀錄範本',
+  billNavigationRequested: '已請 App 開啟服務頁。此介面不會回傳載入結果；若沒有開啟，請再試一次。',
+  billNavigationFailed: '無法請 App 開啟頁面，請再試一次或從 App 帳單頁進入。',
+
   reviewEyebrow: '03 / 確認內容',
   journeyEyebrow: '你的進度',
   brand: '城市通',
@@ -18,7 +49,7 @@ const zh = {
   fixture: '目前使用規則模擬，尚未執行 AI 推論',
   eyebrow: '少一點操作，多一點安心',
   heading: '想辦什麼，\n告訴我就好。',
-  intro: '找服務、查圖書，一次完成一小步。重要的操作，會先讓你確認。',
+  intro: '查帳單、找服務、查圖書，一次完成一小步。重要的操作，會先讓你確認。',
   quick: '你可以從這裡開始',
   browseBooks: '幫我找圖書',
   browseServices: '有哪些服務？',
@@ -40,7 +71,7 @@ const zh = {
   books: '找到這些示範書籍。選一本，就能體驗預約流程。',
   services: '這些是目前的示範服務。你可以先了解內容。',
   empty: '目前的示範資料沒有符合的結果。試試「幫我找圖書」或「有哪些服務」。',
-  unsupported: '目前能協助查詢服務與示範圖書。請選擇其中一項，或換個方式告訴我。',
+  unsupported: '目前能協助查詢示範帳單、服務與圖書。請選擇其中一項，或換個方式告訴我。',
   review: '請確認書籍與取書館。你可以修改，確認前不會建立預約。',
   receipt: '示範預約已完成。這是本機測試回執，圖書館並未收到預約。',
   cancelled: '已停止這次操作。你可以重新開始。',
@@ -68,7 +99,7 @@ const zh = {
   step3Detail: '重要操作，由你決定',
   privacyTitle: '你可以放心慢慢來',
   privacy: '草稿只保存示範書籍與分館編號；對話內容不會存入瀏覽器儲存空間。',
-  source: '本頁書籍、分館與服務說明為團隊自製示範資料，不是官方即時資料。',
+  source: '本頁帳單、書籍、分館與服務說明為團隊自製示範資料，不是官方即時資料。',
   read: '朗讀這段',
   stopRead: '停止朗讀',
   rate: '朗讀速度',
@@ -93,6 +124,43 @@ const zh = {
   footer: '每一步，都由你掌握。',
 };
 const en: Record<keyof typeof zh, string> = {
+  browseBills: 'Show my current bills and payment status',
+  billTitle: 'Bills and payment status',
+  billItem: 'Sample bill',
+  billCategory: 'Which type of bill? You can also choose all bills.',
+  billAll: 'All bills',
+  bills: 'These are sample current-period bills, not your actual bills.',
+  billsEmpty:
+    'No sample bills for this category. This does not mean you have no outstanding bills.',
+  billUnsupported:
+    'This demo reads current bills and payment status only. It cannot pay, change bills or query past periods. Open a service template or start a current-period lookup.',
+  billAuth:
+    'The service requires sign-in. Real sign-in is not integrated in this build. Sign in on the service page and retry.',
+  billUnavailable:
+    'Bill information is unavailable. Retry or check the service page. Payment status cannot be inferred from this error.',
+  billDemo:
+    'Original fictional bills for testing. Amounts, dates and status are not your account information. No payment is made.',
+  billAsOf: 'Sample data updated:',
+  billPeriod: 'Period',
+  billAmount: 'Amount',
+  billDue: 'Due date',
+  billStatus: 'Payment status',
+  billStatus_paid: 'Paid',
+  billStatus_unpaid: 'Unpaid',
+  billStatus_processing: 'Processing',
+  billStatus_unknown: 'Not yet confirmed',
+  billStatusCaution: 'Check the service confirmation before making another payment.',
+  billRetry: 'Retry bill lookup',
+  billServicePages: 'Bill service pages',
+  billNavigationHint:
+    'These links open Town Pass development templates, not live billing pages. Sample bills are not transferred. Current-period selection and sign-in continuity are not guaranteed.',
+  billOpen: 'Open template: ',
+  billHistory: 'Open payment history template',
+  billNavigationRequested:
+    'Asked the app to open the service page. Loading is not acknowledged. If it did not open, try again.',
+  billNavigationFailed:
+    'Could not ask the app to open the page. Try again or use the app’s Bills page.',
+
   reviewEyebrow: '03 / REVIEW',
   journeyEyebrow: 'YOUR JOURNEY',
   brand: 'Town Pass',
@@ -110,7 +178,8 @@ const en: Record<keyof typeof zh, string> = {
   fixture: 'Rule-based simulation. No AI inference is running.',
   eyebrow: 'A little less effort. A little more care.',
   heading: 'What would you\nlike to do?',
-  intro: 'Find services or books, one small step at a time. You confirm every important action.',
+  intro:
+    'Find bills, services or books, one small step at a time. You confirm every important action.',
   quick: 'Start with a suggestion',
   browseBooks: 'Find sample books',
   browseServices: 'What services are available?',
@@ -134,7 +203,7 @@ const en: Record<keyof typeof zh, string> = {
   services: 'These services are available in the demo. Start by exploring their descriptions.',
   empty: 'No sample records matched. Try “Find sample books” or “What services are available?”.',
   unsupported:
-    'I can help you find services and sample books. Choose one or rephrase your request.',
+    'I can help you find sample bills, services and books. Choose one or rephrase your request.',
   review: 'Check the book and pickup branch. You can make changes before confirming.',
   receipt:
     'Your demo reservation is complete. This is a local test receipt; no library received a reservation.',
@@ -167,7 +236,7 @@ const en: Record<keyof typeof zh, string> = {
   privacy:
     'Only sample book and branch IDs are saved in drafts. Conversations are not saved in browser storage.',
   source:
-    'Books, branches and descriptions are original fictional fixtures, not live official data.',
+    'Bills, books, branches and descriptions are original fictional fixtures, not live official data.',
   read: 'Read this aloud',
   stopRead: 'Stop reading',
   rate: 'Reading speed',

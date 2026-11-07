@@ -1,3 +1,4 @@
+import { billReadTool } from './skills/bills';
 import { branches, type Book, type Service } from './catalog';
 import type { McpClient } from './mcp';
 import type { Domain, Draft, TaskState, ToolCall, ToolDefinition } from './types';
@@ -22,28 +23,32 @@ export const routingTool: ToolDefinition = {
     description: 'Route the request to one specialist. This does not execute a service.',
     parameters: {
       type: 'object',
-      properties: { domain: { type: 'string', enum: ['library', 'services', 'unsupported'] } },
+      properties: {
+        domain: { type: 'string', enum: ['library', 'services', 'bills', 'unsupported'] },
+      },
       required: ['domain'],
       additionalProperties: false,
     },
   },
 };
 export const domainTools = (domain: Domain): ToolDefinition[] =>
-  domain === 'unsupported'
-    ? []
-    : [
-        {
-          type: 'function',
-          function: {
-            name: domain === 'library' ? 'search_books' : 'search_services',
-            description:
-              domain === 'library'
-                ? 'Search the fictional demo book catalog. No real library data or reservations.'
-                : 'Search the demo municipal service directory. This cannot submit applications.',
-            parameters: searchParameters,
+  domain === 'bills'
+    ? [billReadTool]
+    : domain === 'unsupported'
+      ? []
+      : [
+          {
+            type: 'function',
+            function: {
+              name: domain === 'library' ? 'search_books' : 'search_services',
+              description:
+                domain === 'library'
+                  ? 'Search the fictional demo book catalog. No real library data or reservations.'
+                  : 'Search the demo municipal service directory. This cannot submit applications.',
+              parameters: searchParameters,
+            },
           },
-        },
-      ];
+        ];
 
 function localized(value: unknown): boolean {
   if (typeof value !== 'object' || !value) return false;

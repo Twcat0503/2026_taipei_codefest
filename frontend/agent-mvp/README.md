@@ -4,7 +4,9 @@ UI／UX 隊友請先看 [交接文件與流程圖](docs/ui-ux-handoff.md)，可�
 
 本工作區負責 **agent orchestration 與無障礙操作介面**。**LLM 推論與 MCP 由隊友實作**；這裡的 Ollama adapter 和 DemoMcpClient 是聯調替身，不是團隊的正式模型或 MCP server。
 
-目前可用：繁體中文／英文需求 → 路由代理 → 圖書或服務代理 → 驗證工具結果 → 本地化呈現。圖書可接續「選書 → 修改取書館 → 預覽確認 → 本機示範回執」，可重開續填。所有館藏、分館及服務都是自製虛構資料，沒有呼叫臺北通正式 API，也沒有送出真實預約。
+帳單 skill、MCP 契約與驗收矩陣見 [帳單交接文件](docs/skills/bills.md)。目前可查本期示範帳單、補問類型、保留四種繳費狀態並開啟登記的開發範本入口；尚未接正式帳務或登入。
+
+目前可用：繁體中文／英文需求 → 路由代理 → 帳單、圖書或服務代理 → 驗證工具結果 → 本地化呈現。圖書可接續「選書 → 修改取書館 → 預覽確認 → 本機示範回執」，可重開續填。所有館藏、分館及服務都是自製虛構資料，沒有呼叫臺北通正式 API，也沒有送出真實預約。
 
 ## 啟動
 
@@ -48,7 +50,7 @@ mise exec -- pnpm dev
 
 - `VITE_MODEL_PROTOCOL=json-schema`：目前實測模式，以 `response_format.json_schema` 限制輸出，再轉成內部 ToolCall。傳送 `reasoning_effort: none`，提示使用 `/no_think`；隊友的後端需支援這些功能，或自行提供 ModelAdapter。
 - `VITE_MODEL_PROTOCOL=tools`：傳送原生 `tools`，解析 `message.tool_calls`；不送 Ollama 的關閉思考設定。此模式有解析器測試，尚未對隊友模型驗證。
-- 每次呼叫限制 256 output tokens、20 秒 timeout，一個回應只接受一個工具；路由一次、專家最多三次。一般成功查詢是三次模型呼叫。
+- 每次模型呼叫限制 256 output tokens、20 秒 timeout，一個回應只接受一個工具；路由一次、專家一次。一般成功查詢是兩次模型呼叫，驗證工具結果後直接呈現。帳單按鈕補問與重試不再呼叫模型。MCP 發現與呼叫各有 10 秒 timeout；取消後的晚到結果不會更新畫面。
 - 不是載入多份模型：同一模型以不同英文 system prompt 執行路由／專家角色，順序呼叫，專家取得新上下文。中文原始需求、書名及工具資料作為資料保留，避免翻譯破壞搜尋。UI 回答由字典與已驗證資料產生，不呈現模型思考過程。
 - 小模型 JSON 格式正確不代表分類一定正確；英文提示與少量範例只改善已測情境，仍需隊友模型的獨立評測。
 
@@ -59,9 +61,10 @@ mise exec -- pnpm dev
 ```ts
 search_books({ query: string });
 search_services({ query: string });
+list_bills({ category: 'water', period: 'current' });
 ```
 
-`query` 最多 100 字元，空字串表示瀏覽；多餘參數被拒絕。callTool 回傳格式：
+圖書／服務工具的 `query` 最多 100 字元，空字串表示瀏覽；多餘參數被拒絕。callTool 回傳格式：
 
 ```json
 {
@@ -69,7 +72,7 @@ search_services({ query: string });
 }
 ```
 
-書籍記錄需要 `id`, `title`, `author`, `category`；服務需要 `id`, `title`, `description`。文字欄位都是 `{ "zh-Hant-TW": "…", "en": "…" }`。範例見 `src/agent/catalog.ts`，最多 20 筆。錯誤回傳 `isError: true`。
+帳單回傳格式、錯誤及來源規則另見 [帳單契約](docs/skills/bills.md)。書籍記錄需要 `id`, `title`, `author`, `category`；服務需要 `id`, `title`, `description`。文字欄位都是 `{ "zh-Hant-TW": "…", "en": "…" }`。範例見 `src/agent/catalog.ts`，最多 20 筆。錯誤回傳 `isError: true`。
 
 **目前刻意只接受 `source: demo`**，不可把正式資料偽裝成 demo。接正式服務時需一起擴充來源、ID、分館與資料持久化契約；新增操作則要加白名單、驗證器與確認畫面。真實寫入的使用者授權、伺服器端冪等鍵、重試／逾時後的狀態查詢，需與 MCP 隊友確認後實作。本機示範回執不等同服務成功。
 
@@ -107,6 +110,8 @@ adb shell am start -a android.intent.action.VIEW -d http://127.0.0.1:5173 com.an
 嵌入 TownPass 時沿用既有 `TPWebView`，正式版部署 HTTPS 靜態站，不將 dist 放 Flutter assets。已在開發版 App 的「首頁」及「服務」頁加入「安心助手」入口，沿用 TPWebView；未新增 native bridge。已偵測 `window.flutterObject`：WebView 不使用 browser speechSynthesis；目前顯示朗讀未提供；最新 App 已有 tts handler，Vue adapter 尚待串接。獨立瀏覽器可朗讀，聲音是否離線取決於系統語音引擎；沒有自製 ASR，可用手機鍵盤語音輸入。
 
 ## 驗證與限制
+
+帳單增量：單元測試 35、E2E 5、真實 Qwen3 1.7B 回歸測試 14 通過，含新帳單流程的 axe 與中英 200% 字級、瀏覽器導航和模擬 native bridge；帳單模型紀錄見 `docs/model-eval-bills-2026-11-07.json`（Mac 推論，包含提示中範例，非獨立準確率評測）。此次 ADB 無裝置，尚未重跑實機／TalkBack。下列 8 案與延遲為先前版本的歷史基準，不代表新帳單能力的評測。
 
 ```sh
 mise exec -- pnpm lint

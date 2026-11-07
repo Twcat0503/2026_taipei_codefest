@@ -76,7 +76,7 @@ describe('bounded agent orchestration', () => {
     expect(spy).not.toHaveBeenCalled();
     expect(state.notice).toBe('error');
   });
-  it('bounds repeated tool calls', async () => {
+  it('finishes after one verified read without requesting another model call', async () => {
     const model: ModelAdapter = {
       mode: 'local',
       complete: vi
@@ -89,9 +89,12 @@ describe('bounded agent orchestration', () => {
         }),
     };
     const state = initialState();
-    await expect(new AgentRunner(model, state).run('找圖書')).rejects.toThrow('STEP_LIMIT');
-    expect(model.complete).toHaveBeenCalledTimes(4);
-    expect(state.bookIds).toEqual([]);
+    const mcp = client();
+    const call = vi.spyOn(mcp, 'callTool');
+    await new AgentRunner(model, state, mcp).run('找圖書');
+    expect(model.complete).toHaveBeenCalledTimes(2);
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(state.bookIds).toHaveLength(3);
   });
   it('rejects invalid arguments and MCP errors', async () => {
     const signal = new AbortController().signal;

@@ -1,6 +1,7 @@
+import type { BillQuery, BillResult } from './skills/bills';
 import type { Book, Service } from './catalog';
 export type Locale = 'zh-Hant-TW' | 'en';
-export type Domain = 'services' | 'library' | 'unsupported';
+export type Domain = 'services' | 'library' | 'bills' | 'unsupported';
 export type Localized = Record<Locale, string>;
 export type Schema = Record<string, unknown>;
 export type ToolDefinition = {
@@ -41,9 +42,18 @@ export type TaskState = {
   bookResults: Book[];
   serviceResults: Service[];
   serviceIds: string[];
+  billQuery: BillQuery | null;
+  billResult: BillResult | null;
+  pendingBillCategory: boolean;
   draft: Draft | null;
   receipt: Receipt | null;
   notice:
+    | 'billCategory'
+    | 'bills'
+    | 'billsEmpty'
+    | 'billUnsupported'
+    | 'billAuth'
+    | 'billUnavailable'
     | 'welcome'
     | 'books'
     | 'services'
@@ -61,6 +71,9 @@ export const initialState = (): TaskState => ({
   bookResults: [],
   serviceResults: [],
   serviceIds: [],
+  billQuery: null,
+  billResult: null,
+  pendingBillCategory: false,
   draft: null,
   receipt: null,
   notice: 'welcome',

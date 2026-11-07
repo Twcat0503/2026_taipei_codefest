@@ -1,3 +1,4 @@
+import { demoBillResult, isBillSelection } from './skills/bills';
 import { books, services } from './catalog';
 import type { ToolDefinition } from './types';
 
@@ -35,6 +36,29 @@ export class DemoMcpClient implements McpClient {
     { signal }: { signal: AbortSignal },
   ): Promise<McpResult> {
     signal.throwIfAborted();
+    if (params.name === 'list_bills') {
+      if (
+        !isBillSelection(params.arguments.category) ||
+        params.arguments.period !== 'current' ||
+        Object.keys(params.arguments).length !== 2
+      )
+        throw new Error('INVALID_ARGUMENTS');
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              ...demoBillResult,
+              records: demoBillResult.records.filter(
+                (bill) =>
+                  params.arguments.category === 'all' ||
+                  bill.category === params.arguments.category,
+              ),
+            }),
+          },
+        ],
+      };
+    }
     const query = String(params.arguments.query ?? '')
       .trim()
       .toLowerCase();

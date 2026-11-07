@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
+import BillPanel from './components/BillPanel.vue';
+import { billCategories, type BillSelection } from './agent/skills/bills';
 import UiIcon from './components/UiIcon.vue';
 import { messages } from './i18n';
 import { branches } from './agent/catalog';
@@ -102,6 +104,22 @@ async function submit(text = input.value) {
     await focusResult();
   }
 }
+async function billAction(category?: BillSelection) {
+  if (busy.value) return;
+  stopReading();
+  speaking.value = false;
+  busy.value = true;
+  stage.value = 'searching';
+  try {
+    if (category) await runner.chooseBillCategory(category, (value) => (stage.value = value));
+    else await runner.retryBills((value) => (stage.value = value));
+  } catch {
+    /* Runner exposes the error state. */
+  } finally {
+    busy.value = false;
+    await focusResult();
+  }
+}
 function prepare(bookId: string) {
   prepareReservation(state, bookId, branches[0]!.id);
   void focusResult();
@@ -157,6 +175,10 @@ function speak() {
     : state.receipt
       ? `${activeBook.value?.title[locale.value]}. ${activeBranch.value?.name[locale.value]}. ${state.receipt.reference}`
       : [
+          ...(state.billResult?.records.map(
+            (bill) =>
+              `${billCategories[bill.category].label[locale.value]}. ${bill.periodLabel}. ${bill.amount} TWD. ${t.value[`billStatus_${bill.status}`]}`,
+          ) ?? []),
           ...shownBooks.value.map((book) => book.title[locale.value]),
           ...shownServices.value.map(
             (service) => `${service.title[locale.value]}. ${service.description[locale.value]}`,
@@ -223,6 +245,9 @@ onBeforeUnmount(() => {
         <section class="suggestions" :aria-label="t.quick">
           <h2>{{ t.quick }}</h2>
           <div class="quick-grid">
+            <button :disabled="inputDisabled" @click="submit(t.browseBills)">
+              <UiIcon name="grid" />{{ t.browseBills }}<UiIcon class="end-arrow" name="arrow" />
+            </button>
             <button :disabled="inputDisabled" @click="submit(t.browseBooks)">
               <UiIcon name="book" />{{ t.browseBooks }}<UiIcon class="end-arrow" name="arrow" />
             </button>
@@ -256,6 +281,13 @@ onBeforeUnmount(() => {
           </div>
 
           <template v-if="!busy">
+            <BillPanel
+              v-if="state.domain === 'bills'"
+              :state="state"
+              :locale="locale"
+              @select="billAction"
+              @retry="billAction()"
+            />
             <ul v-if="shownBooks.length && !state.draft && !state.receipt" class="result-list">
               <li v-for="(book, index) in shownBooks" :key="book.id" class="book-card">
                 <div class="book-cover" :class="`cover-${index % 3}`" aria-hidden="true">

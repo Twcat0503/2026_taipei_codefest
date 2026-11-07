@@ -7,20 +7,21 @@ flowchart TD
     A[使用者輸入：預設繁體中文] --> B[Router：選一個領域]
     B --> C[Library agent：圖書查詢]
     B --> D[Services agent：服務介紹]
+    B --> P[Bill skill：本期帳單、必要追問]
+    P --> F
     B --> E[Unsupported：說明支援範圍]
     C --> F[白名單與參數驗證]
     D --> F
     F --> G[McpClient：目前是 DemoMcpClient]
     G --> H[工具結果驗證]
-    H --> I[專家完成訊號]
-    I --> J[字典與驗證後資料呈現結果]
+    H --> J[字典與驗證後資料呈現結果，不再呼叫模型]
     J --> K[使用者選書及分館]
     K --> L[預覽：修改或取消]
     L --> M[使用者明確確認]
     M --> N[本機示範回執]
 ```
 
-各代理共用一個小模型，依序執行不同英文提示；中文需求與專有名詞保留為資料。這是受限單次任務流程，尚無通用多輪規劃。預約確認不交給 LLM；沒有真實圖書館交易。當前實機驗證：Pixel 10 Pro XL 上的 Town Pass 開發版 WebView，推論透過 USB 在 Mac 執行。
+各代理共用一個小模型，依序執行不同英文提示；中文需求與專有名詞保留為資料。這是受限單次任務流程，支援帳單類型的有限補問，尚無通用多輪規劃。預約確認不交給 LLM；沒有真實圖書館交易。當前實機驗證：Pixel 10 Pro XL 上的 Town Pass 開發版 WebView，推論透過 USB 在 Mac 執行。
 
 ## 分工
 
@@ -49,7 +50,7 @@ mise exec -- pnpm dev
 | 檔案                                 | 內容                                                         |
 | ------------------------------------ | ------------------------------------------------------------ |
 | `src/App.vue`                        | 主要畫面、查詢／結果／確認／回執；可逐步拆分成元件           |
-| `src/components/`                    | 可重用 Vue 元件，目前有 UiIcon                               |
+| `src/components/`                    | 可重用 Vue 元件，目前有 UiIcon、BillPanel                    |
 | `src/style.css`                      | 版面、響應式、互動與焦點樣式                                 |
 | `src/tokens.css`                     | 顏色與共用設計值，基於 Town Pass tokens                      |
 | `src/i18n.ts`                        | 繁體中文與英文字典，文案集中管理                             |
@@ -95,6 +96,10 @@ mise exec -- pnpm test:e2e
 
 手動走一遍：瀏覽圖書 → 指定書名 → 查無結果 → 服務介紹 → 不支援需求 → 選書 → 修改分館 → 重開續填 → 取消／確認 → 清除進度。再檢查英語、最大字級、橫向、鍵盤及 TalkBack；改文案時同步更新測試的可存取名稱。
 
-既有驗證：前端單元測試 13、E2E 3、Flutter widget tests 2；真實模型回歸情境 8。axe 與 200% 字級已通過；TalkBack、切換控制、完整橫向與目標使用者可用性測試仍待完成，不能宣稱全面符合 WCAG。
+本次帳單增量驗證：前端單元測試 35、E2E 5、Flutter widget tests 2；原有真實模型回歸情境 8，帳單案例另見 test:model。axe 與 200% 字級已通過；TalkBack、切換控制、完整橫向與目標使用者可用性測試仍待完成，不能宣稱全面符合 WCAG。
 
 PR 附前後截圖、改動原因與上述自檢結果；至少一位 reviewer，維護者 squash merge。若 UX 需要多輪補問、真實服務或新的任務狀態，先與 agent／MCP 隊友對齊契約。
+
+## 帳單畫面交接
+
+本次增量在 `feat/bill-agent-skill`（疊加於既有 MVP）；需帳單畫面時以此分支為基準。元件 `BillPanel.vue` 透過 `select`／`retry` 事件呼叫 runner，不直接存取 MCP。保留 demo 標示、四種狀態及資料時間；未知不等於未繳。導頁只能打開固定的開發範本，不是帳單詳情。完整分工與驗收見 [帳單 skill](skills/bills.md)。原有截圖是帳單功能之前的介面。

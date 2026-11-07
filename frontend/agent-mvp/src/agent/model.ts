@@ -40,6 +40,8 @@ function structuredRequest(input: Parameters<ModelAdapter['complete']>[0]) {
   if (tool.name === 'select_agent') {
     const examples: Message[] = [
       ['幫我查詢圖書', 'library'],
+      ['我想看到我這期的帳單與繳費狀態', 'bills'],
+      ['查水費繳了沒', 'bills'],
       ['我想知道有哪些申辦服務', 'services'],
       ['請幫我寫一首詩', 'unsupported'],
     ].flatMap(([request, domain]) => [
@@ -50,11 +52,32 @@ function structuredRequest(input: Parameters<ModelAdapter['complete']>[0]) {
       },
     ]);
     messages.splice(1, 0, ...examples);
+  } else if (!done && tool.name === 'select_bill_query') {
+    const samples = [
+      ['我想看到我這期的帳單與繳費狀態', 'unknown', 'current', 'read'],
+      ['查本期水費繳了沒', 'water', 'current', 'read'],
+      ['Show all my current bills', 'all', 'current', 'read'],
+      ['幫我繳水費', 'water', 'current', 'unsupported'],
+      ['查上期停車費', 'parking', 'unsupported', 'read'],
+    ];
+    messages.splice(
+      1,
+      0,
+      ...samples.flatMap(([request, category, period, action]): Message[] => [
+        { role: 'user', content: JSON.stringify({ original_request: request }) },
+        {
+          role: 'assistant',
+          content: JSON.stringify({ name: tool.name, arguments: { category, period, action } }),
+        },
+      ]),
+    );
   } else if (!done) {
     const samples =
       tool.name === 'search_books'
         ? [
             ['我想看看有哪些書', ''],
+            ['幫我找圖書', ''],
+            ['Find books', ''],
             ['Browse the catalog', ''],
             ['查詢「雨天散步」這本書', '雨天散步'],
           ]
@@ -110,14 +133,46 @@ export class DemoModel implements ModelAdapter {
     };
     const text = request.original_request.toLowerCase();
     if (tools[0]?.function.name === 'select_agent') {
-      const domain = /圖書|借書|找書|書籍|book|library|一起慢慢走|把日子過簡單|巷口的那棵樹/.test(
-        text,
-      )
-        ? 'library'
-        : /服務|申辦|叫號|補助|諮詢|service|application|counter|welfare/.test(text)
-          ? 'services'
-          : 'unsupported';
+      const domain =
+        /帳單|繳費|水費|停車費|地方稅|學雜費|學費|醫療費|維護費|租金|公訓|電費|瓦斯費|bill|payment|water|parking|tax|tuition|housing|medical|maintenance|electricity|gas/.test(
+          text,
+        ) ||
+        (messages.some((m) => m.content?.includes('Awaiting bill category')) &&
+          /全部|所有|all|學費|租金|課程/.test(text))
+          ? 'bills'
+          : /圖書|借書|找書|書籍|book|library|一起慢慢走|把日子過簡單|巷口的那棵樹/.test(text)
+            ? 'library'
+            : /服務|申辦|叫號|補助|諮詢|service|application|counter|welfare/.test(text)
+              ? 'services'
+              : 'unsupported';
       return { calls: [{ id: 'demo-route', name: 'select_agent', arguments: { domain } }] };
+    }
+    if (tools[0]?.function.name === 'select_bill_query') {
+      const categories: [string, RegExp][] = [
+        ['water', /水費|water/],
+        ['parking', /停車|parking/],
+        ['tax', /地方稅|稅|tax/],
+        ['tuition', /學雜費|學費|tuition/],
+        ['housing', /社宅|國宅|租金|public housing/],
+        ['medical', /醫療|醫院|hospital|medical/],
+        ['maintenance', /維護|maintenance/],
+        ['course', /課程|course/],
+        ['other', /其他|other/],
+        ['unsupported', /電費|瓦斯|electricity|gas/],
+        ['all', /全部|所有|all/],
+      ];
+      const category = categories.find(([, pattern]) => pattern.test(text))?.[0] ?? 'unknown';
+      const period = /上期|上個月|歷史|去年|last|previous|history|20[0-9]{2}/.test(text)
+        ? 'unsupported'
+        : 'current';
+      const action = /幫我繳|我要繳|立即繳|付款|取消|pay (my|the)|make.*payment/.test(text)
+        ? 'unsupported'
+        : 'read';
+      return {
+        calls: [
+          { id: 'demo-bill', name: 'select_bill_query', arguments: { category, period, action } },
+        ],
+      };
     }
     const titles = [
       '一起慢慢走',
