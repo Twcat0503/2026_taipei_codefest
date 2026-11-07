@@ -29,9 +29,9 @@ flowchart TB
 | --- | --- | --- | --- |
 | App | Town Pass Flutter app：`TPWebView`、JS bridge（含 `tts`、`share`）、系統字級同步 | 可用 | `lib/` |
 | 前端 | Vue 3 聊天畫面與結果卡片，以 TownPass-Services 為範本 | 開發中 | `frontend/`（常駐 branch `frontend`） |
-| Agent | 路由、圖書／服務代理、工具驗證、確認與示範回執 | MVP 已可操作；正式 MCP／LLM 待接 | `frontend/agent-mvp/` |
-| 模型 | 自訓模型（LFM3 1.7B、int4 量化）：理解問題、選工具、產生回覆 | 規劃中 | 待定 |
-| 工具 | `townpass-mcp`：把台北通服務包裝成唯讀工具，經資料讀取層存取資料 | 本地可用，尚未納入 repo | 待定 |
+| Agent | 路由、圖書／服務／帳單 skill、工具驗證、確認與示範回執 | MVP 已可操作；正式 MCP 待接 | `frontend/agent-mvp/`（常駐分工 branch `agent`） |
+| 模型 | LFM3 1.7B 本機推論 | 手機 adapter 整合中 | `model/`（常駐 branch `model`）；Android runtime 在 `tools/llm-android/` |
+| 工具 | `townpass-mcp`：把台北通服務包裝成唯讀工具，經資料讀取層存取資料 | 本地可用，尚未納入 repo | `tools/townpass-mcp/`（常駐 branch `tools`） |
 
 ## 已可操作的 Agent MVP
 
@@ -72,7 +72,7 @@ fvm dart run build_runner build
 fvm flutter run -d <device-id>
 ```
 
-完整指令、開發規範與協作流程見 [AGENTS.md](AGENTS.md) 與 [CONTRIBUTING.md](CONTRIBUTING.md)。
+完整指令、開發規範與協作流程見 [AGENTS.md](AGENTS.md) 與 [CONTRIBUTING.md](CONTRIBUTING.md)，待辦事項見 [TODO.md](TODO.md)。
 
 ## 資料來源
 

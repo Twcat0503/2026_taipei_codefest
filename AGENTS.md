@@ -86,7 +86,7 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 - JS→Flutter bridge：`window.flutterObject.postMessage(JSON.stringify({name, data}))`；新增能力須 extends `TPWebMessageHandler` 並註冊於 `TPWebMessageListener`。
   - `TPInAppWebView`（`lib/util/tp_web_view.dart`）在 `onWebViewCreated` 掛上 `TPWebMessageListener`，注入的 JS 物件名為 `flutterObject`。
   - 所有 handler 都寫在同一檔 `lib/util/web_message_handler/tp_web_message_handler.dart`；listener 依訊息的 `name` 找 `_cachedMessageHandlers` 中同名的 handler，對不到就不會回覆。
-  - 現有 `name` 以 `TPWebMessageListener._cachedMessageHandlers`（`lib/util/web_message_handler/tp_web_message_listener.dart`）的清單為準，不在文件重複列舉；前端可用的 `name` 對應 `frontend/src/lib/bridge.ts` 的 `BridgeName`。
+  - 現有 `name` 以 `TPWebMessageListener._cachedMessageHandlers`（`lib/util/web_message_handler/tp_web_message_listener.dart`）的清單為準，不在文件重複列舉；前端以 `frontend/src/composables/` 的 `useConnectionMessage`（送出）與 `useHandleConnectionData`（接收）收發訊息。
   - 回覆由 `replyWebMessage()` 包成 `{"name", "data"}` JSON 字串，網頁端從 `flutterObject` 的 `message` 事件（`event.data`）收到。
 - Vue 端必須偵測 `window.flutterObject` 是否存在，瀏覽器獨立執行時走 mock fallback（參與者不裝 Flutter 也能純瀏覽器開發）。
 - 開發聯調：`pnpm dev --host`，app 內開 `http://<開發機IP>:5173`（模擬器 `http://10.0.2.2:5173`）；cleartext HTTP 需 AndroidManifest debug 設定（`usesCleartextTraffic` 或 networkSecurityConfig）。
@@ -166,7 +166,7 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 - **資料要真實可查**：畫面上的統計數字、法條、電話、申辦天數與 dataset 名稱，都要有可查證的公開出處，並列在前端 `/about`（技術與資料來源頁）；查不到就不放，不可編造。
 - 開放資料依《政府資料開放授權條款》顯名（見「設計規範」）。
 - 還沒串接真實資料、暫時使用 mock 的畫面，要在畫面上清楚標示，不能讓使用者誤以為是真實資料。
-- **不能白屏**：每個 bridge 呼叫都要處理失敗（`bridge.call()` 會以 `no-bridge`／`timeout` reject）；資料載入失敗時，要顯示看得到的錯誤訊息與重試方式。
+- **不能白屏**：每個 bridge 呼叫都要考慮失敗與一直沒有回覆的情況（不在 app 內時沒有 `flutterObject`，也不會有回覆）；資料載入失敗時，要顯示看得到的錯誤訊息與重試方式。
 - **app 外也能用**：主要流程在純瀏覽器（沒有 `window.flutterObject`）也要能完整走完；原生能力改用瀏覽器實作，或明確告知目前無法使用。
 
 ## Agent 工作守則
@@ -174,7 +174,7 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 多個 agent（Claude Code、pi 等）同時參與開發時：
 
 - 開工前先 `git fetch --prune`，確認目前的 branch 沒有被合併（見 CONTRIBUTING.md「日常 Git 操作」）；一個任務一個 branch，平行作業用 worktree（放在已 gitignore 的 `.claude/worktrees/`），不在 `main` 上修改。
-- 前端（`frontend/`）的工作從常駐的 `frontend` branch 切出，PR 回 `frontend`；其他工作從 `main` 切出（見 CONTRIBUTING.md「常駐 branch」）。
+- 依改動的目錄選 base branch：`frontend/` → `frontend`、`agent/` → `agent`、`model/` → `model`、`tools/` → `tools`，其他從 `main` 切出（見 CONTRIBUTING.md「常駐 branch」）；跨線介面的改動先 PR 到 `main`。
 - 只改任務範圍內的檔案；順手發現的問題寫進回報或 PR 內文，不要一起改。
 - 宣稱完成前，先跑所屬棧的自檢指令（見「指令」）；失敗就照實回報。
 - push 與開 PR 依使用者指示；合併由維護者執行。
