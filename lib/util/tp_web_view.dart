@@ -72,35 +72,81 @@ class TPWebView extends StatelessWidget {
         title: appBarController.title.value,
         controller: appBarController,
       ),
-      body: TPInAppWebView(
-        onWebViewCreated: (controller) {
-          webViewController.value = controller;
-          try {
-            controller.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
-          } catch (_) {
-            controller.loadData(data: _failedToLoadUrlData(url: url));
-          }
-        },
-        onUpdateVisitedHistory: (_, _, _) async {
-          canGoBack.value = await webViewController.value?.canGoBack() ?? false;
-        },
-        onTitleChanged: (_, title) {
-          appBarController.title.value = switch (forceTitle == null) {
-            true => title,
-            false => forceTitle,
-          };
-        },
-        onGeolocationPermissionsShowPrompt: (controller, origin) async {
-          // should be deal individually (ask for user agreement)
-          return GeolocationPermissionShowPromptResponse(
-            origin: origin,
-            allow: true,
-            retain: true,
-          );
-        },
-        onCloseWindow: (_) => Get.back(),
+      body: Stack(
+        children: [
+          TPInAppWebView(
+            initialSettings: InAppWebViewSettings(
+              // flutter_inappwebview 預設會呼叫 setTextZoom(100)，把系統字級吃掉；
+              // 這裡改傳系統字級，長輩放大字級時 WebView 內的網頁才會跟著放大。
+              textZoom: _systemTextZoom(context),
+            ),
+            onWebViewCreated: (controller) {
+              webViewController.value = controller;
+              try {
+                controller.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
+              } catch (_) {
+                controller.loadData(data: _failedToLoadUrlData(url: url));
+              }
+            },
+            onUpdateVisitedHistory: (_, _, _) async {
+              canGoBack.value =
+                  await webViewController.value?.canGoBack() ?? false;
+            },
+            onTitleChanged: (_, title) {
+              appBarController.title.value = switch (forceTitle == null) {
+                true => title,
+                false => forceTitle,
+              };
+            },
+            onGeolocationPermissionsShowPrompt: (controller, origin) async {
+              // should be deal individually (ask for user agreement)
+              return GeolocationPermissionShowPromptResponse(
+                origin: origin,
+                allow: true,
+                retain: true,
+              );
+            },
+            onCloseWindow: (_) => Get.back(),
+          ),
+          Obx(() => _TextZoomSync(controller: webViewController.value)),
+        ],
       ),
     );
+  }
+}
+
+/// 系統字級換算成 WebView 的 textZoom（百分比整數）。
+int _systemTextZoom(BuildContext context) {
+  final double zoom = MediaQuery.textScalerOf(context).scale(100);
+  return zoom.clamp(100, 300).round();
+}
+
+/// 使用者在 app 開著時調整系統字級，也要即時同步到 WebView。
+class _TextZoomSync extends StatefulWidget {
+  const _TextZoomSync({this.controller});
+
+  final InAppWebViewController? controller;
+
+  @override
+  State<_TextZoomSync> createState() => _TextZoomSyncState();
+}
+
+class _TextZoomSyncState extends State<_TextZoomSync> {
+  int? _applied;
+
+  @override
+  Widget build(BuildContext context) {
+    final int zoom = _systemTextZoom(context);
+    if (_applied != zoom && widget.controller != null) {
+      _applied = zoom;
+      // build 期間不可改動原生設定，排到下一幀
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await widget.controller?.setSettings(
+          settings: InAppWebViewSettings(textZoom: zoom),
+        );
+      });
+    }
+    return const SizedBox.shrink();
   }
 }
 
