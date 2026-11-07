@@ -28,12 +28,36 @@ import type { Domain, Locale, Message, ModelAdapter, TaskState, ToolCall } from 
 
 const ACCESSIBLE_PLACE =
   /無障礙|身障|身心障礙|輪椅|孕婦|懷孕|愛心|accessible|wheelchair|disab|pregnan/i;
+/** Wording that makes a short request an explicit place lookup. */
+const PLACE_WORDS =
+  /YouBike|Ubike|停車場|停車位|車位|公廁|廁所|洗手間|toilets?|restrooms?|parking lot/i;
 /** When the request names the kind of place, that kind wins over the model's pick. */
 const PLACE_TOOL: [RegExp, string][] = [
   [/廁所|洗手間|toilets?|restrooms?/i, 'find_nearby_toilets'],
   [/停車|車位|parking/i, 'find_nearby_parking'],
   [/youbike|ubike|單車|腳踏車/i, 'find_nearby_youbike'],
 ];
+/** Taipei districts: the Chinese short name, then its English spelling as people type it. */
+const DISTRICTS: readonly (readonly [zh: string, en: RegExp])[] = [
+  ['松山', /Songshan/i],
+  ['信義', /Xinyi/i],
+  ['大安', /Da['’]?an/i],
+  ['中山', /Zhongshan/i],
+  ['中正', /Zhongzheng/i],
+  ['大同', /Datong/i],
+  ['萬華', /Wanhua/i],
+  ['文山', /Wenshan/i],
+  ['南港', /Nangang/i],
+  ['內湖', /Neihu/i],
+  ['士林', /Shilin/i],
+  ['北投', /Beitou/i],
+];
+
+/** Whether the user said the district the model picked: as 大安(區) or in English (Daan). */
+function saidDistrict(request: string, area: unknown) {
+  const name = typeof area === 'string' ? area.replace(/區$/, '') : '';
+  return DISTRICTS.some(([zh, en]) => zh === name && (request.includes(zh) || en.test(request)));
+}
 
 /** Bound even adapters that ignore AbortSignal. Late responses never mutate state. */
 async function bounded<T>(
@@ -307,15 +331,26 @@ export class AgentRunner {
         // Keep book/report/application requests with the router; only correct short place lookups.
         const explicitPlace =
           ruleText.length <= 80 &&
-          /YouBike|Ubike|停車場|停車位|車位|公廁|廁所|洗手間|toilets?|restrooms?|parking lot/i.test(
-            ruleText,
-          ) &&
+          PLACE_WORDS.test(ruleText) &&
           !/書|book|圖書|通報|陳情|報修|修繕|故障|申請|申辦|補助|report|application|[「『“"]/i.test(
             ruleText,
           );
         if (explicitPlace && domain !== 'places') {
           trace('router', 'corrected', 'Explicit place lookup must use the places tools.');
           domain = 'places';
+        }
+        // The same models send a quoted book title to places.
+        // A quote with no place, service or bill wording is a catalog lookup.
+        if (
+          domain === 'places' &&
+          /[「『“"][^」』”"]+[」』”"]/u.test(ruleText) &&
+          !PLACE_WORDS.test(ruleText) &&
+          !/通報|陳情|報修|修繕|故障|申請|申辦|補助|繳|帳單|叫號|臨櫃|report|application|bill/i.test(
+            ruleText,
+          )
+        ) {
+          trace('router', 'corrected', 'Quoted titles without place words are book lookups.');
+          domain = 'library';
         }
         // Opening Town Pass's own map is an in-app service, not another place lookup.
         if (domain !== 'services' && destinationFor(ruleText) === 'townpass_places') {
@@ -506,15 +541,22 @@ export class AgentRunner {
           trace('places', 'corrected', `The request names ${named}.`);
           call.name = named;
         }
-        const districts = [
-          ...new Set(
-            ruleText.match(/(?:松山|信義|大安|中山|中正|大同|萬華|文山|南港|內湖|士林|北投)區/g) ??
-              [],
-          ),
-        ];
+        const districts = DISTRICTS.map(([zh]) => `${zh}區`).filter((name) =>
+          ruleText.includes(name),
+        );
+        const nearby = /附近|最近|nearby|nearest|near me/i.test(ruleText);
         if (districts.length === 1) {
           call.arguments.area = districts[0]!;
-          if (!/附近|最近|nearby|nearest|near me/i.test(ruleText)) delete call.arguments.near_me;
+          if (!nearby) delete call.arguments.near_me;
+        } else if (!districts.length) {
+          if (saidDistrict(ruleText, call.arguments.area)) {
+            // Said by short or English name only: treat it like a named district.
+            if (!nearby) delete call.arguments.near_me;
+          } else {
+            // The model may only keep a district the user said; few-shot examples leak into area.
+            delete call.arguments.area;
+            if (nearby) call.arguments.near_me = true;
+          }
         }
         // Accessibility is a structured filter, not free text: names rarely contain it.
         if (call.name !== 'find_nearby_youbike') {
