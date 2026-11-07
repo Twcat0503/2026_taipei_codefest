@@ -47,10 +47,13 @@ fvm flutter test                 # 全部測試
 fvm flutter test test/widget_test.dart   # 單一測試檔
 ```
 
-## 測試與 lint 現況（2026-11-07 實測）
+## 測試與 lint 現況（2026-11-08 實測）
 
 - `fvm flutter analyze`：無任何 issue（exit code 0），新改動應維持零 issue。
-- `fvm flutter test`：已以安心助手入口測試取代失效的 counter 範本，驗證 WebView 路由、無障礙點擊與 200% 字級。
+- `fvm flutter test`：190 個測試全過，涵蓋安心助手入口（WebView 路由、無障礙點擊、200% 字級）、app shell、無障礙 bridge（`tts` 生命週期、`haptic`、`a11y_state`）、ASR／TTS 的 bridge 與 service、表單帶入。
+- `frontend/agent-mvp/`：`pnpm lint`、`pnpm test`（425 個）、`pnpm build`、`pnpm test:e2e`（35 個，含 axe 的 WCAG 2.1 AA 掃描）全過。
+- `tools/townpass/`：`pnpm typecheck`、`pnpm test`（34 個）全過。
+- `integration_test/` 的 LLM／ASR／TTS 伺服器測試需要實機與手動安裝的模型，CI 不執行。
 
 ## 架構入門點
 
@@ -69,6 +72,9 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 - 微服務掛進 app：城市服務列表定義在 `lib/page/city_service/model/my_service_model.dart`。先在 `MyServiceItemId` enum 加 id，再於 `MyServiceIdExt` 補 `MyServiceItem`；`destinationUrl` 填前端部署網址（空字串＝項目不可點），`forceWebViewTitle` 可固定 WebView 標題。
 - Mock 資料流：controller／service 以 `rootBundle.loadString(Assets.mockData.xxx)` 讀 `assets/mock_data/*.json`，再交給 `lib/bean/` 的 model 解析（範例：`AccountService`）。
 - `assets/mock_data/`：mock 資料；`assets/svg/`、`assets/image/` 經 flutter_gen 產生常數，勿手寫 asset 路徑字串。
+- 本機 AI 服務：`MainActivity.kt`（`android/app/src/main/kotlin/com/example/townpass/`）註冊 MethodChannel `town_pass/llm`、`town_pass/asr`、`town_pass/tts`，Dart 端是 `lib/service/` 的 `llm_service.dart`、`asr_service.dart`、`tts_service.dart`。三者都是只綁 loopback 的 native 子行程，以記憶體中的 Bearer key 授權；模型不隨 APK 發布，安裝方式見 `tools/llm-android/`、`tools/asr-android/`、`tools/tts-android/` 的 README。
+- 無障礙 bridge：`tts`（requestId 生命週期：先 `start`，再恰好一個 `done`／`stopped`／`error`）、`haptic`、`a11y_state`；需要帶回 requestId 的回覆一律用 `_withRequestId()`。
+- `lib/util/tp_prefill.dart`：`open_link` 帶 `prefill` 時，只在台北通站內網域、只填白名單欄位。
 - `test/widget_test.dart`：安心助手入口測試（現況見「測試與 lint 現況」）。
 
 ## Agent MVP 分工
@@ -77,6 +83,7 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 - 已驗證的獨立 MVP 在 `frontend/agent-mvp/`，保留 `frontend/` 既有服務範本；UI／UX 交接見 `frontend/agent-mvp/docs/ui-ux-handoff.md`。
 - 在 `frontend/agent-mvp/` 執行 `mise install`、`pnpm install`、`pnpm dev`；lint、format:check、test、build 也在該目錄獨立執行，CI 另行檢查。
 - LLM 透過 `ModelAdapter`、工具透過 `ToolClient` 介面替換（實作是直接函式呼叫）；Ollama 與 DemoToolClient 僅供聯調，契約見 MVP README。
+- 平台層在 `src/platform/`：新的 bridge 呼叫一律經過 `native-bridge.ts`（requestId 配對、逾時、沒有 bridge 時回報不可用）；無障礙層（`a11y.ts`、`announcer.ts`、`haptics.ts`、`feedback.ts`、`speech.ts`）與選用的本機自然語音（`natural-voice.ts`）說明見 MVP 的 `docs/accessibility.md`。
 - 路由及專家提示用英文；中文需求與專有名詞保留為資料，使用者介面預設繁體中文。
 - App 首頁／服務頁入口使用 `TPAgentEntry`；`AGENT_WEB_URL` debug 預設 loopback，release 需明確指定 HTTPS。前端接點變數見 MVP 的 `.env.example`，不放秘密。
 
@@ -86,7 +93,7 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 - JS→Flutter bridge：`window.flutterObject.postMessage(JSON.stringify({name, data}))`；新增能力須 extends `TPWebMessageHandler` 並註冊於 `TPWebMessageListener`。
   - `TPInAppWebView`（`lib/util/tp_web_view.dart`）在 `onWebViewCreated` 掛上 `TPWebMessageListener`，注入的 JS 物件名為 `flutterObject`。
   - 所有 handler 都寫在同一檔 `lib/util/web_message_handler/tp_web_message_handler.dart`；listener 依訊息的 `name` 找 `_cachedMessageHandlers` 中同名的 handler，對不到就不會回覆。
-  - 現有 `name` 以 `TPWebMessageListener._cachedMessageHandlers`（`lib/util/web_message_handler/tp_web_message_listener.dart`）的清單為準，不在文件重複列舉；前端以 `frontend/src/composables/` 的 `useConnectionMessage`（送出）與 `useHandleConnectionData`（接收）收發訊息。
+  - 現有 `name` 以 `TPWebMessageListener._cachedMessageHandlers`（`lib/util/web_message_handler/tp_web_message_listener.dart`）的清單為準，不在文件重複列舉；前端以 `frontend/src/composables/` 的 `useConnectionMessage`（送出）與 `useHandleConnectionData`（接收）收發訊息；agent-mvp 則經 `src/platform/native-bridge.ts`。
   - 回覆由 `replyWebMessage()` 包成 `{"name", "data"}` JSON 字串，網頁端通常從 `flutterObject` 的 `message` 事件（`event.data`）收到。**例外：`tts_start`／`tts_stop`／`tts_status` 的授權主 frame 回覆走 `window` 的 `message` 事件**，透過 `postWebMessage` 綁定原請求 origin，避免共享 reply proxy 將憑證送到其他 frame；呼叫範例與本機模型安裝見 [Android TTS 文件](tools/tts-android/README.md)。舊 `tts` 系統朗讀與 LLM 事件不變。
 - Vue 端必須偵測 `window.flutterObject` 是否存在，瀏覽器獨立執行時走 mock fallback（參與者不裝 Flutter 也能純瀏覽器開發）。
 - 開發聯調：`pnpm dev --host`，app 內開 `http://<開發機IP>:5173`（模擬器 `http://10.0.2.2:5173`）；cleartext HTTP 需 AndroidManifest debug 設定（`usesCleartextTraffic` 或 networkSecurityConfig）。
@@ -187,3 +194,6 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 - 首次跑不起來多半是沒跑 `build_runner build`（缺 `*.g.dart`／`lib/gen/`）。
 - 改 `pubspec.yaml` 的 assets／fonts 後要重跑 `dart run build_runner build` 才更新 flutter_gen 常數。
 - 上游 TownPass 持續演進；本 repo 為快照，要對照 upstream 請看 origin repo。
+- agent-mvp 常駐一個 `role="alert"` 的 assertive live region（`src/platform/announcer.ts`）；e2e 用 `getByRole('alert')` 時要限縮到元件範圍，否則 strict mode 會對到兩個元素。
+- Android WebView 播放媒體需要使用者手勢（`mediaPlaybackRequiresUserGesture` 預設為 true）：先 fetch 再 `play()` 會被擋。本機自然語音因此在第一次互動時解鎖一個共用的 `<audio>`，之後都重用它。
+- 本機 LLM／ASR／TTS 的 bridge（`kLlmAllowedOrigins`，`lib/service/llm_service.dart`）與 TTS 的 HTTP（`tools/tts-android/native/http_api.h`）只允許開發用 origin；正式 HTTPS 網域加入白名單前，這些能力在正式站上不可用（朗讀會退回系統語音）。
