@@ -6,6 +6,7 @@ test-results/
 model-eval.latest.json
 form-fill-eval.latest.json
 form-fill-eval.phone.json
+feature-eval.*.json
 .env*
 !.env.example
 stress-results/

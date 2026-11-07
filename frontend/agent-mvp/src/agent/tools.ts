@@ -72,7 +72,7 @@ export const routingTool: ToolDefinition = {
       properties: {
         domain: {
           type: 'string',
-          enum: ['library', 'services', 'perks', 'places', 'bills', 'unsupported'],
+          enum: ['library', 'services', 'perks', 'places', 'bills', 'emergency', 'unsupported'],
         },
       },
       required: ['domain'],

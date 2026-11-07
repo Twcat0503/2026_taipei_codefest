@@ -248,6 +248,8 @@ const zh = {
   emergencyPolice: '你的安全最重要，請立刻撥打 110 報警。',
   emergencyMental:
     '聽起來你現在很辛苦，你不是一個人。可以撥 1925 安心專線，24 小時都有人聽你說；如果有立即危險，請撥 119。',
+  emergencyGeneral:
+    '聽起來可能有危險。需要救護或有火災請撥 119，有人身危險請撥 110，想找人說說話請撥 1925。',
   emergencyNote: '按下按鈕會打開撥號畫面，由你按下撥出。',
   call119: '撥打 119（火災、救護車）',
   call110: '撥打 110（報警）',
@@ -571,6 +573,8 @@ const en: Record<keyof typeof zh, string> = {
   emergencyPolice: 'Your safety comes first. Call 110 for the police now.',
   emergencyMental:
     'It sounds like things are very hard right now, and you are not alone. Call 1925, a 24-hour support line; if you are in immediate danger, call 119.',
+  emergencyGeneral:
+    'This may be dangerous. Call 119 for an ambulance or fire, 110 if someone is in danger, or 1925 to talk to someone.',
   emergencyNote: 'The button opens the dialer; you press call.',
   call119: 'Call 119 (fire, ambulance)',
   call110: 'Call 110 (police)',

@@ -37,21 +37,22 @@ await new Promise((resolve, reject) => {
   ws.onopen = resolve;
   ws.onerror = reject;
 });
-const reply = await new Promise((resolve, reject) => {
-  ws.onmessage = (message) => {
-    const msg = JSON.parse(message.data);
-    if (msg.id !== 1) return;
-    if (msg.result?.exceptionDetails) reject(new Error(msg.result.exceptionDetails.text));
-    else resolve(msg.result?.result?.value);
-  };
-  ws.send(
-    JSON.stringify({
-      id: 1,
-      method: 'Runtime.evaluate',
-      params: {
-        awaitPromise: true,
-        returnByValue: true,
-        expression: `new Promise((resolve, reject) => {
+const ask = () =>
+  new Promise((resolve, reject) => {
+    ws.onmessage = (message) => {
+      const msg = JSON.parse(message.data);
+      if (msg.id !== 1) return;
+      if (msg.result?.exceptionDetails) reject(new Error(msg.result.exceptionDetails.text));
+      else resolve(msg.result?.result?.value);
+    };
+    ws.send(
+      JSON.stringify({
+        id: 1,
+        method: 'Runtime.evaluate',
+        params: {
+          awaitPromise: true,
+          returnByValue: true,
+          expression: `new Promise((resolve, reject) => {
           const bridge = window.flutterObject;
           if (!bridge) return reject(new Error('not in app'));
           const requestId = 'form-eval-' + crypto.randomUUID();
@@ -68,10 +69,17 @@ const reply = await new Promise((resolve, reject) => {
           bridge.postMessage(JSON.stringify({ name: 'llm_start', data: { requestId } }));
           setTimeout(() => reject(new Error('llm_start timeout')), 20 * 60 * 1000);
         })`,
-      },
-    }),
-  );
-});
+        },
+      }),
+    );
+  });
+
+// The model may still be starting (or restarting after the system stopped it): wait for it.
+let reply = await ask();
+for (let attempt = 0; attempt < 24 && reply?.phase !== 'running'; attempt++) {
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+  reply = await ask();
+}
 ws.close();
 if (reply?.phase !== 'running' || !reply.baseUrl || !reply.apiKey)
   throw new Error(`手機模型沒有在執行：${reply?.phase ?? 'unknown'} ${reply?.error ?? ''}`);

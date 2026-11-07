@@ -1,0 +1,1923 @@
+{
+  "generatedAt": "2026-11-07T19:01:33.485Z",
+  "set": "routing",
+  "model": "qwen3:1.7b",
+  "host": "Mac",
+  "summary": [
+    {
+      "condition": "rule",
+      "cases": 50,
+      "correct": 54,
+      "medianMs": 0
+    },
+    {
+      "condition": "model",
+      "cases": 50,
+      "correct": 32,
+      "medianMs": 3468
+    },
+    {
+      "condition": "runner",
+      "cases": 50,
+      "correct": 68,
+      "medianMs": 414
+    }
+  ],
+  "rows": [
+    {
+      "condition": "rule",
+      "request": "我媽的看病錢要怎麼付",
+      "tag": "paraphrase",
+      "expected": ["fee_medical"],
+      "outcome": "",
+      "correct": false,
+      "elapsedMs": 1
+    },
+    {
+      "condition": "rule",
+      "request": "戶政那邊現在排到幾號了",
+      "tag": "paraphrase",
+      "expected": ["townpass_counter"],
+      "outcome": "",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "我想問一下輪椅補助",
+      "tag": "paraphrase",
+      "expected": ["services_disabled"],
+      "outcome": "services_disabled",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "家門口一直淹水，水都快進來了",
+      "tag": "paraphrase",
+      "expected": ["townpass_disaster"],
+      "outcome": "townpass_disaster",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "我想跟真人講話",
+      "tag": "paraphrase",
+      "expected": ["call_1999"],
+      "outcome": "",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "我懷孕了，市政府有什麼可以補助的",
+      "tag": "paraphrase",
+      "expected": ["services_maternity"],
+      "outcome": "services_maternity",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "我爸八十五歲了，有沒有敬老的津貼可以領",
+      "tag": "paraphrase",
+      "expected": ["services_elderly"],
+      "outcome": "services_elderly",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "這個月的自來水帳單要怎麼付",
+      "tag": "paraphrase",
+      "expected": ["fee_water"],
+      "outcome": "fee",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "房屋稅單寄來了，我要繳",
+      "tag": "paraphrase",
+      "expected": ["fee_tax"],
+      "outcome": "fee_tax",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "孫子學校的註冊費要繳",
+      "tag": "paraphrase",
+      "expected": ["fee_tuition"],
+      "outcome": "townpass_faq",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "我想借書，看附近分館有沒有",
+      "tag": "paraphrase",
+      "expected": ["townpass_library"],
+      "outcome": "townpass_library",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "我買的演唱會門票放在哪裡",
+      "tag": "paraphrase",
+      "expected": ["townpass_ticket_wallet"],
+      "outcome": "townpass_coupon",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "這附近哪裡有公共廁所",
+      "tag": "paraphrase",
+      "expected": ["townpass_places"],
+      "outcome": "",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "想找有折扣的景點去玩",
+      "tag": "paraphrase",
+      "expected": ["townpass_coupon"],
+      "outcome": "townpass_coupon",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "我的台北通登入不了",
+      "tag": "paraphrase",
+      "expected": ["townpass_faq"],
+      "outcome": "townpass_faq",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "有哪些證明可以在網路上辦，不用跑去區公所",
+      "tag": "paraphrase",
+      "expected": ["townpass_apply"],
+      "outcome": "",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "社宅這個月的房租還沒繳",
+      "tag": "paraphrase",
+      "expected": ["fee_housing"],
+      "outcome": "fee_housing",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "我報名了市府的電腦課，課程費用要繳",
+      "tag": "paraphrase",
+      "expected": ["fee_course"],
+      "outcome": "fee_course",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "平價住宅的管理維護費怎麼繳",
+      "tag": "paraphrase",
+      "expected": ["fee_maintenance"],
+      "outcome": "fee_maintenance",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "臨櫃叫號",
+      "tag": "keyword",
+      "expected": ["townpass_counter"],
+      "outcome": "townpass_counter",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "市政訊息訂閱",
+      "tag": "keyword",
+      "expected": ["townpass_subscription"],
+      "outcome": "townpass_subscription",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "掃碼繳費",
+      "tag": "keyword",
+      "expected": ["fee_scan"],
+      "outcome": "fee_scan",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "有話要說",
+      "tag": "keyword",
+      "expected": ["townpass_report"],
+      "outcome": "townpass_report",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "其他繳費",
+      "tag": "keyword",
+      "expected": ["fee_other"],
+      "outcome": "fee",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "我被詐騙集團騙了錢，想要報案",
+      "tag": "confusable",
+      "expected": ["townpass_police"],
+      "outcome": "townpass_police",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "隔壁鄰居半夜一直很吵，我想向市府反映",
+      "tag": "confusable",
+      "expected": ["townpass_report"],
+      "outcome": "townpass_report",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "馬路上有一個很大的坑洞，騎車很危險",
+      "tag": "confusable",
+      "expected": ["townpass_report"],
+      "outcome": "townpass_report",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "山坡的土石滑下來擋住馬路了",
+      "tag": "confusable",
+      "expected": ["townpass_disaster"],
+      "outcome": "",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "我要繳一筆費用，但不知道是哪一種",
+      "tag": "confusable",
+      "expected": ["fee"],
+      "outcome": "",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "我上個月的費用有沒有繳成功，想查一下",
+      "tag": "confusable",
+      "expected": ["fee_history"],
+      "outcome": "",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "我想每天收到跟長輩有關的最新消息通知",
+      "tag": "confusable",
+      "expected": ["townpass_subscription"],
+      "outcome": "services_elderly",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "六十五歲以上可以申請什麼補助",
+      "tag": "confusable",
+      "expected": ["services_elderly"],
+      "outcome": "townpass_apply",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "附近哪裡有可以停車的地方",
+      "tag": "confusable",
+      "expected": ["townpass_places"],
+      "outcome": "",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "我剛剛停車的停車費要繳",
+      "tag": "confusable",
+      "expected": ["fee_parking"],
+      "outcome": "fee_parking",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "我手上有一張繳費單，想用手機掃上面的條碼來繳",
+      "tag": "confusable",
+      "expected": ["fee_scan"],
+      "outcome": "fee_scan",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "我想繳費",
+      "tag": "confusable",
+      "expected": ["fee"],
+      "outcome": "fee",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "呃…那個…我要…就是…水費啦，水費要怎麼繳",
+      "tag": "disfluent",
+      "expected": ["fee_water"],
+      "outcome": "fee_water",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "嗯我想查那個…圖書館的書，有沒有哈利波特",
+      "tag": "disfluent",
+      "expected": ["townpass_library"],
+      "outcome": "townpass_library",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "欸那個臨臨櫃叫號…就是戶所現在排到幾號了啦",
+      "tag": "disfluent",
+      "expected": ["townpass_counter"],
+      "outcome": "townpass_counter",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "我我想問孕婦補住…就是懷孕可以領的那個",
+      "tag": "disfluent",
+      "expected": ["services_maternity"],
+      "outcome": "services_maternity",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "I need to pay my water bill",
+      "tag": "english",
+      "expected": ["fee_water"],
+      "outcome": "fee_water",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "Where is the nearest YouBike station?",
+      "tag": "english",
+      "expected": ["townpass_places"],
+      "outcome": "",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "I want to talk to a real person at the city hotline",
+      "tag": "english",
+      "expected": ["call_1999"],
+      "outcome": "",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "What subsidies are there for my disabled son?",
+      "tag": "english",
+      "expected": ["services_disabled"],
+      "outcome": "services_disabled",
+      "correct": true,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "幫我寫一首關於秋天的詩",
+      "tag": "unsupported",
+      "expected": ["unsupported"],
+      "outcome": "",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "現在買哪支股票比較會賺",
+      "tag": "unsupported",
+      "expected": ["unsupported"],
+      "outcome": "",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "今天天氣好像不錯，你覺得明天會下雨嗎",
+      "tag": "unsupported",
+      "expected": ["unsupported"],
+      "outcome": "",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "幫我訂一份中午的便當外送",
+      "tag": "unsupported",
+      "expected": ["unsupported"],
+      "outcome": "",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "幫我預約台大醫院的門診",
+      "tag": "unsupported",
+      "expected": ["unsupported"],
+      "outcome": "",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "rule",
+      "request": "我的護照過期了，要怎麼換新的",
+      "tag": "unsupported",
+      "expected": ["unsupported"],
+      "outcome": "",
+      "correct": false,
+      "elapsedMs": 0
+    },
+    {
+      "condition": "model",
+      "request": "我媽的看病錢要怎麼付",
+      "tag": "paraphrase",
+      "expected": ["fee_medical"],
+      "outcome": "fee_other",
+      "correct": false,
+      "elapsedMs": 1315
+    },
+    {
+      "condition": "model",
+      "request": "戶政那邊現在排到幾號了",
+      "tag": "paraphrase",
+      "expected": ["townpass_counter"],
+      "outcome": "unsupported",
+      "correct": false,
+      "elapsedMs": 989
+    },
+    {
+      "condition": "model",
+      "request": "我想問一下輪椅補助",
+      "tag": "paraphrase",
+      "expected": ["services_disabled"],
+      "outcome": "fee_other",
+      "correct": false,
+      "elapsedMs": 1013
+    },
+    {
+      "condition": "model",
+      "request": "家門口一直淹水，水都快進來了",
+      "tag": "paraphrase",
+      "expected": ["townpass_disaster"],
+      "outcome": "townpass_report",
+      "correct": false,
+      "elapsedMs": 1012
+    },
+    {
+      "condition": "model",
+      "request": "我想跟真人講話",
+      "tag": "paraphrase",
+      "expected": ["call_1999"],
+      "outcome": "",
+      "correct": false,
+      "elapsedMs": 972
+    },
+    {
+      "condition": "model",
+      "request": "我懷孕了，市政府有什麼可以補助的",
+      "tag": "paraphrase",
+      "expected": ["services_maternity"],
+      "outcome": "",
+      "error": "Error: TRUNCATED_RESPONSE",
+      "correct": false,
+      "elapsedMs": 6466
+    },
+    {
+      "condition": "model",
+      "request": "我爸八十五歲了，有沒有敬老的津貼可以領",
+      "tag": "paraphrase",
+      "expected": ["services_elderly"],
+      "outcome": "fee_other",
+      "correct": false,
+      "elapsedMs": 1305
+    },
+    {
+      "condition": "model",
+      "request": "這個月的自來水帳單要怎麼付",
+      "tag": "paraphrase",
+      "expected": ["fee_water"],
+      "outcome": "fee",
+      "correct": false,
+      "elapsedMs": 1149
+    },
+    {
+      "condition": "model",
+      "request": "房屋稅單寄來了，我要繳",
+      "tag": "paraphrase",
+      "expected": ["fee_tax"],
+      "outcome": "fee",
+      "correct": false,
+      "elapsedMs": 1125
+    },
+    {
+      "condition": "model",
+      "request": "孫子學校的註冊費要繳",
+      "tag": "paraphrase",
+      "expected": ["fee_tuition"],
+      "outcome": "fee_other",
+      "correct": false,
+      "elapsedMs": 1282
+    },
+    {
+      "condition": "model",
+      "request": "我想借書，看附近分館有沒有",
+      "tag": "paraphrase",
+      "expected": ["townpass_library"],
+      "outcome": "",
+      "error": "Error: TRUNCATED_RESPONSE",
+      "correct": false,
+      "elapsedMs": 7131
+    },
+    {
+      "condition": "model",
+      "request": "我買的演唱會門票放在哪裡",
+      "tag": "paraphrase",
+      "expected": ["townpass_ticket_wallet"],
+      "outcome": "fee_other",
+      "correct": false,
+      "elapsedMs": 3468
+    },
+    {
+      "condition": "model",
+      "request": "這附近哪裡有公共廁所",
+      "tag": "paraphrase",
+      "expected": ["townpass_places"],
+      "outcome": "townpass_places",
+      "correct": true,
+      "elapsedMs": 3287
+    },
+    {
+      "condition": "model",
+      "request": "想找有折扣的景點去玩",
+      "tag": "paraphrase",
+      "expected": ["townpass_coupon"],
+      "outcome": "fee_other",
+      "correct": false,
+      "elapsedMs": 2878
+    },
+    {
+      "condition": "model",
+      "request": "我的台北通登入不了",
+      "tag": "paraphrase",
+      "expected": ["townpass_faq"],
+      "outcome": "fee_other",
+      "correct": false,
+      "elapsedMs": 2881
+    },
+    {
+      "condition": "model",
+      "request": "有哪些證明可以在網路上辦，不用跑去區公所",
+      "tag": "paraphrase",
+      "expected": ["townpass_apply"],
+      "outcome": "fee_other",
+      "correct": false,
+      "elapsedMs": 2903
+    },
+    {
+      "condition": "model",
+      "request": "社宅這個月的房租還沒繳",
+      "tag": "paraphrase",
+      "expected": ["fee_housing"],
+      "outcome": "fee",
+      "correct": false,
+      "elapsedMs": 2879
+    },
+    {
+      "condition": "model",
+      "request": "我報名了市府的電腦課，課程費用要繳",
+      "tag": "paraphrase",
+      "expected": ["fee_course"],
+      "outcome": "",
+      "error": "Error: TRUNCATED_RESPONSE",
+      "correct": false,
+      "elapsedMs": 7900
+    },
+    {
+      "condition": "model",
+      "request": "平價住宅的管理維護費怎麼繳",
+      "tag": "paraphrase",
+      "expected": ["fee_maintenance"],
+      "outcome": "",
+      "correct": false,
+      "elapsedMs": 3244
+    },
+    {
+      "condition": "model",
+      "request": "臨櫃叫號",
+      "tag": "keyword",
+      "expected": ["townpass_counter"],
+      "outcome": "townpass_counter",
+      "correct": true,
+      "elapsedMs": 3177
+    },
+    {
+      "condition": "model",
+      "request": "市政訊息訂閱",
+      "tag": "keyword",
+      "expected": ["townpass_subscription"],
+      "outcome": "townpass_subscription",
+      "correct": true,
+      "elapsedMs": 3172
+    },
+    {
+      "condition": "model",
+      "request": "掃碼繳費",
+      "tag": "keyword",
+      "expected": ["fee_scan"],
+      "outcome": "fee_scan",
+      "correct": true,
+      "elapsedMs": 3768
+    },
+    {
+      "condition": "model",
+      "request": "有話要說",
+      "tag": "keyword",
+      "expected": ["townpass_report"],
+      "outcome": "townpass_report",
+      "correct": true,
+      "elapsedMs": 3555
+    },
+    {
+      "condition": "model",
+      "request": "其他繳費",
+      "tag": "keyword",
+      "expected": ["fee_other"],
+      "outcome": "fee_other",
+      "correct": true,
+      "elapsedMs": 3476
+    },
+    {
+      "condition": "model",
+      "request": "我被詐騙集團騙了錢，想要報案",
+      "tag": "confusable",
+      "expected": ["townpass_police"],
+      "outcome": "call_1999",
+      "correct": false,
+      "elapsedMs": 3963
+    },
+    {
+      "condition": "model",
+      "request": "隔壁鄰居半夜一直很吵，我想向市府反映",
+      "tag": "confusable",
+      "expected": ["townpass_report"],
+      "outcome": "fee_other",
+      "correct": false,
+      "elapsedMs": 4212
+    },
+    {
+      "condition": "model",
+      "request": "馬路上有一個很大的坑洞，騎車很危險",
+      "tag": "confusable",
+      "expected": ["townpass_report"],
+      "outcome": "townpass_report",
+      "correct": true,
+      "elapsedMs": 3976
+    },
+    {
+      "condition": "model",
+      "request": "山坡的土石滑下來擋住馬路了",
+      "tag": "confusable",
+      "expected": ["townpass_disaster"],
+      "outcome": "fee_other",
+      "correct": false,
+      "elapsedMs": 4749
+    },
+    {
+      "condition": "model",
+      "request": "我要繳一筆費用，但不知道是哪一種",
+      "tag": "confusable",
+      "expected": ["fee"],
+      "outcome": "fee",
+      "correct": true,
+      "elapsedMs": 4553
+    },
+    {
+      "condition": "model",
+      "request": "我上個月的費用有沒有繳成功，想查一下",
+      "tag": "confusable",
+      "expected": ["fee_history"],
+      "outcome": "fee_other",
+      "correct": false,
+      "elapsedMs": 4166
+    },
+    {
+      "condition": "model",
+      "request": "我想每天收到跟長輩有關的最新消息通知",
+      "tag": "confusable",
+      "expected": ["townpass_subscription"],
+      "outcome": "services_maternity",
+      "correct": false,
+      "elapsedMs": 4213
+    },
+    {
+      "condition": "model",
+      "request": "六十五歲以上可以申請什麼補助",
+      "tag": "confusable",
+      "expected": ["services_elderly"],
+      "outcome": "fee_other",
+      "correct": false,
+      "elapsedMs": 4085
+    },
+    {
+      "condition": "model",
+      "request": "附近哪裡有可以停車的地方",
+      "tag": "confusable",
+      "expected": ["townpass_places"],
+      "outcome": "townpass_places",
+      "correct": true,
+      "elapsedMs": 4378
+    },
+    {
+      "condition": "model",
+      "request": "我剛剛停車的停車費要繳",
+      "tag": "confusable",
+      "expected": ["fee_parking"],
+      "outcome": "fee",
+      "correct": false,
+      "elapsedMs": 4322
+    },
+    {
+      "condition": "model",
+      "request": "我手上有一張繳費單，想用手機掃上面的條碼來繳",
+      "tag": "confusable",
+      "expected": ["fee_scan"],
+      "outcome": "fee",
+      "correct": false,
+      "elapsedMs": 4251
+    },
+    {
+      "condition": "model",
+      "request": "我想繳費",
+      "tag": "confusable",
+      "expected": ["fee"],
+      "outcome": "fee",
+      "correct": true,
+      "elapsedMs": 3887
+    },
+    {
+      "condition": "model",
+      "request": "呃…那個…我要…就是…水費啦，水費要怎麼繳",
+      "tag": "disfluent",
+      "expected": ["fee_water"],
+      "outcome": "fee",
+      "correct": false,
+      "elapsedMs": 4377
+    },
+    {
+      "condition": "model",
+      "request": "嗯我想查那個…圖書館的書，有沒有哈利波特",
+      "tag": "disfluent",
+      "expected": ["townpass_library"],
+      "outcome": "townpass_library",
+      "correct": true,
+      "elapsedMs": 3925
+    },
+    {
+      "condition": "model",
+      "request": "欸那個臨臨櫃叫號…就是戶所現在排到幾號了啦",
+      "tag": "disfluent",
+      "expected": ["townpass_counter"],
+      "outcome": "townpass_counter",
+      "correct": true,
+      "elapsedMs": 3773
+    },
+    {
+      "condition": "model",
+      "request": "我我想問孕婦補住…就是懷孕可以領的那個",
+      "tag": "disfluent",
+      "expected": ["services_maternity"],
+      "outcome": "services_maternity",
+      "correct": true,
+      "elapsedMs": 3546
+    },
+    {
+      "condition": "model",
+      "request": "I need to pay my water bill",
+      "tag": "english",
+      "expected": ["fee_water"],
+      "outcome": "fee_water",
+      "correct": true,
+      "elapsedMs": 3240
+    },
+    {
+      "condition": "model",
+      "request": "Where is the nearest YouBike station?",
+      "tag": "english",
+      "expected": ["townpass_places"],
+      "outcome": "townpass_library",
+      "correct": false,
+      "elapsedMs": 1048
+    },
+    {
+      "condition": "model",
+      "request": "I want to talk to a real person at the city hotline",
+      "tag": "english",
+      "expected": ["call_1999"],
+      "outcome": "call_1999",
+      "correct": true,
+      "elapsedMs": 1944
+    },
+    {
+      "condition": "model",
+      "request": "What subsidies are there for my disabled son?",
+      "tag": "english",
+      "expected": ["services_disabled"],
+      "outcome": "fee_other",
+      "correct": false,
+      "elapsedMs": 1089
+    },
+    {
+      "condition": "model",
+      "request": "幫我寫一首關於秋天的詩",
+      "tag": "unsupported",
+      "expected": ["unsupported"],
+      "outcome": "fee_other",
+      "correct": false,
+      "elapsedMs": 815
+    },
+    {
+      "condition": "model",
+      "request": "現在買哪支股票比較會賺",
+      "tag": "unsupported",
+      "expected": ["unsupported"],
+      "outcome": "unsupported",
+      "correct": true,
+      "elapsedMs": 3468
+    },
+    {
+      "condition": "model",
+      "request": "今天天氣好像不錯，你覺得明天會下雨嗎",
+      "tag": "unsupported",
+      "expected": ["unsupported"],
+      "outcome": "fee_other",
+      "correct": false,
+      "elapsedMs": 3466
+    },
+    {
+      "condition": "model",
+      "request": "幫我訂一份中午的便當外送",
+      "tag": "unsupported",
+      "expected": ["unsupported"],
+      "outcome": "fee_other",
+      "correct": false,
+      "elapsedMs": 3467
+    },
+    {
+      "condition": "model",
+      "request": "幫我預約台大醫院的門診",
+      "tag": "unsupported",
+      "expected": ["unsupported"],
+      "outcome": "townpass_counter",
+      "correct": false,
+      "elapsedMs": 3724
+    },
+    {
+      "condition": "model",
+      "request": "我的護照過期了，要怎麼換新的",
+      "tag": "unsupported",
+      "expected": ["unsupported"],
+      "outcome": "fee_other",
+      "correct": false,
+      "elapsedMs": 3572
+    },
+    {
+      "condition": "runner",
+      "request": "我媽的看病錢要怎麼付",
+      "tag": "paraphrase",
+      "expected": ["fee_medical"],
+      "outcome": "unsupported",
+      "detail": {
+        "domain": "services",
+        "notice": "unsupported",
+        "calls": []
+      },
+      "correct": false,
+      "elapsedMs": 1966
+    },
+    {
+      "condition": "runner",
+      "request": "戶政那邊現在排到幾號了",
+      "tag": "paraphrase",
+      "expected": ["townpass_counter"],
+      "outcome": "unsupported",
+      "detail": {
+        "domain": "services",
+        "notice": "unsupported",
+        "calls": []
+      },
+      "correct": false,
+      "elapsedMs": 651
+    },
+    {
+      "condition": "runner",
+      "request": "我想問一下輪椅補助",
+      "tag": "paraphrase",
+      "expected": ["services_disabled"],
+      "outcome": "services_disabled",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "services_disabled"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 708
+    },
+    {
+      "condition": "runner",
+      "request": "家門口一直淹水，水都快進來了",
+      "tag": "paraphrase",
+      "expected": ["townpass_disaster"],
+      "outcome": "townpass_places",
+      "detail": {
+        "domain": "places",
+        "notice": "results",
+        "calls": [
+          {
+            "id": "0",
+            "name": "find_nearby_parking",
+            "arguments": {
+              "near_me": true,
+              "accessible": true
+            }
+          }
+        ]
+      },
+      "correct": false,
+      "elapsedMs": 4903
+    },
+    {
+      "condition": "runner",
+      "request": "我想跟真人講話",
+      "tag": "paraphrase",
+      "expected": ["call_1999"],
+      "outcome": "unsupported",
+      "detail": {
+        "domain": "unsupported",
+        "notice": "unsupported",
+        "calls": []
+      },
+      "correct": false,
+      "elapsedMs": 447
+    },
+    {
+      "condition": "runner",
+      "request": "我懷孕了，市政府有什麼可以補助的",
+      "tag": "paraphrase",
+      "expected": ["services_maternity"],
+      "outcome": "services_maternity",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "services_maternity"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 402
+    },
+    {
+      "condition": "runner",
+      "request": "我爸八十五歲了，有沒有敬老的津貼可以領",
+      "tag": "paraphrase",
+      "expected": ["services_elderly"],
+      "outcome": "services_elderly",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "services_elderly"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 381
+    },
+    {
+      "condition": "runner",
+      "request": "這個月的自來水帳單要怎麼付",
+      "tag": "paraphrase",
+      "expected": ["fee_water"],
+      "outcome": "fee",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "fee"
+            }
+          }
+        ]
+      },
+      "correct": false,
+      "elapsedMs": 389
+    },
+    {
+      "condition": "runner",
+      "request": "房屋稅單寄來了，我要繳",
+      "tag": "paraphrase",
+      "expected": ["fee_tax"],
+      "outcome": "fee_tax",
+      "detail": {
+        "domain": "bills",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "fee_tax"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 414
+    },
+    {
+      "condition": "runner",
+      "request": "孫子學校的註冊費要繳",
+      "tag": "paraphrase",
+      "expected": ["fee_tuition"],
+      "outcome": "townpass_faq",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "townpass_faq"
+            }
+          }
+        ]
+      },
+      "correct": false,
+      "elapsedMs": 390
+    },
+    {
+      "condition": "runner",
+      "request": "我想借書，看附近分館有沒有",
+      "tag": "paraphrase",
+      "expected": ["townpass_library"],
+      "outcome": "townpass_library",
+      "detail": {
+        "domain": "library",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "townpass_library",
+              "keyword": "附近"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 2218
+    },
+    {
+      "condition": "runner",
+      "request": "我買的演唱會門票放在哪裡",
+      "tag": "paraphrase",
+      "expected": ["townpass_ticket_wallet"],
+      "outcome": "townpass_places",
+      "detail": {
+        "domain": "places",
+        "notice": "results",
+        "calls": [
+          {
+            "id": "0",
+            "name": "find_nearby_parking",
+            "arguments": {
+              "near_me": true,
+              "accessible": true
+            }
+          }
+        ]
+      },
+      "correct": false,
+      "elapsedMs": 4740
+    },
+    {
+      "condition": "runner",
+      "request": "這附近哪裡有公共廁所",
+      "tag": "paraphrase",
+      "expected": ["townpass_places"],
+      "outcome": "townpass_places",
+      "detail": {
+        "domain": "places",
+        "notice": "results",
+        "calls": [
+          {
+            "id": "0",
+            "name": "find_nearby_toilets",
+            "arguments": {
+              "near_me": true
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 2384
+    },
+    {
+      "condition": "runner",
+      "request": "想找有折扣的景點去玩",
+      "tag": "paraphrase",
+      "expected": ["townpass_coupon"],
+      "outcome": "townpass_coupon",
+      "detail": {
+        "domain": "perks",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "townpass_coupon"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 1292
+    },
+    {
+      "condition": "runner",
+      "request": "我的台北通登入不了",
+      "tag": "paraphrase",
+      "expected": ["townpass_faq"],
+      "outcome": "townpass_faq",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "townpass_faq"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 400
+    },
+    {
+      "condition": "runner",
+      "request": "有哪些證明可以在網路上辦，不用跑去區公所",
+      "tag": "paraphrase",
+      "expected": ["townpass_apply"],
+      "outcome": "unsupported",
+      "detail": {
+        "domain": "services",
+        "notice": "unsupported",
+        "calls": []
+      },
+      "correct": false,
+      "elapsedMs": 371
+    },
+    {
+      "condition": "runner",
+      "request": "社宅這個月的房租還沒繳",
+      "tag": "paraphrase",
+      "expected": ["fee_housing"],
+      "outcome": "fee_housing",
+      "detail": {
+        "domain": "bills",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "fee_housing"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 407
+    },
+    {
+      "condition": "runner",
+      "request": "我報名了市府的電腦課，課程費用要繳",
+      "tag": "paraphrase",
+      "expected": ["fee_course"],
+      "outcome": "fee_course",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "fee_course"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 391
+    },
+    {
+      "condition": "runner",
+      "request": "平價住宅的管理維護費怎麼繳",
+      "tag": "paraphrase",
+      "expected": ["fee_maintenance"],
+      "outcome": "fee_maintenance",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "fee_maintenance"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 370
+    },
+    {
+      "condition": "runner",
+      "request": "臨櫃叫號",
+      "tag": "keyword",
+      "expected": ["townpass_counter"],
+      "outcome": "townpass_counter",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "townpass_counter"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 381
+    },
+    {
+      "condition": "runner",
+      "request": "市政訊息訂閱",
+      "tag": "keyword",
+      "expected": ["townpass_subscription"],
+      "outcome": "townpass_subscription",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "townpass_subscription"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 377
+    },
+    {
+      "condition": "runner",
+      "request": "掃碼繳費",
+      "tag": "keyword",
+      "expected": ["fee_scan"],
+      "outcome": "fee_scan",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "fee_scan"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 415
+    },
+    {
+      "condition": "runner",
+      "request": "有話要說",
+      "tag": "keyword",
+      "expected": ["townpass_report"],
+      "outcome": "townpass_report",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "townpass_report"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 409
+    },
+    {
+      "condition": "runner",
+      "request": "其他繳費",
+      "tag": "keyword",
+      "expected": ["fee_other"],
+      "outcome": "fee",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "fee"
+            }
+          }
+        ]
+      },
+      "correct": false,
+      "elapsedMs": 444
+    },
+    {
+      "condition": "runner",
+      "request": "我被詐騙集團騙了錢，想要報案",
+      "tag": "confusable",
+      "expected": ["townpass_police"],
+      "outcome": "townpass_police",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "townpass_police"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 535
+    },
+    {
+      "condition": "runner",
+      "request": "隔壁鄰居半夜一直很吵，我想向市府反映",
+      "tag": "confusable",
+      "expected": ["townpass_report"],
+      "outcome": "townpass_report",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "townpass_report"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 536
+    },
+    {
+      "condition": "runner",
+      "request": "馬路上有一個很大的坑洞，騎車很危險",
+      "tag": "confusable",
+      "expected": ["townpass_report"],
+      "outcome": "townpass_places",
+      "detail": {
+        "domain": "places",
+        "notice": "results",
+        "calls": [
+          {
+            "id": "0",
+            "name": "find_nearby_parking",
+            "arguments": {
+              "near_me": true
+            }
+          }
+        ]
+      },
+      "correct": false,
+      "elapsedMs": 4221
+    },
+    {
+      "condition": "runner",
+      "request": "山坡的土石滑下來擋住馬路了",
+      "tag": "confusable",
+      "expected": ["townpass_disaster"],
+      "outcome": "",
+      "detail": {
+        "domain": null,
+        "notice": "emergency",
+        "calls": []
+      },
+      "correct": false,
+      "elapsedMs": 1294
+    },
+    {
+      "condition": "runner",
+      "request": "我要繳一筆費用，但不知道是哪一種",
+      "tag": "confusable",
+      "expected": ["fee"],
+      "outcome": "unsupported",
+      "detail": {
+        "domain": "services",
+        "notice": "unsupported",
+        "calls": []
+      },
+      "correct": false,
+      "elapsedMs": 383
+    },
+    {
+      "condition": "runner",
+      "request": "我上個月的費用有沒有繳成功，想查一下",
+      "tag": "confusable",
+      "expected": ["fee_history"],
+      "outcome": "unsupported",
+      "detail": {
+        "domain": "bills",
+        "notice": "unsupported",
+        "calls": []
+      },
+      "correct": false,
+      "elapsedMs": 391
+    },
+    {
+      "condition": "runner",
+      "request": "我想每天收到跟長輩有關的最新消息通知",
+      "tag": "confusable",
+      "expected": ["townpass_subscription"],
+      "outcome": "services_elderly",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "services_elderly"
+            }
+          }
+        ]
+      },
+      "correct": false,
+      "elapsedMs": 386
+    },
+    {
+      "condition": "runner",
+      "request": "六十五歲以上可以申請什麼補助",
+      "tag": "confusable",
+      "expected": ["services_elderly"],
+      "outcome": "townpass_apply",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "townpass_apply"
+            }
+          }
+        ]
+      },
+      "correct": false,
+      "elapsedMs": 382
+    },
+    {
+      "condition": "runner",
+      "request": "附近哪裡有可以停車的地方",
+      "tag": "confusable",
+      "expected": ["townpass_places"],
+      "outcome": "townpass_places",
+      "detail": {
+        "domain": "places",
+        "notice": "results",
+        "calls": [
+          {
+            "id": "0",
+            "name": "find_nearby_parking",
+            "arguments": {
+              "near_me": true
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 4172
+    },
+    {
+      "condition": "runner",
+      "request": "我剛剛停車的停車費要繳",
+      "tag": "confusable",
+      "expected": ["fee_parking"],
+      "outcome": "fee_parking",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "fee_parking"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 1276
+    },
+    {
+      "condition": "runner",
+      "request": "我手上有一張繳費單，想用手機掃上面的條碼來繳",
+      "tag": "confusable",
+      "expected": ["fee_scan"],
+      "outcome": "fee_scan",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "fee_scan"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 387
+    },
+    {
+      "condition": "runner",
+      "request": "我想繳費",
+      "tag": "confusable",
+      "expected": ["fee"],
+      "outcome": "fee",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "fee"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 377
+    },
+    {
+      "condition": "runner",
+      "request": "呃…那個…我要…就是…水費啦，水費要怎麼繳",
+      "tag": "disfluent",
+      "expected": ["fee_water"],
+      "outcome": "fee_water",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "fee_water"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 385
+    },
+    {
+      "condition": "runner",
+      "request": "嗯我想查那個…圖書館的書，有沒有哈利波特",
+      "tag": "disfluent",
+      "expected": ["townpass_library"],
+      "outcome": "townpass_library",
+      "detail": {
+        "domain": "library",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "townpass_library",
+              "keyword": "哈利波特"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 1431
+    },
+    {
+      "condition": "runner",
+      "request": "欸那個臨臨櫃叫號…就是戶所現在排到幾號了啦",
+      "tag": "disfluent",
+      "expected": ["townpass_counter"],
+      "outcome": "townpass_counter",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "townpass_counter"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 1305
+    },
+    {
+      "condition": "runner",
+      "request": "我我想問孕婦補住…就是懷孕可以領的那個",
+      "tag": "disfluent",
+      "expected": ["services_maternity"],
+      "outcome": "services_maternity",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "services_maternity"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 383
+    },
+    {
+      "condition": "runner",
+      "request": "I need to pay my water bill",
+      "tag": "english",
+      "expected": ["fee_water"],
+      "outcome": "fee_water",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "fee_water"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 398
+    },
+    {
+      "condition": "runner",
+      "request": "Where is the nearest YouBike station?",
+      "tag": "english",
+      "expected": ["townpass_places"],
+      "outcome": "townpass_places",
+      "detail": {
+        "domain": "places",
+        "notice": "results",
+        "calls": [
+          {
+            "id": "0",
+            "name": "find_nearby_youbike",
+            "arguments": {
+              "near_me": true
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 3113
+    },
+    {
+      "condition": "runner",
+      "request": "I want to talk to a real person at the city hotline",
+      "tag": "english",
+      "expected": ["call_1999"],
+      "outcome": "unsupported",
+      "detail": {
+        "domain": "services",
+        "notice": "unsupported",
+        "calls": []
+      },
+      "correct": false,
+      "elapsedMs": 1468
+    },
+    {
+      "condition": "runner",
+      "request": "What subsidies are there for my disabled son?",
+      "tag": "english",
+      "expected": ["services_disabled"],
+      "outcome": "services_disabled",
+      "detail": {
+        "domain": "services",
+        "notice": "navigate",
+        "calls": [
+          {
+            "id": "0",
+            "name": "open_official_service",
+            "arguments": {
+              "destination": "services_disabled"
+            }
+          }
+        ]
+      },
+      "correct": true,
+      "elapsedMs": 389
+    },
+    {
+      "condition": "runner",
+      "request": "幫我寫一首關於秋天的詩",
+      "tag": "unsupported",
+      "expected": ["unsupported"],
+      "outcome": "unsupported",
+      "detail": {
+        "domain": "perks",
+        "notice": "unsupported",
+        "calls": []
+      },
+      "correct": true,
+      "elapsedMs": 394
+    },
+    {
+      "condition": "runner",
+      "request": "現在買哪支股票比較會賺",
+      "tag": "unsupported",
+      "expected": ["unsupported"],
+      "outcome": "unsupported",
+      "detail": {
+        "domain": "unsupported",
+        "notice": "unsupported",
+        "calls": []
+      },
+      "correct": true,
+      "elapsedMs": 372
+    },
+    {
+      "condition": "runner",
+      "request": "今天天氣好像不錯，你覺得明天會下雨嗎",
+      "tag": "unsupported",
+      "expected": ["unsupported"],
+      "outcome": "unsupported",
+      "detail": {
+        "domain": "unsupported",
+        "notice": "unsupported",
+        "calls": []
+      },
+      "correct": true,
+      "elapsedMs": 413
+    },
+    {
+      "condition": "runner",
+      "request": "幫我訂一份中午的便當外送",
+      "tag": "unsupported",
+      "expected": ["unsupported"],
+      "outcome": "unsupported",
+      "detail": {
+        "domain": "unsupported",
+        "notice": "unsupported",
+        "calls": []
+      },
+      "correct": true,
+      "elapsedMs": 444
+    },
+    {
+      "condition": "runner",
+      "request": "幫我預約台大醫院的門診",
+      "tag": "unsupported",
+      "expected": ["unsupported"],
+      "outcome": "unsupported",
+      "detail": {
+        "domain": "services",
+        "notice": "unsupported",
+        "calls": []
+      },
+      "correct": true,
+      "elapsedMs": 1071
+    },
+    {
+      "condition": "runner",
+      "request": "我的護照過期了，要怎麼換新的",
+      "tag": "unsupported",
+      "expected": ["unsupported"],
+      "outcome": "unsupported",
+      "detail": {
+        "domain": "services",
+        "notice": "unsupported",
+        "calls": []
+      },
+      "correct": true,
+      "elapsedMs": 599
+    }
+  ]
+}

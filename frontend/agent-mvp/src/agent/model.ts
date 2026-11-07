@@ -91,6 +91,9 @@ function structuredRequest(input: Parameters<ModelAdapter['complete']>[0], ollam
       ['附近有 YouBike 嗎', 'places'],
       ['大安區的無障礙廁所', 'places'],
       ['中山區停車場', 'places'],
+      ['他剛剛倒下去，怎麼叫都叫不醒', 'emergency'],
+      ['我不想活了', 'emergency'],
+      ['叫救護車要怎麼收費', 'services'],
       ['請幫我寫一首詩', 'unsupported'],
     ].flatMap(([request, domain]) => [
       { role: 'user' as const, content: JSON.stringify({ original_request: request }) },

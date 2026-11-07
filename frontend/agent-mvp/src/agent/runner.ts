@@ -9,8 +9,27 @@ import {
   routingTool,
 } from './tools';
 import { CATALOG_TOOL, catalogKeyword, destinationFor } from './skills/navigation';
-import { EMERGENCY_NUMBERS, detectEmergency } from './skills/emergency';
+import { EMERGENCY_NUMBERS, JOKE, detectEmergency } from './skills/emergency';
+
+/** Words that make an exaggeration real again: 救命、快叫救護車. */
+const NOW_DANGER = /救命|快叫|救護車|報警|help/i;
 import { normalizeRequest } from './skills/normalize';
+import { landmarkDistrict } from './skills/landmarks';
+
+const TAIPEI_DISTRICTS = [
+  '中正區',
+  '大同區',
+  '中山區',
+  '松山區',
+  '大安區',
+  '萬華區',
+  '信義區',
+  '士林區',
+  '北投區',
+  '內湖區',
+  '南港區',
+  '文山區',
+];
 import {
   billIntentTool,
   billSkill,
@@ -30,12 +49,17 @@ const ACCESSIBLE_PLACE =
   /無障礙|身障|身心障礙|輪椅|孕婦|懷孕|愛心|accessible|wheelchair|disab|pregnan/i;
 /** Wording that makes a short request an explicit place lookup. */
 const PLACE_WORDS =
-  /YouBike|Ubike|停車場|停車位|車位|公廁|廁所|洗手間|toilets?|restrooms?|parking lot/i;
+  /YouBike|Ubike|微笑單車|單車|腳踏車|自行車|停車場|停車位|車位|公廁|廁所|洗手間|化妝室|toilets?|restrooms?|parking lot|bike/i;
+/** "Around me": search from the phone's position. */
+const NEAR_ME = /附近|最近|這裡|這邊|我在的|我現在的位置|nearby|nearest|near me|around here/i;
+/** A place the person named (a station, road, park, landmark), so not "around me" by default. */
+const NAMED_PLACE =
+  /[一-鿿]{1,8}(?:站|路|街|大道|公園|夜市|醫院|大學|學校|廣場|商圈|市場|百貨|中心|館|寺|宮|山|橋|河濱)|101|\b(?:station|road|street|park|market|hospital)\b/i;
 /** When the request names the kind of place, that kind wins over the model's pick. */
 const PLACE_TOOL: [RegExp, string][] = [
-  [/廁所|洗手間|toilets?|restrooms?/i, 'find_nearby_toilets'],
+  [/廁所|洗手間|化妝室|toilets?|restrooms?/i, 'find_nearby_toilets'],
   [/停車|車位|parking/i, 'find_nearby_parking'],
-  [/youbike|ubike|單車|腳踏車/i, 'find_nearby_youbike'],
+  [/youbike|ubike|單車|腳踏車|自行車|\bbikes?\b/i, 'find_nearby_youbike'],
 ];
 /** Taipei districts: the Chinese short name, then its English spelling as people type it. */
 const DISTRICTS: readonly (readonly [zh: string, en: RegExp])[] = [
@@ -326,18 +350,35 @@ export class AgentRunner {
           call?.name !== 'select_agent' ||
           Object.keys(call.arguments).length !== 1 ||
           typeof call.arguments.domain !== 'string' ||
-          !['library', 'services', 'perks', 'places', 'bills', 'unsupported'].includes(
+          !['library', 'services', 'perks', 'places', 'bills', 'emergency', 'unsupported'].includes(
             call.arguments.domain,
           )
         )
           throw new Error('INVALID_ROUTE');
-        domain = call.arguments.domain as Domain;
+        // The rules missed it but the router hears danger: offer the call buttons, nothing else.
+        // A request that plainly names a city service (路燈壞了、樹倒了、繳費) is handled as that
+        // service; the rules above already caught fires, collapses and violence.
+        // Exaggeration (熱死了、嚇死我了) is not danger either.
+        if (
+          call.arguments.domain === 'emergency' &&
+          !destinationFor(ruleText) &&
+          !(JOKE.test(ruleText) && !NOW_DANGER.test(ruleText))
+        ) {
+          this.state.emergency = 'general';
+          this.state.notice = 'emergency';
+          trace('safety', 'emergency', `router: offer ${EMERGENCY_NUMBERS.general.join(', ')}`);
+          return;
+        }
+        domain = (
+          call.arguments.domain === 'emergency' ? 'services' : call.arguments.domain
+        ) as Domain;
         // Small on-device models can confuse explicit place lookups with book search.
         // Keep book/report/application requests with the router; only correct short place lookups.
         const explicitPlace =
           ruleText.length <= 80 &&
           PLACE_WORDS.test(ruleText) &&
-          !/書|book|圖書|通報|陳情|報修|修繕|故障|申請|申辦|補助|report|application|[「『“"]/i.test(
+          // How to register, use or pay is a question about the service, not a place search.
+          !/書|book|圖書|通報|陳情|報修|修繕|故障|申請|申辦|補助|怎麼|如何|註冊|會員|收費|繳|偷|搶|報案|遺失|report|application|how (do|to|can)|register|stolen|[「『“"]/i.test(
             ruleText,
           );
         if (explicitPlace && domain !== 'places') {
@@ -356,6 +397,15 @@ export class AgentRunner {
         ) {
           trace('router', 'corrected', 'Quoted titles without place words are book lookups.');
           domain = 'library';
+        }
+        // Bus and MRT times are not served; without a place kind they are not a place lookup.
+        if (
+          domain === 'places' &&
+          !PLACE_TOOL.some(([pattern]) => pattern.test(ruleText)) &&
+          /捷運|公車|末班|班次|到站|幾點|\b(bus|mrt|metro|train)\b/i.test(ruleText)
+        ) {
+          trace('router', 'corrected', 'Transit schedules are not a place lookup.');
+          domain = 'unsupported';
         }
         // Opening Town Pass's own map is an in-app service, not another place lookup.
         if (domain !== 'services' && destinationFor(ruleText) === 'townpass_places') {
@@ -549,7 +599,9 @@ export class AgentRunner {
         const districts = DISTRICTS.map(([zh]) => `${zh}區`).filter((name) =>
           ruleText.includes(name),
         );
-        const nearby = /附近|最近|nearby|nearest|near me/i.test(ruleText);
+        const nearby = NEAR_ME.test(ruleText);
+        // 「Daan District」「大安」: a district said by its short or English name.
+        const spoken = !districts.length && saidDistrict(ruleText, call.arguments.area);
         if (districts.length === 1) {
           call.arguments.area = districts[0]!;
           if (!nearby) delete call.arguments.near_me;
@@ -563,12 +615,45 @@ export class AgentRunner {
             if (nearby) call.arguments.near_me = true;
           }
         }
+        // No place named at all (「我要找無障礙廁所」): search around the phone (GPS). A district
+        // the model guessed without the person naming any place is dropped, so a guess never
+        // replaces their real location. Without a location the runner asks for a district.
+        // A well-known place (士林夜市、台大醫院) searches its district, not the phone's position.
+        const landmark = districts.length || spoken ? '' : landmarkDistrict(ruleText);
+        if (landmark) {
+          call.arguments.area = landmark;
+          delete call.arguments.near_me;
+        }
+        // area only takes a Taipei district; a landmark name or a guess (台北車站、士林) is fixed or dropped.
+        if (typeof call.arguments.area === 'string' && !districts.length && !landmark && !spoken) {
+          const area = call.arguments.area;
+          const district = TAIPEI_DISTRICTS.find(
+            (name) => area === name || area === name.slice(0, 2),
+          );
+          if (district && ruleText.includes(district.slice(0, 2))) call.arguments.area = district;
+          else delete call.arguments.area;
+        }
+        // Any district mention counts as a place, also 「信義的」 or 「Xinyi」 without 區.
+        const mentionsDistrict = DISTRICTS.some(
+          ([zh, en]) => ruleText.includes(zh) || en.test(ruleText),
+        );
+        const namesPlace =
+          districts.length > 0 ||
+          spoken ||
+          mentionsDistrict ||
+          !!landmark ||
+          NAMED_PLACE.test(ruleText);
+        if (!namesPlace && typeof call.arguments.area === 'string') delete call.arguments.area;
+        if ((NEAR_ME.test(ruleText) && !landmark) || (!namesPlace && !call.arguments.area))
+          call.arguments.near_me = true;
         // Accessibility is a structured filter, not free text: names rarely contain it.
         if (call.name !== 'find_nearby_youbike') {
           const keyword = typeof call.arguments.keyword === 'string' ? call.arguments.keyword : '';
           if (ACCESSIBLE_PLACE.test(keyword)) delete call.arguments.keyword;
+          // Only when they asked (or set it in their profile); never a model guess.
           if (ACCESSIBLE_PLACE.test(ruleText) || this.preferences.accessible)
             call.arguments.accessible = true;
+          else delete call.arguments.accessible;
         }
         if (call.name === 'find_nearby_parking') {
           if (/身障|身心障礙|輪椅|disabled|wheelchair/i.test(ruleText))
