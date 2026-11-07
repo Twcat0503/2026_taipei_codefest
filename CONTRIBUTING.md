@@ -6,14 +6,54 @@
 
 ## 開發流程
 
-1. **不要直接在 `main` 上開工。** 先從最新 `main` 切出 feature branch，命名：
+1. **不要直接在 `main` 上開工。** 先更新 `main`，再切出 feature branch：
+
+   ```sh
+   git switch main && git pull --rebase
+   git switch -c feat/<short-name>
+   ```
+
+   命名：
    - `feat/<short-name>`：新功能
    - `fix/<short-name>`：修 bug
    - `docs/<short-name>`：文件
    - `refactor/<short-name>`、`chore/<short-name>`：其他
-2. 本地開發、自測（見下方「提交前自檢」）。
+2. 本地開發、自測（指令見下方「PR 規範」）。
 3. 開 PR 到 `main`，一個 PR 只做一件事。
 4. **PR 需至少一位 reviewer approve**，由維護者以 **squash merge** 併入 `main`。
+
+### 日常 Git 操作
+
+- **開工前確認 branch 還沒被合併**：`git fetch --prune` 後跑 `git branch -vv`，標示 `[gone]` 的是已合併、GitHub 上已刪除的 branch，不要在上面繼續開發；新工作一律從最新的 `main` 開新 branch。
+- **同步 main**：PR 落後 `main` 或出現衝突時，用 rebase 同步，衝突在本機解決並重跑自檢：
+
+  ```sh
+  git fetch origin
+  git rebase origin/main
+  git push --force-with-lease
+  ```
+
+  不想在本機處理時，也可以按 PR 頁面的「Update branch」。
+- **force push 只用 `--force-with-lease`，而且只推自己的 branch**；不要改寫別人的 branch，`main` 一律禁止 force push。
+- **PR 要小、早點合併**：一個 PR 盡量在幾個小時內就能審完合併；branch 放越久，越容易跟別人衝突。
+- **疊加 PR**（B 依賴還沒合併的 A）：B 從 A 切出，PR 的 base 選 A。A 以 squash 合併後，在 B 上執行：
+
+  ```sh
+  git fetch origin
+  git rebase --onto origin/main A
+  git push --force-with-lease
+  ```
+
+  本機已經刪掉 A 的話，把 `A` 換成 A 合併前最後一個 commit 的 SHA。最後確認 B 的 PR base 已改回 `main`（A 的 branch 被刪除後，GitHub 通常會自動改）。
+- **合併後清理**：GitHub 會自動刪除已合併的 branch，本機再執行：
+
+  ```sh
+  git switch main && git pull --rebase
+  git fetch --prune
+  git branch -D <branch>
+  ```
+
+  squash 合併後用 `git branch -d` 會被拒絕（git 看不出內容已經合併），這是正常的；確認 PR 已合併後再用 `-D`。
 
 ## 開發基準：Android
 
