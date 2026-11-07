@@ -246,11 +246,9 @@ const choices = computed(() =>
 const suggestions = computed(() =>
   realData
     ? [
+        // 陳情、繳費、叫號會開到台北通範本頁（示範資料），不當成建議。
         t.value.toiletSuggestion,
         t.value.parkingSuggestion,
-        t.value.petitionSuggestion,
-        t.value.paySuggestion,
-        t.value.counter,
         t.value.disabledSuggestion,
       ]
     : [t.value.browseBooks, t.value.browseServices],
@@ -426,6 +424,21 @@ function goHome() {
   cancelVoice();
   home.value = true;
 }
+// 離開首頁時留一筆瀏覽紀錄，App 左上的返回鍵與系統返回手勢會先回到首頁，在首頁再按才離開助手。
+const conversationEntry = 'agent-conversation';
+watch(home, (isHome) => {
+  const inConversation = history.state?.view === conversationEntry;
+  if (!isHome && !inConversation) history.pushState({ view: conversationEntry }, '');
+  else if (isHome && inConversation) history.back();
+});
+function onHistoryBack() {
+  if (home.value || history.state?.view === conversationEntry) return;
+  goHome();
+  // 忙碌中留在對話畫面時，補回紀錄讓下一次返回仍回到首頁。
+  if (!home.value) history.pushState({ view: conversationEntry }, '');
+}
+onMounted(() => window.addEventListener('popstate', onHistoryBack));
+onBeforeUnmount(() => window.removeEventListener('popstate', onHistoryBack));
 function startVoice() {
   if (inputDisabled.value) return;
   stopReading();
@@ -1284,14 +1297,28 @@ onBeforeUnmount(() => {
         role="group"
         :aria-label="t.quick"
       >
-        <button :disabled="inputDisabled" :aria-label="t.browseBills" @click="pick(t.browseBills)">
-          <span aria-hidden="true"></span>{{ t.billShortcut }}
+        <!-- 只放查得到真實資料的捷徑：開放資料的廁所與停車場、官方身障服務頁。
+             帳單、陳情、叫號會開到台北通範本頁（頁面內容是示範資料），所以不放。 -->
+        <button
+          :disabled="inputDisabled"
+          :aria-label="t.toiletSuggestion"
+          @click="pick(t.toiletSuggestion)"
+        >
+          <span aria-hidden="true"></span>{{ t.toiletShortcut }}
         </button>
-        <button :disabled="inputDisabled" @click="pick(t.reportRequest)">
-          <span aria-hidden="true"></span>{{ t.reportShortcut }}
+        <button
+          :disabled="inputDisabled"
+          :aria-label="t.parkingSuggestion"
+          @click="pick(t.parkingSuggestion)"
+        >
+          <span aria-hidden="true"></span>{{ t.parkingShortcut }}
         </button>
-        <button :disabled="inputDisabled" :aria-label="t.counter" @click="pick(t.counter)">
-          <span aria-hidden="true"></span>{{ t.counterShortcut }}
+        <button
+          :disabled="inputDisabled"
+          :aria-label="t.disabledSuggestion"
+          @click="pick(t.disabledSuggestion)"
+        >
+          <span aria-hidden="true"></span>{{ t.disabledShortcut }}
         </button>
       </div>
       <p v-if="state.draft && !home" class="draft-hint">{{ t.draftHint }}</p>
@@ -1330,6 +1357,17 @@ onBeforeUnmount(() => {
             @focus="home = false"
             @keydown.enter.exact="onEnter"
           ></textarea>
+          <!-- 首頁已有語音大按鈕，麥克風只放在對話畫面，輸入框有字時換成送出鍵。 -->
+          <button
+            v-if="!home && !input.trim()"
+            type="button"
+            class="send-button mic-button"
+            :aria-label="t.voiceLabel"
+            :disabled="inputDisabled"
+            @click="startVoice"
+          >
+            <UiIcon name="mic" />
+          </button>
           <button
             type="submit"
             class="send-button"
@@ -1473,7 +1511,7 @@ onBeforeUnmount(() => {
             <label
               >{{ t.mode
               }}<select v-model="selectedMode" :disabled="busy">
-                <option value="demo">{{ t.demoMode }}</option>
+                <option v-if="!native" value="demo">{{ t.demoMode }}</option>
                 <option value="local">{{ t.localMode }}</option>
                 <option value="phone">{{ t.phoneMode }}</option>
               </select></label

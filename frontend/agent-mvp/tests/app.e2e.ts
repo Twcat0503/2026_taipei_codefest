@@ -230,7 +230,8 @@ test('phone model startup, authenticated structured calls, and stop', async ({ p
     page.getByRole('button', { name: '送出需求', exact: true, includeHidden: true }),
   ).toBeDisabled();
   await page.getByRole('button', { name: '啟動手機模型', exact: true }).click();
-  await expect(page.getByRole('button', { name: '開始語音輸入', exact: true })).toHaveCount(0);
+  // App 內改用系統語音辨識（speech_start），模型就緒後首頁的語音鍵就會出現。
+  await expect(page.getByRole('button', { name: '開始語音輸入', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '設定', exact: true }).click();
   await expect(
     page.getByRole('dialog').getByText('已連接手機模型，可以提出需求。', { exact: true }),
