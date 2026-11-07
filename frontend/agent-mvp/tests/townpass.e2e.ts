@@ -21,6 +21,8 @@ const stubBridge = (page: Page) =>
   page.evaluate(() => {
     window.flutterObject = {
       postMessage: (message) => {
+        // Haptic feedback uses the bridge too; these tests only watch what leaves the assistant.
+        if (JSON.parse(message).name === 'haptic') return;
         document.documentElement.dataset.navigation = message;
       },
     };
@@ -453,6 +455,7 @@ test('police report opens the contact form with the member phone and email fille
       removeEventListener: () => {},
       postMessage: (message: string) => {
         const { name } = JSON.parse(message);
+        if (name === 'haptic') return;
         if (name !== 'userinfo') {
           document.documentElement.dataset.navigation = message;
           return;

@@ -134,6 +134,8 @@ test('native bill navigation requests the registered route and reports bridge fa
   await page.evaluate(() => {
     window.flutterObject = {
       postMessage: (message: string) => {
+        // Haptic feedback uses the bridge too; this test only watches the page request.
+        if (JSON.parse(message).name === 'haptic') return;
         document.documentElement.dataset.bridgeRequest = message;
       },
     };
@@ -551,4 +553,50 @@ test('the plus shortcut only accepts photos when a model can describe them', asy
       .evaluate((input: HTMLInputElement) => input.files?.length),
   ).toBe(0);
   await expect(page.locator('.navigation-card')).toHaveCount(0);
+});
+
+test('haptic feedback follows live events only, never a restored conversation', async ({
+  page,
+}) => {
+  // Chromium cannot vibrate here, so record what the app asks for.
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'vibrate', {
+      configurable: true,
+      value: (pattern: number[]) => {
+        const seen: number[][] = JSON.parse(document.documentElement.dataset.vibrations ?? '[]');
+        document.documentElement.dataset.vibrations = JSON.stringify([...seen, pattern]);
+        return true;
+      },
+    });
+  });
+  const vibrations = async (): Promise<number[][]> =>
+    JSON.parse(await page.evaluate(() => document.documentElement.dataset.vibrations ?? '[]'));
+  const forget = () => page.evaluate(() => delete document.documentElement.dataset.vibrations);
+  const [selection, success, warning] = [[10], [30, 60, 30], [60, 80, 60]];
+  await page.reload();
+  expect(await vibrations()).toEqual([]);
+
+  // A usable answer buzzes once.
+  await chooseService(page, '幫我找圖書');
+  await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toBeVisible();
+  expect(await vibrations()).toEqual([success]);
+
+  // The saved conversation comes back silently.
+  await page.reload();
+  await expect(page.getByText('這是已保存的摘要，查詢結果未保存。')).toBeVisible();
+  expect(await vibrations()).toEqual([]);
+
+  // "Not supported" is neither good nor bad news. Tapping a suggestion ticks, then the answer buzzes.
+  await chooseService(page, '幫我寫一首詩');
+  await expect(page.getByText(/^我能查圖書/)).toBeVisible();
+  expect(await vibrations()).toEqual([]);
+  await page.getByRole('button', { name: '幫我找圖書', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toBeVisible();
+  expect(await vibrations()).toEqual([selection, success]);
+
+  // The emergency card warns.
+  await forget();
+  await chooseService(page, '失火了！');
+  await expect(page.getByRole('heading', { name: /119/ })).toBeVisible();
+  expect(await vibrations()).toEqual([warning]);
 });

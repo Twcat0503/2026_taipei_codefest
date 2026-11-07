@@ -139,6 +139,23 @@ readAloud(
 - 呼叫 `stopReading()` 之後，那一次朗讀的 callback 都不會再被呼叫，所以呼叫端自己要把 `speaking` 之類的狀態設回來。
 - `stopReading()` 在 App 內只有朗讀進行中才會送出 `tts` stop；沒在朗讀時不送任何 bridge 訊息（原生端每次開始朗讀前也會先停掉上一段）。
 
+## 目前接在哪裡（`src/App.vue`）
+
+呼叫 `feedback(kind)` 時**不帶文字**：畫面上的 `role="status"` 已經會播報同一段文字，再帶文字會讓螢幕閱讀器念兩次。
+
+| 時機                                                                           | `kind`      |
+| ------------------------------------------------------------------------------ | ----------- |
+| 請求結束且有可用的結果：查到資料、找到要前往的地方、回答「我的資料」、示範回執 | `success`   |
+| 請求失敗（`error`、`billUnavailable`、`billAuth`，畫面上有重試）               | `error`     |
+| 緊急卡片出現                                                                   | `warning`   |
+| 點選建議或選項：首頁建議、輸入框上方的快捷鈕、回答下方的選項與建議、帳單種類   | `selection` |
+
+- 助手反問（問位置、問帳單種類）、沒有結果、不支援、使用者按「停止」都不震動，因為成功或失敗的震動都不符合事實。
+- 只在請求剛結束時觸發；還原上次的對話與草稿時不會。
+- 結果對照表在 `src/agent/outcome-feedback.ts`，由 `tests/outcome-feedback.test.ts` 檢查。
+- 語音回饋只念帶文字的 `feedback()`，上面的呼叫都不帶文字，所以目前還不會出聲。
+- 震動走 `haptic` bridge，所以測試裡假的 `window.flutterObject.postMessage` 會收到 `haptic` 訊息；只關心導向的測試要自己略過。
+
 ## 隱私：`screenReader`
 
 `a11yState.screenReader` 是身心障礙相關資訊，專案不蒐集障別等健康資料。規則：
