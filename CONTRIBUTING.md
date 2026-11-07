@@ -268,7 +268,7 @@
   - 個人 shell／工具設定、本機除錯用檔案、截圖與錄影原檔。
   - 上列多數已列於 `.gitignore`；新增這類檔案時同步補規則，或改用個人全域 gitignore。
 - **例外——團隊共用且可重現的設定要進 git**：`frontend/mise.toml`、`pnpm-lock.yaml`、`pubspec.lock`、`.fvmrc`、`.env.example` 等，讓其他人能重建相同環境。
-- **內部文件不進 git**：會議紀錄、個人筆記、內部草稿／簡報、選手手冊與主辦方附件、尚未公開的排程或廠商資料等，放團隊雲端硬碟或本機（本機可放 repo 根目錄的 `research/`，已列入 `.gitignore`）；repo 只放可公開的專案文件（`README.md`、`AGENTS.md`、`CONTRIBUTING.md`、`CODE_OF_CONDUCT.md`、`LICENSE`）。
+- **內部文件不進 git**：會議紀錄、個人筆記、內部草稿／簡報、選手手冊與主辦方附件、尚未公開的排程或廠商資料等，放團隊雲端硬碟或本機（本機可放 repo 根目錄的 `research/`，已列入 `.gitignore`）；repo 只放可公開的專案文件（`README.md`、`AGENTS.md`、`CONTRIBUTING.md`、`TODO.md`、`CODE_OF_CONDUCT.md`、`LICENSE`）。
 - 不確定某個檔案屬「團隊共用」或「個人／內部」時，先問維護者再 commit。
 
 ## 相依套件
