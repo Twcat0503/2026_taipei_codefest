@@ -92,6 +92,13 @@ export const DESTINATIONS: readonly Destination[] = [
     path: "/ticket-wallet",
   },
   {
+    id: "townpass_places",
+    title: "找地點",
+    description: "在台北通的地圖上看 YouBike、停車場、公廁；打開後選擇要找的類別。",
+    provider: TOWNPASS,
+    path: "/surrounding-service/",
+  },
+  {
     id: "townpass_faq",
     title: "常見問題",
     description: "台北通的登入、卡證、優惠與帳單等常見問題。",

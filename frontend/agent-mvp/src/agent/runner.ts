@@ -9,6 +9,8 @@ import {
   routingTool,
 } from './tools';
 import { CATALOG_TOOL, catalogKeyword, destinationFor } from './skills/navigation';
+import { EMERGENCY_NUMBERS, detectEmergency } from './skills/emergency';
+import { normalizeRequest } from './skills/normalize';
 import {
   billIntentTool,
   billSkill,
@@ -16,9 +18,22 @@ import {
   parseBillOutcome,
   type BillSelection,
 } from './skills/bills';
-import type { Domain, Message, ModelAdapter, TaskState, ToolCall } from './types';
+import {
+  parseReportVision,
+  visionInstruction,
+  visionSystemPrompt,
+  type ReportVision,
+} from './skills/report-vision';
+import type { Domain, Locale, Message, ModelAdapter, TaskState, ToolCall } from './types';
 
-const ACCESSIBLE_PLACE = /無障礙|身障|身心障礙|輪椅|孕婦|愛心|accessible|wheelchair|disab|pregnan/i;
+const ACCESSIBLE_PLACE =
+  /無障礙|身障|身心障礙|輪椅|孕婦|懷孕|愛心|accessible|wheelchair|disab|pregnan/i;
+/** When the request names the kind of place, that kind wins over the model's pick. */
+const PLACE_TOOL: [RegExp, string][] = [
+  [/廁所|洗手間|toilets?|restrooms?/i, 'find_nearby_toilets'],
+  [/停車|車位|parking/i, 'find_nearby_parking'],
+  [/youbike|ubike|單車|腳踏車/i, 'find_nearby_youbike'],
+];
 
 /** Bound even adapters that ignore AbortSignal. Late responses never mutate state. */
 async function bounded<T>(
@@ -48,8 +63,16 @@ async function bounded<T>(
   }
 }
 
+/** Questions about what the assistant knows about the person; answered on the phone, no model. */
+const PROFILE_QUESTION =
+  /我的(基本)?(資料|個資|地址|電話|手機|信箱|email|生日|水號)|我住(在)?(哪|那)|你(知道|記得|有)(我|什麼).{0,6}(資料|事)|what do you know about me|my (profile|address|phone)/i;
+
 export class AgentRunner {
   private controller: AbortController | null = null;
+  /** A separate channel so a photo lookup can run (and be cancelled) from the draft card. */
+  private visionController: AbortController | null = null;
+  /** The person's own settings (from the on-phone profile); applied to place lookups. */
+  preferences = { accessible: false };
   constructor(
     private model: ModelAdapter,
     private state: TaskState,
@@ -63,6 +86,40 @@ export class AgentRunner {
 
   cancel() {
     this.controller?.abort();
+  }
+
+  cancelVision() {
+    this.visionController?.abort();
+  }
+
+  /**
+   * Look at a report photo and return an editable draft (subject + description). Throws
+   * VISION_UNAVAILABLE when the model is not multimodal, and VISION_NO_RESULT when the model
+   * finds nothing reportable. The caller always shows the result for the person to confirm.
+   */
+  async describePhoto(image: string, locale: Locale): Promise<ReportVision> {
+    if (!this.model.vision) throw new Error('VISION_UNAVAILABLE');
+    if (this.visionController) throw new Error('VISION_RUNNING');
+    const controller = new AbortController();
+    this.visionController = controller;
+    try {
+      const raw = await bounded(
+        (child) =>
+          this.model.vision!({
+            image,
+            system: visionSystemPrompt(locale),
+            instruction: visionInstruction(locale),
+            signal: child,
+          }),
+        controller.signal,
+        Math.min(120000, Math.max(45000, this.model.requestTimeoutMs ?? 45000)),
+      );
+      const draft = parseReportVision(raw);
+      if (!draft) throw new Error('VISION_NO_RESULT');
+      return draft;
+    } finally {
+      if (this.visionController === controller) this.visionController = null;
+    }
   }
 
   run(request: string, onProgress: (stage: 'routing' | 'searching') => void = () => {}) {
@@ -104,6 +161,8 @@ export class AgentRunner {
     this.state.failure = null;
     this.state.pendingLocation = null;
     this.state.navigation = null;
+    this.state.lastTool = null;
+    this.state.emergency = null;
     this.state.billResult = null;
     this.state.billQuery = null;
     this.state.pendingBillCategory = false;
@@ -167,6 +226,8 @@ export class AgentRunner {
     this.state.failure = null;
     this.state.pendingLocation = null;
     this.state.navigation = null;
+    this.state.lastTool = null;
+    this.state.emergency = null;
     this.state.domain = null;
     this.state.receipt = null;
     this.state.bookIds = [];
@@ -201,7 +262,26 @@ export class AgentRunner {
         signal,
         Math.min(120000, Math.max(1000, this.model.requestTimeoutMs ?? 20000)),
       );
+    // Rules read a normalized copy (Simplified characters, common typos); the model gets the original.
+    const ruleText = normalizeRequest(request);
     try {
+      // Emergencies are answered before any inference: call buttons, nothing else.
+      const emergency = selectedCategory ? null : detectEmergency(ruleText);
+      if (emergency) {
+        this.state.emergency = emergency;
+        this.state.notice = 'emergency';
+        trace(
+          'safety',
+          'emergency',
+          `${emergency}: offer ${EMERGENCY_NUMBERS[emergency].join(', ')}`,
+        );
+        return;
+      }
+      if (!selectedCategory && PROFILE_QUESTION.test(ruleText)) {
+        this.state.notice = 'profile';
+        trace('profile', 'local', 'Answered from data on this phone; nothing sent to the model.');
+        return;
+      }
       onProgress('routing');
       let domain: Domain = 'bills';
       if (!selectedCategory) {
@@ -226,17 +306,24 @@ export class AgentRunner {
         // Small on-device models can confuse explicit place lookups with book search.
         // Keep book/report/application requests with the router; only correct short place lookups.
         const explicitPlace =
-          request.length <= 80 &&
-          /YouBike|Ubike|停車場|公廁|廁所|toilets?|restrooms?|parking lot/i.test(request) &&
+          ruleText.length <= 80 &&
+          /YouBike|Ubike|停車場|停車位|車位|公廁|廁所|洗手間|toilets?|restrooms?|parking lot/i.test(
+            ruleText,
+          ) &&
           !/書|book|圖書|通報|陳情|報修|修繕|故障|申請|申辦|補助|report|application|[「『“"]/i.test(
-            request,
+            ruleText,
           );
         if (explicitPlace && domain !== 'places') {
           trace('router', 'corrected', 'Explicit place lookup must use the places tools.');
           domain = 'places';
         }
+        // Opening Town Pass's own map is an in-app service, not another place lookup.
+        if (domain !== 'services' && destinationFor(ruleText) === 'townpass_places') {
+          trace('router', 'corrected', 'Opening the Town Pass map is an in-app service.');
+          domain = 'services';
+        }
         // Queue numbers are a service lookup, never a personal bill.
-        if (domain === 'bills' && /叫號|臨櫃|號碼牌|櫃檯|queue|counter/i.test(request)) {
+        if (domain === 'bills' && /叫號|臨櫃|號碼牌|櫃檯|queue|counter/i.test(ruleText)) {
           trace('router', 'corrected', 'Counter and queue requests belong to services.');
           domain = 'services';
         }
@@ -254,7 +341,7 @@ export class AgentRunner {
       // A small router may give up on wording that clearly names an official service.
       if (
         domain === 'unsupported' &&
-        destinationFor(request) &&
+        destinationFor(ruleText) &&
         (await listAvailable()).tools.some((tool) => tool.name === NAVIGATION_TOOL)
       ) {
         trace('router', 'corrected', 'Explicit official-service wording belongs to services.');
@@ -365,8 +452,11 @@ export class AgentRunner {
       // Real mode: the only tools here open Town Pass services or official sites.
       const linksOnly = offeredNames.every((n) => n === NAVIGATION_TOOL || n === CATALOG_TOOL);
       const navigable = offeredNames.includes(NAVIGATION_TOOL);
-      // A library request with no matching word (e.g. a quoted title) still means the catalog.
-      const ruled = destinationFor(request) ?? (domain === 'library' ? 'townpass_library' : null);
+      // Only a quoted title counts as a library request without book words; otherwise a small
+      // router's "library" guess (e.g. for "read my ID number to me") must not open anything.
+      const ruled =
+        destinationFor(ruleText) ??
+        (domain === 'library' && /[「『“"]/.test(request) ? 'townpass_library' : null);
       if (linksOnly && !ruled) {
         // Never send someone to an unrelated page because a small model had to pick one.
         trace('skill', 'no_destination', 'No service destination matches the request.');
@@ -411,21 +501,27 @@ export class AgentRunner {
         domain === 'places' &&
         ['find_nearby_youbike', 'find_nearby_parking', 'find_nearby_toilets'].includes(call.name)
       ) {
+        const named = PLACE_TOOL.find(([pattern]) => pattern.test(ruleText))?.[1];
+        if (named && named !== call.name) {
+          trace('places', 'corrected', `The request names ${named}.`);
+          call.name = named;
+        }
         const districts = [
           ...new Set(
-            request.match(/(?:松山|信義|大安|中山|中正|大同|萬華|文山|南港|內湖|士林|北投)區/g) ??
+            ruleText.match(/(?:松山|信義|大安|中山|中正|大同|萬華|文山|南港|內湖|士林|北投)區/g) ??
               [],
           ),
         ];
         if (districts.length === 1) {
           call.arguments.area = districts[0]!;
-          if (!/附近|最近|nearby|nearest|near me/i.test(request)) delete call.arguments.near_me;
+          if (!/附近|最近|nearby|nearest|near me/i.test(ruleText)) delete call.arguments.near_me;
         }
         // Accessibility is a structured filter, not free text: names rarely contain it.
         if (call.name !== 'find_nearby_youbike') {
           const keyword = typeof call.arguments.keyword === 'string' ? call.arguments.keyword : '';
           if (ACCESSIBLE_PLACE.test(keyword)) delete call.arguments.keyword;
-          if (ACCESSIBLE_PLACE.test(request)) call.arguments.accessible = true;
+          if (ACCESSIBLE_PLACE.test(ruleText) || this.preferences.accessible)
+            call.arguments.accessible = true;
         }
       }
       trace(domain, 'tool_requested', `${call.name} ${JSON.stringify(call.arguments)}`);

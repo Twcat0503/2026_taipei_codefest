@@ -153,7 +153,9 @@ describe("createAgentToolClient", () => {
   it("附近查詢用呼叫端的定位，拿不到時回 LOCATION_UNAVAILABLE", async () => {
     const located = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch, getLocation: async () => ({ lat: 25.0, lng: 121.5 }) });
     const near = await located.callTool({ name: "find_nearby_youbike", arguments: { near_me: true } }, { signal: signal() });
-    expect(parse(near)).toMatchObject({ source: "live", records: [{ id: "near", url: "https://www.google.com/maps/search/?api=1&query=25,121.5" }] });
+    expect(parse(near)).toMatchObject({ source: "live", records: [{ id: "near" }] });
+    // Places open in Town Pass's own 找地點 service, never a Google Maps link.
+    expect(parse(near).records[0].url).toBeUndefined();
     expect(parse(near).records[0].fields[0]).toEqual({ label: { "zh-Hant-TW": "距離", en: "距離" }, value: { "zh-Hant-TW": "0 公尺", en: "0 公尺" } });
     const unlocated = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch });
     const failed = await unlocated.callTool({ name: "find_nearby_youbike", arguments: { near_me: true } }, { signal: signal() });

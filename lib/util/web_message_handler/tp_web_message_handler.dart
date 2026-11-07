@@ -17,6 +17,7 @@ import 'package:town_pass/service/shared_preferences_service.dart';
 import 'package:town_pass/service/subscription_service.dart';
 import 'package:town_pass/util/tp_button.dart';
 import 'package:town_pass/util/tp_dialog.dart';
+import 'package:town_pass/util/tp_prefill.dart';
 import 'package:town_pass/util/tp_route.dart';
 import 'package:town_pass/util/tp_text.dart';
 import 'package:town_pass/util/web_message_handler/tp_web_message_reply.dart';
@@ -222,10 +223,16 @@ class OpenLinkMessageHandler extends TPWebMessageHandler {
     required bool isMainFrame,
     required Function(WebMessage reply)? onReply,
   }) async {
-    switch (message as String?) {
+    switch (message) {
       case String uri:
         await TPRoute.openUri(uri: uri);
-      case null:
+      // 安心助手可附上要替民眾填好的欄位；欄位與值都會再經 sanitizePrefill 過濾。
+      case {'url': String uri}:
+        await TPRoute.openUri(
+          uri: uri,
+          prefill: sanitizePrefill((message as Map)['prefill']),
+        );
+      default:
         onReply?.call(replyWebMessage(data: false));
     }
   }
