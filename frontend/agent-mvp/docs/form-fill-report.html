@@ -1,0 +1,682 @@
+<title>1.7B 填表防護報告</title>
+<meta name="claude:viewport-fit-sides" content="cover" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=IBM+Plex+Mono:wght@500;600&display=swap"
+/>
+<style>
+  /* Layout: one reading column; Town Pass teal tokens; results first, method last. */
+  :root {
+    --bg: #f6f9fa;
+    --paper: #ffffff;
+    --ink: #171b1d;
+    --muted: #5e6d76;
+    --line: #d6dde0;
+    --teal: #356c77;
+    --deep: #22474e;
+    --pale: #e6f4f7;
+    --bar-base: #b9c4c9;
+    --bar-ded: #8fb7c0;
+    --bar-new: #2f7d8b;
+    --good: #1f7a4d;
+    --good-bg: #e3f3ea;
+    --warn: #8a5a12;
+    --warn-bg: #fbf0dc;
+    --code-bg: #eef3f5;
+    --sans: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', system-ui, sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --bg: #111719;
+      --paper: #182124;
+      --ink: #e8eef0;
+      --muted: #9db0b7;
+      --line: #2c3a3f;
+      --teal: #7cc6d3;
+      --deep: #b9e3ea;
+      --pale: #1d3238;
+      --bar-base: #4a5a60;
+      --bar-ded: #4f7f89;
+      --bar-new: #5ab4c5;
+      --good: #7fd3a5;
+      --good-bg: #173326;
+      --warn: #e8c27e;
+      --warn-bg: #3a2e18;
+      --code-bg: #1f2b2f;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme='dark'] {
+    --bg: #111719;
+    --paper: #182124;
+    --ink: #e8eef0;
+    --muted: #9db0b7;
+    --line: #2c3a3f;
+    --teal: #7cc6d3;
+    --deep: #b9e3ea;
+    --pale: #1d3238;
+    --bar-base: #4a5a60;
+    --bar-ded: #4f7f89;
+    --bar-new: #5ab4c5;
+    --good: #7fd3a5;
+    --good-bg: #173326;
+    --warn: #e8c27e;
+    --warn-bg: #3a2e18;
+    --code-bg: #1f2b2f;
+    color-scheme: dark;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 1rem;
+    line-height: 1.75;
+  }
+  .wrap {
+    max-width: 46rem;
+    margin: 0 auto;
+    padding-block: 2.5rem 4rem;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid;
+    gap: 2.75rem;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    margin: 0;
+    line-height: 1.3;
+  }
+  h1 {
+    font-size: clamp(1.6rem, 4.5vw, 2.1rem);
+    font-weight: 900;
+    color: var(--deep);
+  }
+  h2 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--deep);
+  }
+  h3 {
+    font-size: 1.02rem;
+    font-weight: 700;
+  }
+  p {
+    margin: 0;
+  }
+  section {
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
+  }
+  .eyebrow {
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    color: var(--teal);
+    font-weight: 700;
+  }
+  .lede {
+    font-size: 1.08rem;
+    color: var(--ink);
+  }
+  .meta {
+    font-size: 0.88rem;
+    color: var(--muted);
+  }
+  .meta code,
+  p code,
+  li code,
+  td code {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: var(--code-bg);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+  }
+  .answer {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--teal);
+    border-radius: 10px;
+    padding: 1.1rem 1.25rem;
+    display: grid;
+    gap: 0.5rem;
+  }
+  .answer strong {
+    color: var(--deep);
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  .stat {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 0.9rem 1rem;
+    display: grid;
+    gap: 0.2rem;
+  }
+  .stat .num {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 1.35rem;
+    color: var(--deep);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .stat .num .from {
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .stat .lbl {
+    font-size: 0.86rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  @media (max-width: 560px) {
+    .stats {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* bar chart */
+  .chart {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1.1rem 1.25rem;
+    display: grid;
+    gap: 1.25rem;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.1rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .sw {
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 2px;
+    display: inline-block;
+  }
+  .group {
+    display: grid;
+    gap: 0.35rem;
+  }
+  .group h3 {
+    font-size: 0.95rem;
+  }
+  .group h3 small {
+    font-weight: 400;
+    color: var(--muted);
+    font-size: 0.82rem;
+    margin-left: 0.35rem;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.85rem;
+  }
+  .row .name {
+    color: var(--muted);
+  }
+  .track {
+    position: relative;
+    height: 1.35rem;
+    background: linear-gradient(
+      to right,
+      transparent calc(50% - 0.5px),
+      var(--line) calc(50% - 0.5px),
+      var(--line) calc(50% + 0.5px),
+      transparent calc(50% + 0.5px)
+    );
+  }
+  .bar {
+    height: 100%;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 0.4rem;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: #fff;
+    min-width: 3.4rem;
+  }
+  .bar.base {
+    background: var(--bar-base);
+    color: var(--ink);
+  }
+  .bar.ded {
+    background: var(--bar-ded);
+    color: var(--ink);
+  }
+  .bar.new {
+    background: var(--bar-new);
+  }
+  .axis {
+    display: grid;
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+    gap: 0.6rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+  .axis div:last-child {
+    display: flex;
+    justify-content: space-between;
+  }
+  .na {
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+
+  /* tables */
+  .tbl {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--paper);
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.9rem;
+  }
+  th,
+  td {
+    text-align: left;
+    padding: 0.6rem 0.8rem;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  tr:last-child td {
+    border-bottom: 0;
+  }
+  th {
+    font-weight: 700;
+    color: var(--deep);
+    background: var(--pale);
+    white-space: nowrap;
+  }
+  td.n,
+  th.n {
+    text-align: right;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .pill {
+    display: inline-block;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 0.05rem 0.5rem;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .pill.good {
+    background: var(--good-bg);
+    color: var(--good);
+  }
+  .pill.warn {
+    background: var(--warn-bg);
+    color: var(--warn);
+  }
+
+  ul,
+  ol {
+    margin: 0;
+    padding-left: 1.25rem;
+    display: grid;
+    gap: 0.45rem;
+  }
+  pre {
+    margin: 0;
+    background: var(--code-bg);
+    border-radius: 8px;
+    padding: 0.9rem 1rem;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    line-height: 1.6;
+  }
+  .note {
+    background: var(--warn-bg);
+    color: var(--ink);
+    border-radius: 10px;
+    padding: 0.9rem 1.1rem;
+    font-size: 0.92rem;
+  }
+  .note strong {
+    color: var(--warn);
+  }
+  hr {
+    border: 0;
+    border-top: 1px solid var(--line);
+    margin: 0;
+  }
+  a {
+    color: var(--teal);
+  }
+  a:focus-visible {
+    outline: 2px solid var(--teal);
+    outline-offset: 2px;
+  }
+</style>
+
+<main class="wrap">
+  <header style="display: grid; gap: 0.75rem">
+    <div class="eyebrow">安心助手 · 手機模型評測 · 2026-11-08</div>
+    <h1>1.7B 模型能不能替新表單填資料？</h1>
+    <p class="meta">
+      手機 LFM3 1.7B（Pixel 10 Pro XL）實測 · 分支 <code>feat/form-fill-eval</code>（基於 PR 26）·
+      commit <code>a6ed3ab</code>
+    </p>
+  </header>
+
+  <section>
+    <div class="answer">
+      <p class="lede"><strong>只靠模型不夠，加上防護就可以。</strong></p>
+      <p>
+        沒有專用 function
+        時，模型填新表單大約七成欄位正確，而且會自己編沒說過的值。我們在模型後面加了一層「按欄位型別檢查」的程式。新表單只要列出欄位就能直接套用，正確率升到近九成，也不再編造。
+      </p>
+    </div>
+    <div class="stats">
+      <div class="stat">
+        <div class="num"><span class="from">69%→</span>89%</div>
+        <div class="lbl">全新表單（無障礙導覽）欄位正確率</div>
+      </div>
+      <div class="stat">
+        <div class="num"><span class="from">11→</span>0</div>
+        <div class="lbl">沒說的欄位被亂填的次數（共 14 個應留空的欄位）</div>
+      </div>
+      <div class="stat">
+        <div class="num">0 次</div>
+        <div class="lbl">提示注入成功（原本 100% 成功）</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>結果：沒看過的題目</h2>
+    <p>
+      防護是看著第一批題目設計的。為了避免「只對考古題有效」，另外請一個沒看過程式的代理寫了 36
+      題新題目，包含一張我們從沒寫過任何程式的新表單。下表是這批題目的成績。
+    </p>
+    <div class="chart" role="figure" aria-label="三張表單在三種做法下的欄位正確率長條圖">
+      <div class="legend">
+        <span><i class="sw" style="background: var(--bar-base)"></i>只靠模型（遮掉 function）</span>
+        <span><i class="sw" style="background: var(--bar-ded)"></i>手寫專用 function</span>
+        <span><i class="sw" style="background: var(--bar-new)"></i>新做法：模型＋防護</span>
+      </div>
+      <div class="group">
+        <h3>有話要說（陳情）<small>原本有規則函式</small></h3>
+        <div class="row">
+          <span class="name">只靠模型</span>
+          <div class="track"><div class="bar base" style="width: 85.4%">85.4</div></div>
+        </div>
+        <div class="row">
+          <span class="name">專用 function</span>
+          <div class="track"><div class="bar ded" style="width: 79.2%">79.2</div></div>
+        </div>
+        <div class="row">
+          <span class="name">模型＋防護</span>
+          <div class="track"><div class="bar new" style="width: 95.8%">95.8</div></div>
+        </div>
+      </div>
+      <div class="group">
+        <h3>復康巴士預約<small>新任務</small></h3>
+        <div class="row">
+          <span class="name">只靠模型</span>
+          <div class="track"><div class="bar base" style="width: 68.1%">68.1</div></div>
+        </div>
+        <div class="row">
+          <span class="name">專用 function</span>
+          <div class="track"><div class="bar ded" style="width: 63.9%">63.9</div></div>
+        </div>
+        <div class="row">
+          <span class="name">模型＋防護</span>
+          <div class="track"><div class="bar new" style="width: 88.9%">88.9</div></div>
+        </div>
+      </div>
+      <div class="group">
+        <h3>無障礙導覽預約<small>評測前完全沒碰過</small></h3>
+        <div class="row">
+          <span class="name">只靠模型</span>
+          <div class="track"><div class="bar base" style="width: 69.4%">69.4</div></div>
+        </div>
+        <div class="row">
+          <span class="name">專用 function</span>
+          <div class="na">沒有人寫過</div>
+        </div>
+        <div class="row">
+          <span class="name">模型＋防護</span>
+          <div class="track"><div class="bar new" style="width: 88.9%">88.9</div></div>
+        </div>
+      </div>
+      <div class="axis">
+        <div></div>
+        <div><span>0</span><span>50</span><span>100%</span></div>
+      </div>
+    </div>
+
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr>
+            <th>表單</th>
+            <th class="n">整張全對：只靠模型</th>
+            <th class="n">整張全對：模型＋防護</th>
+            <th class="n">亂填：只靠模型</th>
+            <th class="n">亂填：模型＋防護</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>陳情</td>
+            <td class="n">58%</td>
+            <td class="n">83%</td>
+            <td class="n">1 / 3</td>
+            <td class="n">1 / 3</td>
+          </tr>
+          <tr>
+            <td>復康巴士</td>
+            <td class="n">17%</td>
+            <td class="n">42%</td>
+            <td class="n">7 / 10</td>
+            <td class="n">0 / 10</td>
+          </tr>
+          <tr>
+            <td>無障礙導覽</td>
+            <td class="n">8%</td>
+            <td class="n">67%</td>
+            <td class="n">11 / 14</td>
+            <td class="n">0 / 14</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="meta">
+      同一套防護套在 Mac 的 qwen3:1.7b 上也有效：復康巴士 66.7% → 99.0%。防護跟用哪個模型無關。
+    </p>
+  </section>
+
+  <section>
+    <h2>模型會犯什麼錯，防護怎麼擋</h2>
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr>
+            <th>1.7B 模型的錯</th>
+            <th>防護做法</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>沒說的欄位不肯留空（輪椅填 yes、人數填 0）</td>
+            <td>原話裡要有相關字眼（輪椅、陪…）才保留；地點必須是原話的一段</td>
+          </tr>
+          <tr>
+            <td>相對日期算錯（「明天」填成今天）</td>
+            <td>日期由程式從原話解析：明天、後天、下週一、11月20號、tomorrow…</td>
+          </tr>
+          <tr>
+            <td>只說「下午」卻填 13:00</td>
+            <td>時間由程式解析；沒有確切時間就留空</td>
+          </tr>
+          <tr>
+            <td>提示注入（主旨填「市長下台」）</td>
+            <td>送給模型前，先刪掉「忽略規則…」這類句子</td>
+          </tr>
+          <tr>
+            <td>主旨照抄表單名稱「有話要說（陳情）」</td>
+            <td>主旨若是表單名稱或欄位標籤，改用民眾原話的第一句</td>
+          </tr>
+          <tr>
+            <td>「家」沒換成地址，或沒提到家卻填了地址</td>
+            <td>有提到家才換成會員地址；沒提到就清空</td>
+          </tr>
+          <tr>
+            <td>行政區亂猜</td>
+            <td>行政區要出現在原話或地點裡才保留</td>
+          </tr>
+          <tr>
+            <td>輸出太長被截斷，整題失敗</td>
+            <td>不報錯，退回只用程式從原話讀出的值</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>防護不會自己發明值。每個值要嘛來自民眾說的話（或會員地址），要嘛留空讓民眾填。</p>
+  </section>
+
+  <section>
+    <h2>新表單怎麼用</h2>
+    <p>列出欄位就好，不用寫專用 function：</p>
+    <pre>
+import { fillFormGuarded, type FormSpec } from './agent/skills/form-fill';
+
+const TOUR_FORM: FormSpec = {
+  id: 'accessible_tour_booking',
+  title: '無障礙導覽預約',
+  fields: [
+    { id: 'venue', label: '參觀場館', type: 'text' },
+    { id: 'date', label: '參觀日期', type: 'date' },
+    { id: 'time', label: '入場時間', type: 'time' },
+    { id: 'visitors', label: '參觀人數', type: 'count' },
+    { id: 'sign_language', label: '是否需要手語導覽', type: 'yesno' },
+  ],
+};
+
+const { values } = await fillFormGuarded(model, TOUR_FORM, 原話, {
+  context: { today: '2026-11-12', memberAddress: 會員地址 },
+});
+// values 一律先放進確認卡，讓民眾逐欄確認後才送出</pre>
+    <ul>
+      <li>
+        欄位型別：<code>text</code>（地點、名稱）、<code>district</code>、<code>date</code>、<code>time</code>、<code>yesno</code>、<code>count</code>。
+      </li>
+      <li>
+        主旨這類要模型寫的短句標 <code>kind: 'summary'</code>，描述標
+        <code>kind: 'longtext'</code>。
+      </li>
+      <li>
+        是否／人數欄位的判斷字眼預設取自標籤；不夠時可加 <code>cues</code>，例如
+        <code>['輪椅', 'wheelchair']</code>。
+      </li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>還要注意的</h2>
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr>
+            <th>問題</th>
+            <th>現況</th>
+            <th>建議</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>人數語意</td>
+            <td><span class="pill warn">50～67%</span> 「就我一個人」的陪同人數常被填成 1</td>
+            <td>確認卡上把人數欄標成「請確認」</td>
+          </tr>
+          <tr>
+            <td>整張全對</td>
+            <td><span class="pill warn">42～83%</span></td>
+            <td>確認卡必須保留，不能直接送出</td>
+          </tr>
+          <tr>
+            <td>速度</td>
+            <td><span class="pill warn">14～18 秒</span> 專用 function 約 4～9 秒</td>
+            <td>畫面要顯示「正在整理」的進度</td>
+          </tr>
+          <tr>
+            <td>嚴重錯字</td>
+            <td>「輪倚」對不上字眼，欄位會留空</td>
+            <td>留空讓民眾補填，不會填錯</td>
+          </tr>
+          <tr>
+            <td>陳情表</td>
+            <td>
+              <span class="pill good">已修</span> 規則函式的地點錯誤已修正，但在新題目上只有 81%
+            </td>
+            <td>可考慮改用模型＋防護（95.8%），代價是多約 10 秒</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>怎麼測的</h2>
+    <ul>
+      <li>
+        <strong>題目</strong>：第一批 36 題（陳情 20、復康巴士 16），以及另寫的 36
+        題保留題（陳情、復康巴士、無障礙導覽各
+        12）。題目含口語贅詞、錯字、英文、「我家」、相對日期、否定，每張表一題提示注入。
+      </li>
+      <li>
+        <strong>評分</strong>：每個欄位對照可接受答案；沒說的欄位必須留空。主旨、描述用關鍵字判斷。
+      </li>
+      <li>
+        <strong>模型</strong>：App 內實際用的手機模型 <code>lfm3-1.7b-q4_0</code>，temperature
+        0，每題跑一次；Mac 的 qwen3:1.7b 為對照。
+      </li>
+      <li>
+        <strong>限制</strong>：題數少，差距 5 個百分點以內不要過度解讀。保留題由另一個 AI
+        代理撰寫，沒有經過真人審題。
+      </li>
+    </ul>
+    <div class="note">
+      <strong>程式碼位置</strong>：<code>feat/form-fill-eval</code> 只在本機，尚未推上
+      GitHub。主要檔案：<code>src/agent/skills/form-guard.ts</code>、<code>form-fill.ts</code>；完整數字與重現指令在
+      <code>docs/form-fill-eval.md</code>。手機重跑：App 開著安心助手頁，執行
+      <code>node scripts/form-fill-phone.js</code>。
+    </div>
+  </section>
+</main>

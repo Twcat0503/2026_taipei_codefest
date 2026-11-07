@@ -90,6 +90,6 @@ E2E 使用獨立埠，不共用開發伺服器。手機 adapter 有橋接、授�
 
 限制：個人帳務／登入／付款／真實預約未接入，改帶使用者到官方網站自行操作；停車場官方資料的剩餘車位已停更，只顯示格位總數；公廁為官方資料的日期快照（重跑 `tools/townpass/scripts/fetch-official-toilets.mjs` 更新）。App 內朗讀已改走原生 `tts` bridge（尚待實機驗證）；自動 axe 通過不等於完整無障礙認證，TalkBack 與持續耗電／熱測試仍待進行。
 
-新表單沒有專用 function 時，用 `fillFormGuarded`（模型＋按欄位型別的確定性防護）填表；手機 1.7B 模型的準確率與限制見[填表評測](docs/form-fill-eval.md)。
+新表單沒有專用 function 時，用 `fillFormGuarded`（模型＋按欄位型別的確定性防護）填表；手機 1.7B 模型的準確率與限制見[填表評測](docs/form-fill-eval.md)（給隊友的摘要頁：[form-fill-report.html](docs/form-fill-report.html)）。
 
 詳細契約見 [API 盤點](docs/api-status.md)、[帳單 skill](docs/skills/bills.md)、[UI 交接](docs/ui-ux-handoff.md)。
