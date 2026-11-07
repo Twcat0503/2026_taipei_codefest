@@ -29,13 +29,13 @@ flowchart TB
 | --- | --- | --- | --- |
 | App | Town Pass Flutter app：`TPWebView`、JS bridge（含 `tts`、`share`）、系統字級同步 | 可用 | `lib/` |
 | 前端 | Vue 3 聊天畫面與結果卡片，以 TownPass-Services 為範本 | 開發中 | `frontend/`（常駐 branch `frontend`） |
-| Agent | 路由、圖書／服務／帳單 skill、工具驗證、確認與示範回執 | MVP 已可操作；正式 MCP 待接 | `frontend/agent-mvp/`（常駐分工 branch `agent`） |
+| Agent | 路由、圖書／服務／地點／優惠／帳單 skill、工具驗證、確認與示範回執 | MVP 已接手機模型與唯讀工具；個人帳務未接 | `frontend/agent-mvp/`（常駐分工 branch `agent`） |
 | 模型 | LFM3 1.7B 本機推論 | 手機 adapter 整合中 | `model/`（常駐 branch `model`）；Android runtime 在 `tools/llm-android/` |
 | 工具 | `townpass-mcp`：把台北通服務包裝成唯讀工具，經資料讀取層存取資料 | 本地可用，尚未納入 repo | `tools/townpass-mcp/`（常駐 branch `tools`） |
 
 ## 已可操作的 Agent MVP
 
-[獨立 MVP](frontend/agent-mvp/README.md) 已整合 App 首頁與服務頁入口。它實作受限單次任務流程，使用模擬服務資料；Qwen3 1.7B 僅為聯調模型，正式 MCP 與 LLM 由隊友提供。上方架構圖是團隊目標架構，MVP 的實際流程、UI／UX 修改入口與驗收方式見 [交接文件](frontend/agent-mvp/docs/ui-ux-handoff.md)。
+[獨立 MVP](frontend/agent-mvp/README.md) 已整合 App 首頁與服務頁入口。已整合手機 LFM3、聊天 UI 與隊友的 16 個唯讀工具，保留示範帳單。資料分為示範站內容、地點快照與 YouBike 即時資料；沒有正式個人帳務或 MCP transport。上方架構圖是團隊目標架構，MVP 的實際流程、UI／UX 修改入口與驗收方式見 [交接文件](frontend/agent-mvp/docs/ui-ux-handoff.md)。
 
 ```sh
 cd frontend/agent-mvp

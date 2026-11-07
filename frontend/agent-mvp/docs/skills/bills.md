@@ -7,7 +7,7 @@ This is an application skill for the Town Pass accessibility agent, not an IDE/C
 User intent: 「我想看到我這期的帳單與繳費狀態」 / “Show my current bills and payment status.”
 
 - Agent: route intent, load only bill instructions, collect a missing category, validate tools/results, render localized status, provide registered page links and retry/cancel.
-- MCP teammate: implement the `McpClient` adapter, transport/session lifecycle, service authentication, actual billing API calls and normalized results.
+- MCP teammate: implement the `ToolClient` adapter, transport/session lifecycle, service authentication, actual billing API calls and normalized results.
 - LLM teammate: implement `ModelAdapter` or the supported local inference endpoint; maintain cancellation and structured-output support.
 - UI teammate: edit `BillPanel.vue` and `i18n.ts`; keep the state and tool contract intact.
 
@@ -21,7 +21,7 @@ User intent: 「我想看到我這期的帳單與繳費狀態」 / “Show my cu
 6. Validate and project returned fields; render directly. No third model call to say “done”.
 7. Query complete means validated data is displayed, not that a payment happened or a government page loaded.
 
-Read requests take at most two model calls and one service call; there is also one tool discovery call. Each model call is bounded to 20 seconds and each MCP call/discovery to 10 seconds. Cancellation rejects even if an adapter ignores its signal; a late response cannot populate the UI. Adapters should still honor cancellation to stop actual computation/network work. There are no automatic transaction retries or payment tools.
+Read requests take at most two model calls and one service call; there is also one tool discovery call. Each model call is bounded to 20 seconds by default (90 seconds for the phone adapter), and each tool call/discovery to 45 seconds. Cancellation rejects even if an adapter ignores its signal; a late response cannot populate the UI. Adapters should still honor cancellation to stop actual computation/network work. There are no automatic transaction retries or payment tools.
 
 ## Proposed tool contract v1
 
@@ -36,7 +36,7 @@ The name/schema is executable as `billReadTool`. Confirm this contract with the 
 
 Categories: `parking`, `water`, `tax`, `tuition`, `housing`, `medical`, `maintenance`, `course`, `other`, `all`. Exactly these two arguments are accepted. `current` is resolved by the service's billing rules; the LLM must not guess dates. The user's account comes from the authenticated session, not a model-supplied user ID, token or account number.
 
-The current `McpClient` boundary returns a single text content block containing JSON:
+The current `ToolClient` boundary returns a single text content block containing JSON:
 
 ```json
 {
@@ -78,7 +78,7 @@ The registry follows `lib/page/bill/bill_view.dart` for nine categories and `bil
 | Explicit all bills                     | Preserve paid/unpaid/processing/unknown         | Unit, E2E, model evaluation                         |
 | Empty category                         | Explain no demo records, no debt claim          | Unit                                                |
 | Login required / service unavailable   | Distinct notice and bounded retry               | Unit                                                |
-| Payment instruction / past period      | No MCP call or payment                          | Unit, model evaluation                              |
+| Payment execution / past period        | No MCP call or payment                          | Unit, model evaluation                              |
 | Malformed result / unexpected source   | Reject, never invent status                     | Unit                                                |
 | Timeout / cancellation / late response | No stale results; task can end                  | Unit                                                |
 | Browser / native navigation            | Registered URL, honest acknowledgement limits   | E2E with intercepted destination / simulated bridge |

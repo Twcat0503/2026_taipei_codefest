@@ -1,6 +1,6 @@
-import { DemoMcpClient, type McpClient } from './mcp';
+import { DemoToolClient, type ToolClient } from './tool-client';
 import { routerPrompt, specialistPrompt } from './prompts';
-import { domainTools, executeReadTool, routingTool } from './tools';
+import { ToolCallError, allowedTools, domainTools, executeReadTool, routingTool } from './tools';
 import {
   billIntentTool,
   billSkill,
@@ -43,12 +43,12 @@ export class AgentRunner {
   constructor(
     private model: ModelAdapter,
     private state: TaskState,
-    private mcp: McpClient = new DemoMcpClient([
+    private tools: ToolClient = new DemoToolClient([
       ...domainTools('library'),
       ...domainTools('services'),
       ...domainTools('bills'),
     ]),
-    private toolTimeoutMs = 10000,
+    private toolTimeoutMs = 45000,
   ) {}
 
   cancel() {
@@ -56,6 +56,11 @@ export class AgentRunner {
   }
 
   run(request: string, onProgress: (stage: 'routing' | 'searching') => void = () => {}) {
+    const pending = this.state.pendingLocation;
+    // A short district reply fills the pending location slot; unrelated requests start fresh.
+    if (pending && /^(?:我在|在)?[一-鿿]{2,3}區[。！!]?$/u.test(request.trim())) {
+      request = `${pending.request.replace(/附近|最近的?|nearby|nearest/gi, '')} ${request.trim()}`;
+    }
     return this.execute(request, onProgress);
   }
 
@@ -77,6 +82,61 @@ export class AgentRunner {
     return this.execute('Retry bill lookup', onProgress, this.state.billQuery.category);
   }
 
+  async runTool(domain: Domain, name: string, args: Record<string, unknown>) {
+    if (this.controller) throw new Error('TASK_RUNNING');
+    if (this.state.draft) throw new Error('DRAFT_PENDING');
+    const controller = new AbortController();
+    this.controller = controller;
+    this.state.records = [];
+    this.state.bookIds = [];
+    this.state.bookResults = [];
+    this.state.source = null;
+    this.state.failure = null;
+    this.state.pendingLocation = null;
+    this.state.billResult = null;
+    this.state.billQuery = null;
+    this.state.pendingBillCategory = false;
+    this.state.receipt = null;
+    this.state.traces = [];
+    this.state.domain = domain;
+    const started = performance.now();
+    const client: ToolClient = {
+      listTools: (options) => this.tools.listTools(options),
+      callTool: (params) =>
+        bounded(
+          (signal) => this.tools.callTool(params, { signal }),
+          controller.signal,
+          this.toolTimeoutMs,
+        ),
+    };
+    try {
+      const result = await executeReadTool(
+        client,
+        domain,
+        { id: 'ui-action', name, arguments: args },
+        this.state,
+        controller.signal,
+      );
+      this.state.traces.push({
+        id: 0,
+        actor: 'executor',
+        event: 'completed',
+        detail: `${name}: ${result.total} ${result.source} records`,
+        elapsedMs: Math.round(performance.now() - started),
+      });
+    } catch (error) {
+      this.state.records = [];
+      this.state.bookResults = [];
+      this.state.bookIds = [];
+      this.state.source = null;
+      this.state.failure = error instanceof ToolCallError ? error.failure : null;
+      this.state.notice = controller.signal.aborted ? 'cancelled' : 'error';
+      throw error;
+    } finally {
+      this.controller = null;
+    }
+  }
+
   private async execute(
     request: string,
     onProgress: (stage: 'routing' | 'searching') => void,
@@ -91,12 +151,14 @@ export class AgentRunner {
     const signal = controller.signal;
     const start = performance.now();
     this.state.traces = [];
+    this.state.records = [];
+    this.state.source = null;
+    this.state.failure = null;
+    this.state.pendingLocation = null;
     this.state.domain = null;
     this.state.receipt = null;
     this.state.bookIds = [];
     this.state.bookResults = [];
-    this.state.serviceResults = [];
-    this.state.serviceIds = [];
     this.state.billResult = null;
     this.state.billQuery = null;
     this.state.pendingBillCategory = false;
@@ -143,10 +205,24 @@ export class AgentRunner {
           call?.name !== 'select_agent' ||
           Object.keys(call.arguments).length !== 1 ||
           typeof call.arguments.domain !== 'string' ||
-          !['library', 'services', 'bills', 'unsupported'].includes(call.arguments.domain)
+          !['library', 'services', 'perks', 'places', 'bills', 'unsupported'].includes(
+            call.arguments.domain,
+          )
         )
           throw new Error('INVALID_ROUTE');
         domain = call.arguments.domain as Domain;
+        // Small on-device models can confuse explicit place lookups with book search.
+        // Keep book/report/application requests with the router; only correct short place lookups.
+        const explicitPlace =
+          request.length <= 80 &&
+          /YouBike|Ubike|停車場|公廁|廁所|toilets?|restrooms?|parking lot/i.test(request) &&
+          !/書|book|圖書|通報|陳情|報修|修繕|故障|申請|申辦|補助|report|application|[「『“"]/i.test(
+            request,
+          );
+        if (explicitPlace && domain !== 'places') {
+          trace('router', 'corrected', 'Explicit place lookup must use the places tools.');
+          domain = 'places';
+        }
       }
       this.state.domain = domain;
       trace('router', 'selected', domain);
@@ -201,28 +277,26 @@ export class AgentRunner {
       }
       onProgress('searching');
       const available = await bounded(
-        (child) => this.mcp.listTools({ signal: child }),
+        (child) => this.tools.listTools({ signal: child }),
         signal,
         this.toolTimeoutMs,
       );
       signal.throwIfAborted();
-      const allowedTools = domainTools(domain).filter((tool) =>
-        available.tools.some((item) => item.name === tool.function.name),
-      );
-      if (!allowedTools.length) {
+      const offeredTools = allowedTools(domain, available.tools);
+      if (!offeredTools.length) {
         if (domain === 'bills') {
           this.state.notice = 'billUnavailable';
           return;
         }
-        throw new Error('MCP_TOOL_UNAVAILABLE');
+        throw new Error('TOOL_UNAVAILABLE');
       }
-      trace('mcp', 'tools_listed', allowedTools.map((tool) => tool.function.name).join(', '));
+      trace('tools', 'tools_listed', offeredTools.map((tool) => tool.function.name).join(', '));
       if (domain === 'bills') {
         const query = this.state.billQuery!;
         trace('bills', 'tool_requested', 'list_bills');
         const result = await bounded(
           (child) =>
-            this.mcp.callTool({ name: 'list_bills', arguments: { ...query } }, { signal: child }),
+            this.tools.callTool({ name: 'list_bills', arguments: { ...query } }, { signal: child }),
           signal,
           this.toolTimeoutMs,
         );
@@ -233,7 +307,7 @@ export class AgentRunner {
           result.content[0]?.type !== 'text' ||
           result.content[0].text.length > 30000
         )
-          throw new Error('MCP_TOOL_ERROR');
+          throw new Error('TOOL_ERROR');
         const outcome = parseBillOutcome(JSON.parse(result.content[0].text), query);
         if ('error' in outcome) {
           this.state.notice = outcome.error === 'AUTH_REQUIRED' ? 'billAuth' : 'billUnavailable';
@@ -251,39 +325,68 @@ export class AgentRunner {
       }
       const response = await complete(
         [{ role: 'system', content: specialistPrompt(domain) }, userMessage],
-        allowedTools,
+        offeredTools,
       );
       signal.throwIfAborted();
+      if (!response.calls.length) throw new Error('NO_TOOL_RESULT');
       if (response.calls.length !== 1) throw new Error('ONE_TOOL_AT_A_TIME');
       const call = response.calls[0]!;
-      trace(domain, 'tool_requested', call.name);
+      // Explicit geographic/accessibility slots are user constraints, not model guesses.
+      if (
+        domain === 'places' &&
+        ['find_nearby_youbike', 'find_nearby_parking', 'find_nearby_toilets'].includes(call.name)
+      ) {
+        const districts = [
+          ...new Set(
+            request.match(/(?:松山|信義|大安|中山|中正|大同|萬華|文山|南港|內湖|士林|北投)區/g) ??
+              [],
+          ),
+        ];
+        if (districts.length === 1) {
+          call.arguments.area = districts[0]!;
+          if (!/附近|最近|nearby|nearest|near me/i.test(request)) delete call.arguments.near_me;
+        }
+        if (call.name === 'find_nearby_toilets' && /無障礙|accessible|wheelchair/i.test(request)) {
+          const keyword = typeof call.arguments.keyword === 'string' ? call.arguments.keyword : '';
+          if (!keyword.includes('無障礙')) call.arguments.keyword = '無障礙';
+        }
+      }
+      trace(domain, 'tool_requested', `${call.name} ${JSON.stringify(call.arguments)}`);
       // Only the bounded transport can finish the lookup; no final LLM completion pass.
-      const client: McpClient = {
-        listTools: (options) => this.mcp.listTools(options),
+      const client: ToolClient = {
+        listTools: (options) => this.tools.listTools(options),
         callTool: (params) =>
           bounded(
-            (child) => this.mcp.callTool(params, { signal: child }),
+            (child) => this.tools.callTool(params, { signal: child }),
             signal,
             this.toolTimeoutMs,
           ),
       };
       const result = await executeReadTool(client, domain, call, this.state, signal);
-      trace('executor', 'completed', `${call.name}: ${result.records.length} demo records`);
+      trace('executor', 'completed', `${call.name}: ${result.total} ${result.source} records`);
     } catch (error) {
+      this.state.records = [];
+      this.state.source = null;
+      const failure = error instanceof ToolCallError ? error.failure : null;
+      this.state.failure = failure;
+      if (!signal.aborted && failure?.code === 'LOCATION_UNAVAILABLE')
+        this.state.pendingLocation = { request };
       this.state.bookIds = [];
       this.state.bookResults = [];
-      this.state.serviceResults = [];
-      this.state.serviceIds = [];
       this.state.billResult = null;
       this.state.notice = signal.aborted
         ? 'cancelled'
-        : this.state.domain === 'bills'
-          ? 'billUnavailable'
-          : 'error';
+        : failure?.code === 'LOCATION_UNAVAILABLE'
+          ? 'needLocation'
+          : this.state.domain === 'bills'
+            ? 'billUnavailable'
+            : 'error';
       trace(
         'runtime',
         signal.aborted ? 'cancelled' : 'failed',
-        signal.aborted ? 'USER_CANCELLED' : 'MODEL_OR_TOOL_ERROR',
+        signal.aborted
+          ? 'USER_CANCELLED'
+          : (failure?.code ?? (error instanceof Error ? error.message : 'MODEL_OR_TOOL_ERROR')),
       );
       throw error;
     } finally {

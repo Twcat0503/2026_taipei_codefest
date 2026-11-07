@@ -9,20 +9,22 @@ import {
   domainTools,
   routingTool,
   executeReadTool,
+  allowedTools,
+  TOOLS,
   prepareReservation,
 } from '../src/agent/tools';
-import { DemoMcpClient, type McpClient } from '../src/agent/mcp';
+import { DemoToolClient, type ToolClient } from '../src/agent/tool-client';
 import { books } from '../src/agent/catalog';
 import { restoreTask, saveTask } from '../src/platform/storage';
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
-const client = () => new DemoMcpClient([...domainTools('library'), ...domainTools('services')]);
+const client = () => new DemoToolClient([...domainTools('library'), ...domainTools('services')]);
 const result = (message: unknown) => ({ choices: [{ finish_reason: 'stop', message }] });
 
 describe('bounded agent orchestration', () => {
-  it('routes Chinese input, discovers MCP tools and retains exact book titles', async () => {
+  it('routes Chinese input, discovers tools and retains exact book titles', async () => {
     const state = initialState();
     const mcp = client();
     const call = vi.spyOn(mcp, 'callTool');
@@ -34,8 +36,8 @@ describe('bounded agent orchestration', () => {
     expect(state.receipt).toBeNull();
     expect(list).toHaveBeenCalledOnce();
     expect(call.mock.calls[0]?.[0]).toEqual({
-      name: 'search_books',
-      arguments: { query: '一起慢慢走' },
+      name: 'search_library_books',
+      arguments: { keyword: '一起慢慢走' },
     });
   });
   it('shows unsupported and no-results states without inventing records', async () => {
@@ -57,7 +59,7 @@ describe('bounded agent orchestration', () => {
     expect(state.notice).toBe('cancelled');
     expect(state.bookIds).toEqual([]);
   });
-  it('rejects model-proposed write tools before invoking MCP', async () => {
+  it('rejects model-proposed write tools before invoking a tool', async () => {
     const model: ModelAdapter = {
       mode: 'local',
       complete: vi
@@ -85,7 +87,7 @@ describe('bounded agent orchestration', () => {
           calls: [{ id: '1', name: 'select_agent', arguments: { domain: 'library' } }],
         })
         .mockResolvedValue({
-          calls: [{ id: '2', name: 'search_books', arguments: { query: '' } }],
+          calls: [{ id: '2', name: 'search_library_books', arguments: { keyword: '' } }],
         }),
     };
     const state = initialState();
@@ -96,19 +98,52 @@ describe('bounded agent orchestration', () => {
     expect(call).toHaveBeenCalledTimes(1);
     expect(state.bookIds).toHaveLength(3);
   });
-  it('rejects invalid arguments and MCP errors', async () => {
+  it('keeps verified results when the model replies in plain text after the tool', async () => {
+    const model: ModelAdapter = {
+      mode: 'local',
+      complete: vi
+        .fn()
+        .mockResolvedValueOnce({
+          calls: [{ id: '1', name: 'select_agent', arguments: { domain: 'library' } }],
+        })
+        .mockResolvedValueOnce({
+          calls: [{ id: '2', name: 'search_library_books', arguments: { keyword: '' } }],
+        })
+        .mockResolvedValueOnce({ calls: [], content: '已幫你預約成功' }),
+    };
+    const state = initialState();
+    await new AgentRunner(model, state).run('找圖書');
+    expect(state.notice).toBe('books');
+    expect(state.bookIds).toHaveLength(3);
+    expect(state.receipt).toBeNull();
+  });
+  it('rejects a plain text answer that never used a tool', async () => {
+    const model: ModelAdapter = {
+      mode: 'local',
+      complete: vi
+        .fn()
+        .mockResolvedValueOnce({
+          calls: [{ id: '1', name: 'select_agent', arguments: { domain: 'library' } }],
+        })
+        .mockResolvedValue({ calls: [], content: '這本書在三樓' }),
+    };
+    const state = initialState();
+    await expect(new AgentRunner(model, state).run('找圖書')).rejects.toThrow('NO_TOOL_RESULT');
+    expect(state.bookIds).toEqual([]);
+  });
+  it('rejects invalid arguments and tool errors', async () => {
     const signal = new AbortController().signal;
     const state = initialState();
     await expect(
       executeReadTool(
         client(),
         'library',
-        { id: '1', name: 'search_books', arguments: { query: '', admin: true } },
+        { id: '1', name: 'search_library_books', arguments: { keyword: '', admin: true } },
         state,
         signal,
       ),
     ).rejects.toThrow('INVALID_ARGUMENTS');
-    const broken: McpClient = {
+    const broken: ToolClient = {
       listTools: vi.fn(),
       callTool: async () => ({ isError: true, content: [{ type: 'text', text: 'offline' }] }),
     };
@@ -116,11 +151,11 @@ describe('bounded agent orchestration', () => {
       executeReadTool(
         broken,
         'library',
-        { id: '1', name: 'search_books', arguments: { query: '' } },
+        { id: '1', name: 'search_library_books', arguments: { keyword: '' } },
         state,
         signal,
       ),
-    ).rejects.toThrow('MCP_TOOL_ERROR');
+    ).rejects.toThrow('TOOL_ERROR');
   });
 });
 
@@ -206,17 +241,22 @@ describe('local model adapter', () => {
             {
               id: '1',
               type: 'function',
-              function: { name: 'search_books', arguments: '{"query":"一起慢慢走"}' },
+              function: { name: 'search_library_books', arguments: '{"query":"一起慢慢走"}' },
             },
           ],
         }),
       ).calls[0]?.arguments.query,
     ).toBe('一起慢慢走');
     expect(
-      parseCompletion(result({ content: '{"name":"search_books","arguments":{"query":""}}' }))
-        .calls[0]?.name,
-    ).toBe('search_books');
-    expect(() => parseCompletion(result({ content: '預約成功' }))).toThrow();
+      parseCompletion(
+        result({ content: '{"name":"search_library_books","arguments":{"query":""}}' }),
+      ).calls[0]?.name,
+    ).toBe('search_library_books');
+    expect(parseCompletion(result({ content: '預約成功' }))).toEqual({
+      calls: [],
+      content: '預約成功',
+    });
+    expect(parseCompletion(result({ content: null }))).toEqual({ calls: [] });
     expect(() =>
       parseCompletion({ choices: [{ finish_reason: 'length', message: { content: '{}' } }] }),
     ).toThrow('TRUNCATED_RESPONSE');
@@ -245,5 +285,189 @@ describe('local model adapter', () => {
     await expect(
       model.complete({ messages: [], tools: [routingTool], signal: new AbortController().signal }),
     ).rejects.toThrow();
+  });
+});
+
+describe('generic tool results and decision state', () => {
+  const signal = new AbortController().signal;
+  const text = (value: string) => ({ 'zh-Hant-TW': value, en: value });
+  const listed: ToolClient['listTools'] = async () => ({
+    tools: Object.keys(TOOLS).map((name) => ({
+      name,
+      inputSchema: { type: 'object', properties: {} },
+    })),
+  });
+  const answering = (body: unknown, isError = false): ToolClient => ({
+    listTools: listed,
+    callTool: async () => ({
+      isError,
+      content: [{ type: 'text', text: JSON.stringify(body) }],
+    }),
+  });
+
+  it('offers every tool of the chosen domain and only that domain', () => {
+    const tools = Object.keys(TOOLS).map((name) => ({ name, inputSchema: {} }));
+    expect(allowedTools('places', tools).map((tool) => tool.function.name)).toEqual([
+      'find_nearby_youbike',
+      'find_nearby_parking',
+      'find_nearby_toilets',
+    ]);
+    expect(allowedTools('services', [{ name: 'reserve_book', inputSchema: {} }])).toEqual([]);
+  });
+
+  it('accepts live data, shows its source and sends the model only a summary', async () => {
+    const state = initialState();
+    const summary = await executeReadTool(
+      answering({
+        source: 'live',
+        source_label: '即時資料',
+        source_note: '實際車輛數仍可能變動。',
+        source_url: 'https://example.test/',
+        total: 1,
+        truncated: false,
+        records: [
+          {
+            id: 'near',
+            title: text('捷運站'),
+            fields: [{ label: text('可借'), value: text('4') }],
+            url: 'https://maps.example/near',
+          },
+        ],
+      }),
+      'places',
+      { id: '1', name: 'find_nearby_youbike', arguments: { near_me: true } },
+      state,
+      signal,
+    );
+    expect(state.notice).toBe('results');
+    expect(state.records[0]?.fields?.[0]?.value['zh-Hant-TW']).toBe('4');
+    expect(state.source).toMatchObject({ kind: 'live', label: '即時資料' });
+    expect(summary).toEqual({
+      source: 'live',
+      total: 1,
+      records: [{ id: 'near', title: '捷運站' }],
+    });
+  });
+
+  it('rejects unknown sources, unsafe links and tools from another domain', async () => {
+    const state = initialState();
+    const call = { id: '1', name: 'search_faq', arguments: { keyword: 'x' } };
+    await expect(
+      executeReadTool(
+        answering({ source: 'made-up', records: [] }),
+        'services',
+        call,
+        state,
+        signal,
+      ),
+    ).rejects.toThrow('UNSUPPORTED_SERVICE_DATA');
+    await expect(
+      executeReadTool(
+        answering({
+          source: 'demo',
+          records: [{ id: '1', title: text('x'), url: 'javascript:alert(1)' }],
+        }),
+        'services',
+        call,
+        state,
+        signal,
+      ),
+    ).rejects.toThrow('INVALID_TOOL_RESULT');
+    await expect(
+      executeReadTool(answering({ source: 'demo', records: [] }), 'library', call, state, signal),
+    ).rejects.toThrow('TOOL_NOT_ALLOWED');
+  });
+
+  const routedTo = (domain: string, name: string, args: Record<string, unknown>): ModelAdapter => {
+    const calls = [
+      { id: 'r', name: 'select_agent', arguments: { domain } },
+      { id: 's', name, arguments: args },
+    ];
+    return {
+      mode: 'demo',
+      complete: async () => {
+        const call = calls.shift();
+        return call ? { calls: [call] } : { calls: [] };
+      },
+    };
+  };
+
+  it('records the tool arguments and the real failure reason', async () => {
+    const state = initialState();
+    const client = answering(
+      { error: { code: 'UPSTREAM_ERROR', message: '逾時', hint: '這不代表查無資料。' } },
+      true,
+    );
+    await expect(
+      new AgentRunner(routedTo('services', 'search_faq', { keyword: '登入' }), state, client).run(
+        '登入問題',
+      ),
+    ).rejects.toThrow('TOOL_ERROR');
+    expect(state.notice).toBe('error');
+    expect(state.failure?.hint).toBe('這不代表查無資料。');
+    expect(state.traces.map((item) => item.detail)).toEqual(
+      expect.arrayContaining(['search_faq {"keyword":"登入"}', 'UPSTREAM_ERROR']),
+    );
+  });
+
+  it('asks for a place instead of an error when location is unavailable', async () => {
+    const state = initialState();
+    const client = answering(
+      { error: { code: 'LOCATION_UNAVAILABLE', message: '無法取得', hint: '請告訴我行政區。' } },
+      true,
+    );
+    await expect(
+      new AgentRunner(
+        routedTo('places', 'find_nearby_toilets', { near_me: true }),
+        state,
+        client,
+      ).run('附近廁所'),
+    ).rejects.toThrow();
+    expect(state.notice).toBe('needLocation');
+    expect(state.failure?.hint).toBe('請告訴我行政區。');
+  });
+
+  it('runs a UI tool action without calling the model', async () => {
+    const state = initialState();
+    const model: ModelAdapter = {
+      mode: 'demo',
+      complete: vi.fn(),
+    };
+    await new AgentRunner(
+      model,
+      state,
+      answering({ source: 'demo', records: [{ id: 'b1', title: text('書') }] }),
+    ).runTool('library', 'get_library_book', { book_id: 'b1' });
+    expect(model.complete).not.toHaveBeenCalled();
+    expect(state.notice).toBe('results');
+  });
+
+  it('lets a constrained model choose among several tools', async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify(result({ content: '{"name":"search_faq","arguments":{}}' }))),
+      );
+    vi.stubGlobal('fetch', fetcher);
+    const model = new LocalModel('http://localhost:11434/v1/chat/completions', 'small-model');
+    const tools = allowedTools(
+      'services',
+      ['search_faq', 'search_fee_types'].map((name) => ({ name, inputSchema: { type: 'object' } })),
+    );
+    const decision = await model.complete({
+      messages: [
+        { role: 'system', content: 'x' },
+        { role: 'user', content: '{"original_request":"登入"}' },
+      ],
+      tools,
+      signal,
+    });
+    expect(decision.calls[0]?.name).toBe('search_faq');
+    const body = JSON.parse((fetcher.mock.calls[0]![1] as RequestInit).body as string);
+    expect(
+      body.response_format.json_schema.schema.anyOf.map(
+        (item: { properties: { name: { const: string } } }) => item.properties.name.const,
+      ),
+    ).toEqual(['search_faq', 'search_fee_types']);
   });
 });
