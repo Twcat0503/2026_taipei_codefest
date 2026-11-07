@@ -31,11 +31,16 @@
 
 - 標題沿用 Conventional Commits 風格（squash merge 後即成為 `main` 上的 commit message）。
 - 內文寫清楚：改什麼、為什麼、如何驗證；UI 變更請附截圖或錄影。
-- 合併前無自動化門檻（本 repo 目前無 CI），但請**自行確認**變更所屬棧：
+- **合併條件：CI 通過，且至少一位 reviewer approve。** CI（`.github/workflows/ci.yml`）依改動路徑只檢查受影響的棧：
+  - 前端（`frontend/` 有改動）：`pnpm lint`、`pnpm format:check`、`pnpm test`、`pnpm build`。
+  - Flutter（`lib/`、`test/`、`assets/`、`fonts/`、`pubspec.*`、`analysis_options.yaml`、`.fvmrc` 有改動）：`dart format` 格式檢查，再跑 `build_runner` 與 `flutter analyze`。`flutter test` 尚未納入（範本測試目前必定失敗，見 AGENTS.md）。
+  - branch protection 只需要把「CI result」設為 required check。
+- push 前先在本機跑過同一組指令，結果貼在 PR 內文：
 
   Flutter（repo 根目錄）：
 
   ```sh
+  fvm dart format lib test
   fvm flutter analyze
   fvm flutter test
   ```
@@ -44,10 +49,10 @@
 
   ```sh
   pnpm lint
+  pnpm format:check
   pnpm test
+  pnpm build
   ```
-
-  結果貼在 PR 內文即可。
 
 ## 前端開發（`frontend/`）
 
