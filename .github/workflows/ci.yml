@@ -107,6 +107,9 @@ jobs:
         working-directory: tools/townpass
       - run: pnpm typecheck
         working-directory: tools/townpass
+      # 服務觀測測試需要 Chromium；先於 tools 測試安裝，避免 browserType.launch 失敗。
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: tools/townpass
       - run: pnpm test
         working-directory: tools/townpass
       - run: pnpm lint
