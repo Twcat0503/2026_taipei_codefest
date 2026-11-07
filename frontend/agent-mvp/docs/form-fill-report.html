@@ -398,8 +398,9 @@
     <div class="answer">
       <p class="lede"><strong>只靠模型不夠，加上防護就可以。</strong></p>
       <p>
-        沒有專用 function
-        時，模型填新表單大約七成欄位正確，而且會自己編沒說過的值。我們在模型後面加了一層「按欄位型別檢查」的程式。新表單只要列出欄位就能直接套用，正確率升到近九成，也不再編造。
+        把原本的規則函式
+        <code>draftReport</code>
+        遮掉、只靠模型時，新表單大約七成欄位正確，而且會自己編沒說過的值。我們在模型後面加了一層「按欄位型別檢查」的程式。新表單只要列出欄位就能直接套用，正確率升到近九成，也不再編造。
       </p>
     </div>
     <div class="stats">
@@ -419,6 +420,52 @@
   </section>
 
   <section>
+    <h2>有規則函式 vs 遮掉規則函式</h2>
+    <p>
+      只有「有話要說（陳情）」有規則函式 <code>draftReport</code>（PR 26
+      的原始版本）。同一張表、同一批題目，比較有它和把它遮掉的差別：
+    </p>
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr>
+            <th>陳情表的做法</th>
+            <th class="n">原題組（20 題）</th>
+            <th class="n">新題目（12 題）</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>原本的規則函式</td>
+            <td class="n">92.5%（全對 75%）</td>
+            <td class="n">79.2%（全對 33%）</td>
+          </tr>
+          <tr>
+            <td>遮掉規則，只靠模型</td>
+            <td class="n">81.3%（全對 40%）</td>
+            <td class="n">85.4%（全對 58%）</td>
+          </tr>
+          <tr>
+            <td>遮掉規則，模型＋防護</td>
+            <td class="n">91.3%（全對 70%）</td>
+            <td class="n">95.8%（全對 83%）</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <ul>
+      <li>在規則當初就是照著寫的題目上，遮掉規則會少 11 個百分點。</li>
+      <li>
+        換成沒看過的說法，規則掉到
+        79.2%，反而比只靠模型低。規則常把多餘的字抓進地點（「想反映中山北路二段」「就是大安森林公園」），也看不懂英文和「回家的巷子」。
+      </li>
+      <li>
+        規則的優點是從不亂填（0 次）。模型加上防護後，也做到這點，兩個題組都和規則一樣好或更好。
+      </li>
+    </ul>
+  </section>
+
+  <section>
     <h2>結果：沒看過的題目</h2>
     <p>
       防護是看著第一批題目設計的。為了避免「只對考古題有效」，另外請一個沒看過程式的代理寫了 36
@@ -426,18 +473,18 @@
     </p>
     <div class="chart" role="figure" aria-label="三張表單在三種做法下的欄位正確率長條圖">
       <div class="legend">
-        <span><i class="sw" style="background: var(--bar-base)"></i>只靠模型（遮掉 function）</span>
-        <span><i class="sw" style="background: var(--bar-ded)"></i>手寫專用 function</span>
+        <span><i class="sw" style="background: var(--bar-base)"></i>遮掉規則，只靠模型</span>
+        <span><i class="sw" style="background: var(--bar-ded)"></i>原本的規則函式</span>
         <span><i class="sw" style="background: var(--bar-new)"></i>新做法：模型＋防護</span>
       </div>
       <div class="group">
-        <h3>有話要說（陳情）<small>原本有規則函式</small></h3>
+        <h3>有話要說（陳情）<small>有規則函式</small></h3>
         <div class="row">
           <span class="name">只靠模型</span>
           <div class="track"><div class="bar base" style="width: 85.4%">85.4</div></div>
         </div>
         <div class="row">
-          <span class="name">專用 function</span>
+          <span class="name">原本規則</span>
           <div class="track"><div class="bar ded" style="width: 79.2%">79.2</div></div>
         </div>
         <div class="row">
@@ -446,14 +493,14 @@
         </div>
       </div>
       <div class="group">
-        <h3>復康巴士預約<small>新任務</small></h3>
+        <h3>復康巴士預約<small>新任務，沒有規則</small></h3>
         <div class="row">
           <span class="name">只靠模型</span>
           <div class="track"><div class="bar base" style="width: 68.1%">68.1</div></div>
         </div>
         <div class="row">
-          <span class="name">專用 function</span>
-          <div class="track"><div class="bar ded" style="width: 63.9%">63.9</div></div>
+          <span class="name">原本規則</span>
+          <div class="na">沒有規則函式</div>
         </div>
         <div class="row">
           <span class="name">模型＋防護</span>
@@ -467,8 +514,8 @@
           <div class="track"><div class="bar base" style="width: 69.4%">69.4</div></div>
         </div>
         <div class="row">
-          <span class="name">專用 function</span>
-          <div class="na">沒有人寫過</div>
+          <span class="name">原本規則</span>
+          <div class="na">沒有規則函式</div>
         </div>
         <div class="row">
           <span class="name">模型＋防護</span>
@@ -573,7 +620,7 @@
 
   <section>
     <h2>新表單怎麼用</h2>
-    <p>列出欄位就好，不用寫專用 function：</p>
+    <p>列出欄位就好，不用替它寫規則函式：</p>
     <pre>
 import { fillFormGuarded, type FormSpec } from './agent/skills/form-fill';
 
@@ -632,7 +679,7 @@ const { values } = await fillFormGuarded(model, TOUR_FORM, 原話, {
           </tr>
           <tr>
             <td>速度</td>
-            <td><span class="pill warn">14～18 秒</span> 專用 function 約 4～9 秒</td>
+            <td><span class="pill warn">14～18 秒</span> 規則函式不用推論，幾乎 0 秒</td>
             <td>畫面要顯示「正在整理」的進度</td>
           </tr>
           <tr>
@@ -643,7 +690,7 @@ const { values } = await fillFormGuarded(model, TOUR_FORM, 原話, {
           <tr>
             <td>陳情表</td>
             <td>
-              <span class="pill good">已修</span> 規則函式的地點錯誤已修正，但在新題目上只有 81%
+              <span class="pill good">已修</span> 規則函式在新題目上原本 79%，修正地點擷取後 81%
             </td>
             <td>可考慮改用模型＋防護（95.8%），代價是多約 10 秒</td>
           </tr>
