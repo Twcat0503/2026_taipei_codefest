@@ -600,3 +600,27 @@ test('haptic feedback follows live events only, never a restored conversation', 
   await expect(page.getByRole('heading', { name: /119/ })).toBeVisible();
   expect(await vibrations()).toEqual([warning]);
 });
+
+test('haptic and voice feedback can be switched in settings and are remembered', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: '設定', exact: true }).click();
+  const haptics = page.getByLabel('震動回饋', { exact: true });
+  const voice = page.getByLabel('語音回饋', { exact: true });
+  await expect(haptics).toBeChecked();
+  await expect(voice).not.toBeChecked();
+  // The whole labelled row is the touch target, not just the small box.
+  for (const toggle of [haptics, voice])
+    expect(
+      await toggle.evaluate((box) => box.closest('label')!.getBoundingClientRect().height),
+    ).toBeGreaterThanOrEqual(48);
+  await page.getByText('震動回饋', { exact: true }).click();
+  await voice.check();
+  await page.reload();
+  await page.getByRole('button', { name: '設定', exact: true }).click();
+  await expect(haptics).not.toBeChecked();
+  await expect(voice).toBeChecked();
+  await page.getByLabel('語言', { exact: true }).selectOption('en');
+  await expect(page.getByLabel('Vibration feedback', { exact: true })).not.toBeChecked();
+  await expect(page.getByLabel('Voice feedback', { exact: true })).toBeChecked();
+});

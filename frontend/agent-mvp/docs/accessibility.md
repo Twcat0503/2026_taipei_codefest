@@ -153,7 +153,8 @@ readAloud(
 - 助手反問（問位置、問帳單種類）、沒有結果、不支援、使用者按「停止」都不震動，因為成功或失敗的震動都不符合事實。
 - 只在請求剛結束時觸發；還原上次的對話與草稿時不會。
 - 結果對照表在 `src/agent/outcome-feedback.ts`，由 `tests/outcome-feedback.test.ts` 檢查。
-- 語音回饋只念帶文字的 `feedback()`，上面的呼叫都不帶文字，所以目前還不會出聲。
+- 設定的「閱讀與語音」有「震動回饋」（`hapticsEnabled`、預設開）與「語音回饋」（`voiceFeedbackEnabled`、預設關）兩個核取方塊，偏好存在這支手機。
+- 語音回饋只念帶文字的 `feedback()`，上面的呼叫都不帶文字，所以「語音回饋」打開也還不會出聲。
 - 震動走 `haptic` bridge，所以測試裡假的 `window.flutterObject.postMessage` 會收到 `haptic` 訊息；只關心導向的測試要自己略過。
 
 ## 隱私：`screenReader`

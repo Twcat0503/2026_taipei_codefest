@@ -47,7 +47,8 @@ import {
   setPreference,
 } from './platform/storage';
 import { canReadAloud, readAloud, stopReading } from './platform/speech';
-import { feedback } from './platform/feedback';
+import { feedback, setVoiceFeedbackEnabled, voiceFeedbackEnabled } from './platform/feedback';
+import { hapticsEnabled, setHapticsEnabled } from './platform/haptics';
 import { getLocation, openLink } from './platform/location';
 import { createVoiceInput, type VoiceStatus } from './platform/voice-input';
 
@@ -190,6 +191,20 @@ const speechSupported = ref(canReadAloud());
 const speaking = ref(false);
 const speechFailed = ref(false);
 const rate = ref('0.9');
+// 震動與語音回饋的開關：偏好存在這支手機；勾選狀態以實際存下的值為準。
+const hapticsOn = ref(hapticsEnabled());
+const voiceFeedbackOn = ref(voiceFeedbackEnabled());
+function setHaptics(event: Event) {
+  const box = event.target as HTMLInputElement;
+  setHapticsEnabled(box.checked);
+  // 儲存被瀏覽器擋住時存不下來，勾選就退回實際生效的值。
+  box.checked = hapticsOn.value = hapticsEnabled();
+}
+function setVoiceFeedback(event: Event) {
+  const box = event.target as HTMLInputElement;
+  setVoiceFeedbackEnabled(box.checked);
+  box.checked = voiceFeedbackOn.value = voiceFeedbackEnabled();
+}
 const shownBooks = computed(() => state.bookResults);
 const activeBook = computed(() =>
   state.bookResults.find((book) => book.id === (state.draft?.bookId ?? state.receipt?.bookId)),
@@ -1316,6 +1331,16 @@ onBeforeUnmount(() => {
             </select></label
           >
           <p v-else class="small-note">{{ t.speechUnavailable }}</p>
+          <label class="check"
+            ><input type="checkbox" :checked="hapticsOn" @change="setHaptics" />{{
+              t.hapticFeedback
+            }}</label
+          >
+          <label class="check"
+            ><input type="checkbox" :checked="voiceFeedbackOn" @change="setVoiceFeedback" />{{
+              t.voiceFeedback
+            }}</label
+          >
         </section>
         <section class="settings-section remembered" aria-labelledby="remembered-title">
           <h3 id="remembered-title">{{ t.rememberedTitle }}</h3>

@@ -1194,6 +1194,14 @@ dd {
   min-height: 0;
   height: 1.25rem;
 }
+/* `.settings-section label` is more specific and would stack the box above its text. */
+.settings-section .check {
+  display: flex;
+  gap: 0.5rem;
+}
+.settings-section .check input {
+  flex: none;
+}
 
 /* 離開助手前的確認、緊急撥號、回答下方的選項 */
 .leave-confirm {

@@ -170,6 +170,8 @@ const zh = {
   slow: '慢',
   standardRate: '一般',
   speechUnavailable: '此環境尚未提供朗讀；可使用 TalkBack 或系統螢幕閱讀器。',
+  hapticFeedback: '震動回饋',
+  voiceFeedback: '語音回饋',
   speechError: '朗讀未能啟動，請使用系統螢幕閱讀器。',
   developer: '開發者檢視與接點設定',
   mode: '模型來源',
@@ -482,6 +484,8 @@ const en: Record<keyof typeof zh, string> = {
   standardRate: 'Standard',
   speechUnavailable:
     'Reading aloud is not available here. You can use TalkBack or your system screen reader.',
+  hapticFeedback: 'Vibration feedback',
+  voiceFeedback: 'Voice feedback',
   speechError: 'Reading aloud could not start. Please use your system screen reader.',
   developer: 'Developer view and integration settings',
   mode: 'Model source',
