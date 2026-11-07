@@ -138,6 +138,7 @@ readAloud(
 - `failed`：朗讀失敗（原生 `error`，或瀏覽器的其他 `error`）、App 內 5 秒內沒有開始、或 bridge 無法送出。
 - 每一次朗讀的 callback 恰好呼叫一次。`stopReading()` 與下一次 `readAloud()` 會**同步**先對被停止、被取代的那一次呼叫 `finished`，所以 `speaking` 之類的狀態會被設回來（`feedback()` 的語音取代使用者按下的朗讀時也一樣），停止時也不會出現朗讀失敗的訊息。
 - `stopReading()` 在 App 內只有朗讀進行中才會送出 `tts` stop；沒在朗讀時不送任何 bridge 訊息（原生端每次開始朗讀前也會先停掉上一段）。
+- 設定的「本機自然語音」開著、服務就緒時，App 內的中文朗讀改由本機 BlueMagpie 念（`natural-voice.ts`），沒就緒、英文與瀏覽器仍用系統語音。它走同一條「恰好一次」的規則：念完、被 `stopReading()` 停止、被下一次 `readAloud()` 取代，都和上面一樣回呼 `finished`。差別是它沒有交給 `tts` bridge，所以停止它**不會**送 `tts` stop。念不出來的部分（某一句合成失敗、逾時、播放被擋）交給系統語音念完，交接時不會呼叫 `finished`，之後由那次系統朗讀回呼 `finished` 或 `failed`，所以整段朗讀仍然只回呼一次。
 
 ## 目前接在哪裡（`src/App.vue`）
 

@@ -1109,9 +1109,8 @@ describe('read-aloud with the natural voice', () => {
   });
 
   it('reads the rest with the system voice when a segment fails, and settles once', async () => {
-    const { speech, ready, server, speaks, emitBridge, audio, flush, callbacks } = await setup({
-      enabled: true,
-    });
+    const { speech, ready, server, speaks, sentNamed, emitBridge, audio, flush, callbacks } =
+      await setup({ enabled: true });
     await ready();
     const segments = segmentText(threeSegments);
     server.respond = ({ input }) => (input === segments[1] ? wav({ status: 502 }) : wav());
@@ -1132,8 +1131,10 @@ describe('read-aloud with the natural voice', () => {
         },
       },
     ]);
+    // Handing over is not the end: nothing is heard yet, and nothing was stopped on the bridge.
     expect(finished).not.toHaveBeenCalled();
     expect(failed).not.toHaveBeenCalled();
+    expect(sentNamed('tts').map((message) => message.data.action)).toEqual(['speak']);
     const requestId = speaks()[0]!.data.requestId;
     emitBridge('tts', { requestId, event: 'start' });
     emitBridge('tts', { requestId, event: 'done' });
@@ -1153,12 +1154,55 @@ describe('read-aloud with the natural voice', () => {
     const { finished, failed } = callbacks();
     speech.readAloud('你好', zh, 1, finished, failed);
     await flush();
-    emitBridge('tts', { requestId: speaks()[0]!.data.requestId, event: 'error', error: 'engine' });
+    const requestId = speaks()[0]!.data.requestId;
+    emitBridge('tts', { requestId, event: 'error', error: 'engine' });
+    emitBridge('tts', { requestId, event: 'error', error: 'engine' });
+    emitBridge('tts', { requestId, event: 'done' });
     expect(failed).toHaveBeenCalledTimes(1);
     expect(finished).not.toHaveBeenCalled();
   });
 
-  it('stops the natural voice with stopReading and posts nothing to the bridge', async () => {
+  it('reports a failure once when the system voice never starts after the natural voice failed', async () => {
+    const { speech, ready, server, sentNamed, flush, callbacks } = await setup({ enabled: true });
+    await ready();
+    server.respond = () => wav({ status: 502 });
+    const { finished, failed } = callbacks();
+    speech.readAloud('你好', zh, 1, finished, failed);
+    await flush();
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(failed).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(failed).toHaveBeenCalledTimes(1);
+    expect(finished).not.toHaveBeenCalled();
+    // The request that never started is stopped, so it cannot start speaking late.
+    expect(sentNamed('tts').map((message) => message.data.action)).toEqual(['speak', 'stop']);
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(failed).toHaveBeenCalledTimes(1);
+  });
+
+  it('finishes once, and stops the system voice, when the reading is stopped during the fallback', async () => {
+    const { speech, ready, server, sentNamed, speaks, emitBridge, flush, callbacks } = await setup({
+      enabled: true,
+    });
+    await ready();
+    server.respond = () => wav({ status: 502 });
+    const { finished, failed } = callbacks();
+    speech.readAloud('你好', zh, 1, finished, failed);
+    await flush();
+    const requestId = speaks()[0]!.data.requestId;
+    emitBridge('tts', { requestId, event: 'start' });
+    speech.stopReading();
+    expect(finished).toHaveBeenCalledTimes(1);
+    // The system voice is the one speaking now, so this one does need a stop on the bridge.
+    expect(sentNamed('tts').map((message) => message.data.action)).toEqual(['speak', 'stop']);
+    emitBridge('tts', { requestId, event: 'stopped' });
+    emitBridge('tts', { requestId, event: 'done' });
+    await flush();
+    expect(finished).toHaveBeenCalledTimes(1);
+    expect(failed).not.toHaveBeenCalled();
+  });
+
+  it('finishes a natural reading once when stopReading stops it, with nothing on the bridge', async () => {
     const { speech, ready, server, fetcher, sent, callbacks, flush } = await setup({
       enabled: true,
     });
@@ -1167,17 +1211,22 @@ describe('read-aloud with the natural voice', () => {
     const { finished, failed } = callbacks();
     speech.readAloud(threeSegments, zh, 1, finished, failed);
     await flush();
+    expect(finished).not.toHaveBeenCalled();
     const before = sent().length;
     speech.stopReading();
     expect(fetcher.mock.calls[0]![1].signal!.aborted).toBe(true);
-    // The system voice was not reading, so there is nothing to stop on the bridge.
+    // Whoever waits for the reading is told at once, like for a stopped system reading...
+    expect(finished).toHaveBeenCalledTimes(1);
+    // ...and the system voice was not reading, so there is nothing to stop on the bridge.
     expect(sent()).toHaveLength(before);
+    speech.stopReading();
     await vi.advanceTimersByTimeAsync(60000);
-    expect(finished).not.toHaveBeenCalled();
+    expect(finished).toHaveBeenCalledTimes(1);
     expect(failed).not.toHaveBeenCalled();
+    expect(sent()).toHaveLength(before);
   });
 
-  it('pauses the playing clip with stopReading', async () => {
+  it('pauses the playing clip with stopReading and finishes the reading once', async () => {
     const { speech, ready, audio, urls, callbacks, flush } = await setup({ enabled: true });
     await ready();
     const { finished, failed } = callbacks();
@@ -1186,10 +1235,56 @@ describe('read-aloud with the natural voice', () => {
     speech.stopReading();
     expect(audio.instances[0]!.pause).toHaveBeenCalled();
     expect(urls.revoked).toEqual(urls.created);
+    expect(finished).toHaveBeenCalledTimes(1);
+    // A late event of the stopped clip changes nothing.
     audio.instances[0]!.end();
     await flush();
-    expect(finished).not.toHaveBeenCalled();
+    expect(finished).toHaveBeenCalledTimes(1);
     expect(failed).not.toHaveBeenCalled();
+  });
+
+  it('finishes a natural reading once when it ends by itself, and a later stop adds nothing', async () => {
+    const { speech, ready, audio, sent, callbacks, flush } = await setup({ enabled: true });
+    await ready();
+    const { finished, failed } = callbacks();
+    speech.readAloud('你好', zh, 1, finished, failed);
+    await flush();
+    audio.instances[0]!.end();
+    await flush();
+    expect(finished).toHaveBeenCalledTimes(1);
+    const before = sent().length;
+    speech.stopReading();
+    expect(finished).toHaveBeenCalledTimes(1);
+    expect(failed).not.toHaveBeenCalled();
+    expect(sent()).toHaveLength(before);
+  });
+
+  it('finishes a natural reading once when the system voice replaces it, with no stop on the bridge', async () => {
+    const { speech, ready, speaks, sentNamed, emitBridge, audio, callbacks, flush } = await setup({
+      enabled: true,
+    });
+    await ready();
+    const first = callbacks();
+    speech.readAloud('第一段', zh, 1, first.finished, first.failed);
+    await flush();
+    // English never uses the natural voice, so the system voice reads the next reading.
+    const second = callbacks();
+    speech.readAloud('second', 'en', 1, second.finished, second.failed);
+    expect(first.finished).toHaveBeenCalledTimes(1);
+    expect(first.failed).not.toHaveBeenCalled();
+    expect(audio.instances[0]!.pause).toHaveBeenCalled();
+    expect(speaks().map((message) => message.data.text)).toEqual(['second']);
+    expect(sentNamed('tts').map((message) => message.data.action)).toEqual(['speak']);
+    // A late event of the replaced clip changes nothing; the new reading ends on its own events.
+    audio.instances[0]!.end();
+    await flush();
+    expect(first.finished).toHaveBeenCalledTimes(1);
+    expect(second.finished).not.toHaveBeenCalled();
+    const requestId = speaks()[0]!.data.requestId;
+    emitBridge('tts', { requestId, event: 'start' });
+    emitBridge('tts', { requestId, event: 'done' });
+    expect(second.finished).toHaveBeenCalledTimes(1);
+    expect(first.finished).toHaveBeenCalledTimes(1);
   });
 
   it('stops a system reading in progress before the natural voice starts', async () => {
@@ -1236,10 +1331,14 @@ describe('read-aloud with the natural voice', () => {
     await flush();
     expect(audio.instances).toHaveLength(2);
     expect(audio.instances[0]!.pause).toHaveBeenCalled();
+    // The replaced reading ended the moment the new one began; the new one is still going.
+    expect(first.finished).toHaveBeenCalledTimes(1);
+    expect(second.finished).not.toHaveBeenCalled();
     audio.instances[0]!.end();
     audio.instances[1]!.end();
     await flush();
-    expect(first.finished).not.toHaveBeenCalled();
+    expect(first.finished).toHaveBeenCalledTimes(1);
+    expect(first.failed).not.toHaveBeenCalled();
     expect(second.finished).toHaveBeenCalledTimes(1);
     expect(speaks()).toEqual([]);
   });
