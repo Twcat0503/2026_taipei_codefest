@@ -10,10 +10,31 @@ import 'dart:convert';
 /// 台北通站內微服務（TownPass-Services）的來源；與服務頁、帳務頁開的網址相同。
 const String kPrefillOrigin = 'https://taipei-pass-service.vercel.app';
 
-/// 可帶入的欄位：表單輸入框的 id。
-const Set<String> kPrefillFields = {'water_number', 'tax_id'};
+/// 號碼類欄位：只接受英數與連字號。
+const Set<String> kCodeFields = {'water_number', 'tax_id'};
 
-final RegExp _value = RegExp(r'^[A-Za-z0-9-]{1,20}$');
+/// 文字類欄位與長度上限（有話要說的地點、主旨、描述）。
+const Map<String, int> kTextFields = {
+  'location': 100,
+  'title': 40,
+  'description': 500,
+};
+
+/// 可帶入的欄位：表單輸入框的 id。
+final Set<String> kPrefillFields = {...kCodeFields, ...kTextFields.keys};
+
+final RegExp _code = RegExp(r'^[A-Za-z0-9-]{1,20}$');
+// 除了換行以外的控制字元都不接受。
+final RegExp _control = RegExp(r'[\x00-\x09\x0B-\x1F\x7F]');
+
+bool _validValue(String field, String value) {
+  if (kCodeFields.contains(field)) return _code.hasMatch(value);
+  final int? max = kTextFields[field];
+  return max != null &&
+      value.trim().isNotEmpty &&
+      value.length <= max &&
+      !_control.hasMatch(value);
+}
 
 /// 只留下白名單欄位與合格的值；沒有可用欄位時回傳 null。
 Map<String, String>? sanitizePrefill(Object? raw) {
@@ -23,7 +44,7 @@ Map<String, String>? sanitizePrefill(Object? raw) {
       if (entry.key is String &&
           kPrefillFields.contains(entry.key) &&
           entry.value is String &&
-          _value.hasMatch(entry.value as String))
+          _validValue(entry.key as String, entry.value as String))
         entry.key as String: entry.value as String,
   };
   return clean.isEmpty ? null : clean;
@@ -40,13 +61,17 @@ String prefillScript(Map<String, String> values) =>
     '''
 (() => {
   const values = ${jsonEncode(values)};
-  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+  const setters = new Map([
+    [HTMLInputElement, Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set],
+    [HTMLTextAreaElement, Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set],
+  ]);
   let tries = 0;
   const fill = () => {
     let pending = 0;
     for (const [id, value] of Object.entries(values)) {
       const input = document.getElementById(id);
-      if (!(input instanceof HTMLInputElement)) { pending++; continue; }
+      const setter = input && setters.get(input.constructor);
+      if (!setter) { pending++; continue; }
       if (input.value) continue;
       setter.call(input, value);
       input.dispatchEvent(new Event('input', { bubbles: true }));
