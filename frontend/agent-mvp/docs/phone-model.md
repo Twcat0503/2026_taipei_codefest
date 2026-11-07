@@ -1,6 +1,6 @@
 # Phone model adapter
 
-The Vue agent integrates the Android LFM3 runtime through the existing TPWebView bridge. The MCP client remains a demo; changing model source does not connect live municipal APIs.
+The Vue agent integrates the Android LFM3 runtime through the existing TPWebView bridge. The tool client combines 16 teammate read-only tools with explicit demo bills. Most municipal content is demo or snapshot data; YouBike is live. Changing model source does not authorize personal municipal APIs.
 
 ## User flow
 
