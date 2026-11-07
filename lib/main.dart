@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:town_pass/gen/assets.gen.dart';
 import 'package:town_pass/service/account_service.dart';
 import 'package:town_pass/service/device_service.dart';
 import 'package:town_pass/service/geo_locator_service.dart';
@@ -63,7 +62,7 @@ class MyApp extends StatelessWidget {
         actionIconTheme: ActionIconThemeData(
           backButtonIconBuilder: (_) => Semantics(
             excludeSemantics: true,
-            child: Assets.svg.iconArrowLeft.svg(width: 24, height: 24),
+            child: const Icon(Icons.arrow_back, size: 24),
           ),
         ),
       ),
