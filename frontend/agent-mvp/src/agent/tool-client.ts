@@ -1,24 +1,24 @@
 import { books, services } from './catalog';
 import type { ToolDefinition } from './types';
 
-export type McpTool = { name: string; description?: string; inputSchema: Record<string, unknown> };
-export type McpResult = {
+export type ToolInfo = { name: string; description?: string; inputSchema: Record<string, unknown> };
+export type ToolResult = {
   content: { type: 'text'; text: string }[];
   isError?: boolean;
 };
 
-/** Tool boundary, implemented by DemoMcpClient or tools/townpass as direct function calls.
- * The shapes follow MCP tools/list and tools/call, but no MCP transport or server is involved.
+/** Tool boundary, implemented by DemoToolClient or tools/townpass as direct function calls.
+ * No transport or server is involved.
  */
-export interface McpClient {
-  listTools(options: { signal: AbortSignal }): Promise<{ tools: McpTool[] }>;
+export interface ToolClient {
+  listTools(options: { signal: AbortSignal }): Promise<{ tools: ToolInfo[] }>;
   callTool(
     params: { name: string; arguments: Record<string, unknown> },
     options: { signal: AbortSignal },
-  ): Promise<McpResult>;
+  ): Promise<ToolResult>;
 }
 
-export class DemoMcpClient implements McpClient {
+export class DemoToolClient implements ToolClient {
   constructor(private definitions: ToolDefinition[]) {}
   async listTools({ signal }: { signal: AbortSignal }) {
     signal.throwIfAborted();
@@ -33,7 +33,7 @@ export class DemoMcpClient implements McpClient {
   async callTool(
     params: { name: string; arguments: Record<string, unknown> },
     { signal }: { signal: AbortSignal },
-  ): Promise<McpResult> {
+  ): Promise<ToolResult> {
     signal.throwIfAborted();
     const query = String(params.arguments.query ?? '')
       .trim()

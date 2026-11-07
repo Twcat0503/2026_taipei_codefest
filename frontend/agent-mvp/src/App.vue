@@ -49,10 +49,10 @@ let adapter: ModelAdapter =
         import.meta.env.VITE_MODEL_PROTOCOL === 'tools' ? 'tools' : 'json-schema',
       )
     : new DemoModel();
-// VITE_TOOL_SOURCE=townpass 查台北通示範站；未設定時用 DemoMcpClient 的虛構資料。
-const mcpClient =
+// VITE_TOOL_SOURCE=townpass 查台北通示範站；未設定時用 DemoToolClient 的虛構資料。
+const toolClient =
   import.meta.env.VITE_TOOL_SOURCE === 'townpass' ? createAgentToolClient() : undefined;
-let runner = new AgentRunner(adapter, state, mcpClient);
+let runner = new AgentRunner(adapter, state, toolClient);
 const speechSupported = ref(canReadAloud());
 const speaking = ref(false);
 const speechFailed = ref(false);
@@ -187,7 +187,7 @@ function applyConfig() {
             import.meta.env.VITE_MODEL_PROTOCOL === 'tools' ? 'tools' : 'json-schema',
           )
         : new DemoModel();
-    runner = new AgentRunner(adapter, state, mcpClient);
+    runner = new AgentRunner(adapter, state, toolClient);
     mode.value = selectedMode.value;
     configStatus.value = 'applied';
   } catch {

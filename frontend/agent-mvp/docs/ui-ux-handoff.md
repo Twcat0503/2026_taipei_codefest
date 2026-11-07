@@ -10,7 +10,7 @@ flowchart TD
     B --> E[Unsupported：說明支援範圍]
     C --> F[白名單與參數驗證]
     D --> F
-    F --> G[工具 client：DemoMcpClient 或 tools/townpass]
+    F --> G[工具 client：DemoToolClient 或 tools/townpass]
     G --> H[工具結果驗證]
     H --> I[專家完成訊號]
     I --> J[字典與驗證後資料呈現結果]

@@ -11,18 +11,18 @@ import {
   executeReadTool,
   prepareReservation,
 } from '../src/agent/tools';
-import { DemoMcpClient, type McpClient } from '../src/agent/mcp';
+import { DemoToolClient, type ToolClient } from '../src/agent/tool-client';
 import { books } from '../src/agent/catalog';
 import { restoreTask, saveTask } from '../src/platform/storage';
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
-const client = () => new DemoMcpClient([...domainTools('library'), ...domainTools('services')]);
+const client = () => new DemoToolClient([...domainTools('library'), ...domainTools('services')]);
 const result = (message: unknown) => ({ choices: [{ finish_reason: 'stop', message }] });
 
 describe('bounded agent orchestration', () => {
-  it('routes Chinese input, discovers MCP tools and retains exact book titles', async () => {
+  it('routes Chinese input, discovers tools and retains exact book titles', async () => {
     const state = initialState();
     const mcp = client();
     const call = vi.spyOn(mcp, 'callTool');
@@ -57,7 +57,7 @@ describe('bounded agent orchestration', () => {
     expect(state.notice).toBe('cancelled');
     expect(state.bookIds).toEqual([]);
   });
-  it('rejects model-proposed write tools before invoking MCP', async () => {
+  it('rejects model-proposed write tools before invoking a tool', async () => {
     const model: ModelAdapter = {
       mode: 'local',
       complete: vi
@@ -126,7 +126,7 @@ describe('bounded agent orchestration', () => {
     await expect(new AgentRunner(model, state).run('找圖書')).rejects.toThrow('NO_TOOL_RESULT');
     expect(state.bookIds).toEqual([]);
   });
-  it('rejects invalid arguments and MCP errors', async () => {
+  it('rejects invalid arguments and tool errors', async () => {
     const signal = new AbortController().signal;
     const state = initialState();
     await expect(
@@ -138,7 +138,7 @@ describe('bounded agent orchestration', () => {
         signal,
       ),
     ).rejects.toThrow('INVALID_ARGUMENTS');
-    const broken: McpClient = {
+    const broken: ToolClient = {
       listTools: vi.fn(),
       callTool: async () => ({ isError: true, content: [{ type: 'text', text: 'offline' }] }),
     };
@@ -150,7 +150,7 @@ describe('bounded agent orchestration', () => {
         state,
         signal,
       ),
-    ).rejects.toThrow('MCP_TOOL_ERROR');
+    ).rejects.toThrow('TOOL_ERROR');
   });
 });
 

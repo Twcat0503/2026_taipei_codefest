@@ -1,4 +1,4 @@
-import { DemoMcpClient, type McpClient } from './mcp';
+import { DemoToolClient, type ToolClient } from './tool-client';
 import { routerPrompt, specialistPrompt } from './prompts';
 import { assistantMessage } from './model';
 import { domainTools, executeReadTool, routingTool } from './tools';
@@ -9,7 +9,7 @@ export class AgentRunner {
   constructor(
     private model: ModelAdapter,
     private state: TaskState,
-    private mcp: McpClient = new DemoMcpClient([
+    private tools: ToolClient = new DemoToolClient([
       ...domainTools('library'),
       ...domainTools('services'),
     ]),
@@ -75,13 +75,13 @@ export class AgentRunner {
         return;
       }
       onProgress('searching');
-      const available = await this.mcp.listTools({ signal });
+      const available = await this.tools.listTools({ signal });
       ensureActive();
       const allowedTools = domainTools(domain).filter((tool) =>
         available.tools.some((item) => item.name === tool.function.name),
       );
-      if (!allowedTools.length) throw new Error('MCP_TOOL_UNAVAILABLE');
-      trace('mcp', 'tools_listed', allowedTools.map((tool) => tool.function.name).join(', '));
+      if (!allowedTools.length) throw new Error('TOOL_UNAVAILABLE');
+      trace('tools', 'tools_listed', allowedTools.map((tool) => tool.function.name).join(', '));
       const messages: Message[] = [
         { role: 'system', content: specialistPrompt(domain) },
         userMessage,
@@ -100,7 +100,7 @@ export class AgentRunner {
         if (response.calls.length !== 1) throw new Error('ONE_TOOL_AT_A_TIME');
         const toolCall = response.calls[0]!;
         trace(domain, 'tool_requested', toolCall.name); // No raw user input in logs.
-        const result = await executeReadTool(this.mcp, domain, toolCall, this.state, signal);
+        const result = await executeReadTool(this.tools, domain, toolCall, this.state, signal);
         executed = true;
         trace(
           'executor',

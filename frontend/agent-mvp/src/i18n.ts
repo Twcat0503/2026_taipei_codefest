@@ -67,7 +67,7 @@ const zh = {
     '此版模型只接受本機位址；工具來源由 VITE_TOOL_SOURCE 決定。使用 USB 轉接時，推論可能在電腦執行，不代表手機端效能。',
   trace: '代理執行紀錄（英文）',
   noTrace: '送出需求後，會顯示路由與工具呼叫紀錄。',
-  boundary: '模型：可替換 ModelAdapter　｜　工具：可替換 McpClient',
+  boundary: '模型：可替換 ModelAdapter　｜　工具：可替換 ToolClient',
 };
 const en: Record<keyof typeof zh, string> = {
   brand: 'Town Pass',
@@ -141,6 +141,6 @@ const en: Record<keyof typeof zh, string> = {
     'Teammates provide the model. This build accepts local model addresses only and uses demo service data. USB forwarding may run inference on the computer, not the phone.',
   trace: 'Agent trace (English)',
   noTrace: 'Routing and tool events appear after you send a request.',
-  boundary: 'Model: replaceable ModelAdapter | Tools: replaceable McpClient',
+  boundary: 'Model: replaceable ModelAdapter | Tools: replaceable ToolClient',
 };
 export const messages: Record<Locale, typeof en> = { 'zh-Hant-TW': zh, en };

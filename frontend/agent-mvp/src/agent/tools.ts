@@ -1,5 +1,5 @@
 import { branches, type Book, type Service } from './catalog';
-import type { McpClient } from './mcp';
+import type { ToolClient } from './tool-client';
 import type { Domain, Draft, TaskState, ToolCall, ToolDefinition } from './types';
 
 const searchParameters = {
@@ -54,7 +54,7 @@ function localized(value: unknown): boolean {
 }
 
 export async function executeReadTool(
-  client: McpClient,
+  client: ToolClient,
   domain: Domain,
   call: ToolCall,
   state: TaskState,
@@ -77,7 +77,7 @@ export async function executeReadTool(
     result.content[0]?.type !== 'text' ||
     result.content[0].text.length > 30000
   )
-    throw new Error('MCP_TOOL_ERROR');
+    throw new Error('TOOL_ERROR');
   const data = JSON.parse(result.content[0].text);
   if (data.source !== 'demo' || !Array.isArray(data.records) || data.records.length > 20)
     throw new Error('UNSUPPORTED_SERVICE_DATA');

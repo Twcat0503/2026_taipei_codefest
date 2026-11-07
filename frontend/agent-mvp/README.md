@@ -2,7 +2,7 @@
 
 UI／UX 隊友請先看 [交接文件與流程圖](docs/ui-ux-handoff.md)，可不用模型與 Flutter 直接修改介面。
 
-本工作區負責 **agent orchestration 與無障礙操作介面**。**LLM 推論與工具由隊友實作**；這裡的 Ollama adapter 和 DemoMcpClient 是聯調替身，不是團隊的正式模型或工具。
+本工作區負責 **agent orchestration 與無障礙操作介面**。**LLM 推論與工具由隊友實作**；這裡的 Ollama adapter 和 DemoToolClient 是聯調替身，不是團隊的正式模型或工具。
 
 目前可用：繁體中文／英文需求 → 路由代理 → 圖書或服務代理 → 驗證工具結果 → 本地化呈現。圖書可接續「選書 → 修改取書館 → 預覽確認 → 本機示範回執」，可重開續填。所有館藏、分館及服務都是自製虛構資料，沒有呼叫臺北通正式 API，也沒有送出真實預約。
 
@@ -33,16 +33,16 @@ mise exec -- pnpm dev
 
 ## 隊友交接邊界
 
-| 負責方          | 介面／檔案                             | 契約                                                                   |
-| --------------- | -------------------------------------- | ---------------------------------------------------------------------- |
-| 我們的 agent    | `src/agent/runner.ts`                  | 分流、隔離上下文、步數上限、取消、工具白名單與驗證                     |
-| 隊友 LLM        | `ModelAdapter` in `src/agent/types.ts` | 接收 messages/tools/signal，回傳 calls 或完成狀態                      |
-| 暫時的 LLM 接點 | `src/agent/model.ts`                   | OpenAI-compatible `/v1/chat/completions`，可換模型名稱與協定           |
-| 隊友工具        | `McpClient` in `src/agent/mcp.ts`      | 提供 listTools / callTool；目前由 `tools/townpass/` 以直接函式呼叫實作 |
-| 我們的執行層    | `src/agent/tools.ts`                   | 固定服務契約、參數與結果檢查、預覽／確認，不接受任意工具               |
-| 使用者介面      | `src/App.vue`, `src/i18n.ts`           | 繁中／英文、可調字級、進度、確認與錯誤呈現                             |
+| 負責方          | 介面／檔案                                 | 契約                                                                   |
+| --------------- | ------------------------------------------ | ---------------------------------------------------------------------- |
+| 我們的 agent    | `src/agent/runner.ts`                      | 分流、隔離上下文、步數上限、取消、工具白名單與驗證                     |
+| 隊友 LLM        | `ModelAdapter` in `src/agent/types.ts`     | 接收 messages/tools/signal，回傳 calls 或完成狀態                      |
+| 暫時的 LLM 接點 | `src/agent/model.ts`                       | OpenAI-compatible `/v1/chat/completions`，可換模型名稱與協定           |
+| 隊友工具        | `ToolClient` in `src/agent/tool-client.ts` | 提供 listTools / callTool；目前由 `tools/townpass/` 以直接函式呼叫實作 |
+| 我們的執行層    | `src/agent/tools.ts`                       | 固定服務契約、參數與結果檢查、預覽／確認，不接受任意工具               |
+| 使用者介面      | `src/App.vue`, `src/i18n.ts`               | 繁中／英文、可調字級、進度、確認與錯誤呈現                             |
 
-接入點為 `new AgentRunner(modelAdapter, state, mcpClient)`。設定 `VITE_TOOL_SOURCE=townpass` 時，App 透過 `tools/townpass/src/agent-client.ts` 查台北通示範站；未設定時使用 DemoMcpClient 的虛構資料。第一次使用前要在 `tools/townpass/` 執行 `pnpm install`。工具契約見 [tools/townpass/docs/tools.md](../../tools/townpass/docs/tools.md)。
+接入點為 `new AgentRunner(modelAdapter, state, toolClient)`。設定 `VITE_TOOL_SOURCE=townpass` 時，App 透過 `tools/townpass/src/agent-client.ts` 查台北通示範站；未設定時使用 DemoToolClient 的虛構資料。第一次使用前要在 `tools/townpass/` 執行 `pnpm install`。工具契約見 [tools/townpass/docs/tools.md](../../tools/townpass/docs/tools.md)。
 
 ### LLM
 
@@ -54,7 +54,7 @@ mise exec -- pnpm dev
 
 ### 工具
 
-`McpClient` 只是沿用此名的工具介面，**沒有使用 MCP 協定**。代理從 listTools 發現工具，再與本地白名單取交集；不把遠端工具描述當 system 指令。MVP 只允許：
+`ToolClient` 是 agent 呼叫工具的介面，目前的實作都是直接函式呼叫。代理從 listTools 發現工具，再與本地白名單取交集；不把遠端工具描述當 system 指令。MVP 只允許：
 
 ```ts
 search_books({ query: string });
