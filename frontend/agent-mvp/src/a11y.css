@@ -1,0 +1,28 @@
+/* Overrides driven by src/platform/a11y.ts through attributes on <html>. */
+
+/* System "remove animations" / prefers-reduced-motion. */
+html[data-a11y-motion='reduce'] *,
+html[data-a11y-motion='reduce'] *::before,
+html[data-a11y-motion='reduce'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* System "bold text". */
+html[data-a11y-bold] body {
+  font-weight: 600;
+}
+
+/* High contrast: darker tokens than tokens.css. WCAG contrast ratios against #ffffff:
+   --muted #3b474e 9.56:1, --teal #22474e 10.10:1, --amber-ink #5c4012 9.56:1 (text, target >= 7:1);
+   --border #7d8b92 3.51:1 (non-text, target >= 3:1).
+   They also hold on the other app backgrounds (#fafbf9, --pale, --cream): text >= 8.60:1,
+   border >= 3.16:1. --ink (#171b1d, 17.34:1) and --deep (#22474e) are already dark enough. */
+html[data-a11y-contrast] {
+  --muted: #3b474e;
+  --border: #7d8b92;
+  --teal: #22474e;
+  --amber-ink: #5c4012;
+}

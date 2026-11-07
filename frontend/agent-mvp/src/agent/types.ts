@@ -19,6 +19,14 @@ export type Message = {
     function: { name: string; arguments: string };
   }[];
 };
+/** A single photo plus the skill's prompt, for the optional multimodal step. */
+export type VisionRequest = {
+  /** A small image data URL (re-encoded in `platform/image.ts`). */
+  image: string;
+  system: string;
+  instruction: string;
+  signal: AbortSignal;
+};
 export interface ModelAdapter {
   mode: 'demo' | 'local' | 'phone';
   requestTimeoutMs?: number;
@@ -27,6 +35,11 @@ export interface ModelAdapter {
     tools: ToolDefinition[];
     signal: AbortSignal;
   }): Promise<{ calls: ToolCall[]; content?: string }>;
+  /**
+   * Optional: look at one photo and return the model's raw text (the skill parses and validates
+   * it). Only adapters whose model is multimodal implement this; callers check for it first.
+   */
+  vision?(input: VisionRequest): Promise<string>;
 }
 export type Trace = {
   id: number;
@@ -78,6 +91,10 @@ export type TaskState = {
   failure: ToolFailure | null;
   pendingLocation: { request: string } | null;
   navigation: Navigation | null;
+  /** The last tool that produced this answer; drives the follow-up choices. */
+  lastTool: string | null;
+  /** Set when the request sounds like an emergency; the UI offers call buttons. */
+  emergency: import('./skills/emergency').EmergencyKind | null;
   draft: Draft | null;
   receipt: Receipt | null;
   notice:
@@ -88,6 +105,7 @@ export type TaskState = {
     | 'billAuth'
     | 'billUnavailable'
     | 'welcome'
+    | 'greeting'
     | 'books'
     | 'results'
     | 'needLocation'
@@ -95,6 +113,8 @@ export type TaskState = {
     | 'unsupported'
     | 'navigate'
     | 'navigationDeclined'
+    | 'emergency'
+    | 'profile'
     | 'review'
     | 'receipt'
     | 'cancelled'
@@ -113,6 +133,8 @@ export const initialState = (): TaskState => ({
   failure: null,
   pendingLocation: null,
   navigation: null,
+  lastTool: null,
+  emergency: null,
   draft: null,
   receipt: null,
   notice: 'welcome',

@@ -188,6 +188,7 @@ export async function executeReadTool(
   )
     throw new Error('TOOL_ERROR');
   const data = JSON.parse(result.content[0].text);
+  state.lastTool = call.name;
   if (
     !['demo', 'snapshot', 'live', 'link'].includes(data.source) ||
     !Array.isArray(data.records) ||

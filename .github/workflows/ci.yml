@@ -51,7 +51,7 @@ jobs:
 
           flutter=false
           if [ "$workflow_changed" = true ] ||
-            grep -qE '^(lib|test|integration_test|android|assets|fonts)/|^tools/llm-android/|^(pubspec\.(yaml|lock)|analysis_options\.yaml|\.fvmrc)$' <<<"$changed"; then
+            grep -qE '^(lib|test|integration_test|android|assets|fonts)/|^tools/(llm|asr)-android/|^(pubspec\.(yaml|lock)|analysis_options\.yaml|\.fvmrc)$' <<<"$changed"; then
             flutter=true
           fi
 

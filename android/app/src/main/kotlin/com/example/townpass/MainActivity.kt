@@ -1,7 +1,13 @@
 package com.example.townpass
 
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.View
+import android.view.ViewGroup
+import android.view.ViewTreeObserver
+import com.example.townpass.asr.AsrConfig
+import com.example.townpass.asr.AsrServer
 import com.example.townpass.llm.LlmConfig
 import com.example.townpass.llm.LlmServer
 import com.example.townpass.tts.TtsConfig
@@ -21,8 +27,44 @@ class MainActivity : FlutterActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var ttsOwner: TtsOperations.Owner? = null
 
+    // 暫時的 workaround，對應 flutter_inappwebview issue #1694：
+    // https://github.com/pichillilorenzo/flutter_inappwebview/issues/1694
+    // flutter_inappwebview_android 1.1.3 把 WebView 包在 PullToRefreshLayout 裡，
+    // 這個 layout 不可取得焦點，TalkBack 滑動導覽會直接略過整個網頁內容。
+    // 上游的修正（commit afe154d，只有 1.2.0-beta.2 之後的版本才有）是在
+    // PullToRefreshLayout.prepare() 裡呼叫 setFocusable(true)，這裡用同樣的做法補上。
+    // 升級到包含該修正的正式版之後請刪除這個 workaround：
+    // pullToRefreshFocusFix、makePullToRefreshLayoutFocusable、
+    // PULL_TO_REFRESH_LAYOUT_CLASS，以及 onCreate／onDestroy 裡相關的程式。
+    private val pullToRefreshFocusFix = ViewTreeObserver.OnGlobalLayoutListener {
+        makePullToRefreshLayoutFocusable(window.decorView)
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // 每開一個 TPWebView 就會新建一個 PullToRefreshLayout，所以要持續監聽 layout，
+        // 不能只在啟動時處理一次。
+        window.decorView.viewTreeObserver.addOnGlobalLayoutListener(pullToRefreshFocusFix)
+    }
+
+    // 以類別名稱字串比對，不直接 import 外掛的類別；找到之後不再往下找它的子 view。
+    private fun makePullToRefreshLayoutFocusable(view: View) {
+        if (view.javaClass.name == PULL_TO_REFRESH_LAYOUT_CLASS) {
+            if (!view.isFocusable) {
+                view.isFocusable = true
+            }
+            return
+        }
+        if (view is ViewGroup) {
+            for (i in 0 until view.childCount) {
+                makePullToRefreshLayoutFocusable(view.getChildAt(i))
+            }
+        }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        configureAsrChannel(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "town_pass/llm").setMethodCallHandler { call, result ->
             when (call.method) {
                 "status" -> result.success(LlmServer.status().toMap())
@@ -83,10 +125,39 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private fun configureAsrChannel(flutterEngine: FlutterEngine) {
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "town_pass/asr").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "status" -> result.success(AsrServer.status().toMap())
+                "start" -> {
+                    val config = AsrConfig(threads = call.argument<Int>("threads"))
+                    worker.execute {
+                        val status = AsrServer.start(applicationContext, config)
+                        mainHandler.post { result.success(status.toMap()) }
+                    }
+                }
+                "stop" -> worker.execute {
+                    val status = AsrServer.stop(applicationContext)
+                    mainHandler.post { result.success(status.toMap()) }
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
     override fun onDestroy() {
+        val observer = window.decorView.viewTreeObserver
+        if (observer.isAlive) {
+            observer.removeOnGlobalLayoutListener(pullToRefreshFocusFix)
+        }
         ttsOwner?.let { TtsServer.detach(it) }
         ttsOwner = null
         worker.shutdown()
         super.onDestroy()
+    }
+
+    private companion object {
+        const val PULL_TO_REFRESH_LAYOUT_CLASS =
+            "com.pichillilorenzo.flutter_inappwebview_android.pull_to_refresh.PullToRefreshLayout"
     }
 }

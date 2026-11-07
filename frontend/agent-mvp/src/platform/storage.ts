@@ -1,7 +1,87 @@
 import { books, branches } from '../agent/catalog';
 import type { Draft, TaskState } from '../agent/types';
+import { messages } from '../i18n';
 
 const key = 'townpass-agent-demo-v1';
+const conversationKey = 'townpass-agent-conversation-v1';
+const safeRequests = [
+  'rehabRequest',
+  'benefitsRequest',
+  'accessibleRequest',
+  'browseBooks',
+  'browseBills',
+  'browseServices',
+  'counter',
+  'feeSuggestion',
+  'youbikeSuggestion',
+  'perkSuggestion',
+  'reportRequest',
+] as const;
+const safeNotices: TaskState['notice'][] = [
+  'billCategory',
+  'bills',
+  'billsEmpty',
+  'billUnsupported',
+  'billAuth',
+  'billUnavailable',
+  'greeting',
+  'navigate',
+  'navigationDeclined',
+  'emergency',
+  'profile',
+  'books',
+  'results',
+  'needLocation',
+  'empty',
+  'unsupported',
+  'review',
+  'receipt',
+  'cancelled',
+  'error',
+];
+export type SavedTurn = { request: string; notice: TaskState['notice'] };
+export function saveConversation(turns: SavedTurn[]): boolean {
+  try {
+    const safe = turns.map(({ request, notice }) => ({
+      request:
+        safeRequests.find((name) =>
+          Object.values(messages).some((dictionary) => dictionary[name] === request),
+        ) ?? null,
+      notice: safeNotices.includes(notice) ? notice : 'unsupported',
+    }));
+    localStorage.setItem(conversationKey, JSON.stringify(safe.slice(-100)));
+    return true;
+  } catch {
+    return false;
+  }
+}
+export function restoreConversation(): { request: string | null; notice: TaskState['notice'] }[] {
+  try {
+    const data: unknown = JSON.parse(localStorage.getItem(conversationKey) ?? '[]');
+    if (!Array.isArray(data)) return [];
+    return data.slice(-100).flatMap((entry: unknown) => {
+      if (!entry || typeof entry !== 'object') return [];
+      const { request, notice } = entry as { request?: unknown; notice?: unknown };
+      if (typeof notice !== 'string' || !safeNotices.includes(notice as TaskState['notice']))
+        return [];
+      const requestKey =
+        typeof request === 'string' &&
+        safeRequests.includes(request as (typeof safeRequests)[number])
+          ? (request as (typeof safeRequests)[number])
+          : null;
+      return [{ request: requestKey, notice: notice as TaskState['notice'] }];
+    });
+  } catch {
+    return [];
+  }
+}
+export function clearConversation() {
+  try {
+    localStorage.removeItem(conversationKey);
+  } catch {
+    /* Storage may be unavailable. */
+  }
+}
 export function saveTask(state: TaskState) {
   // Persist only validated fixture IDs. Never persist prompts, names, location or model responses.
   try {

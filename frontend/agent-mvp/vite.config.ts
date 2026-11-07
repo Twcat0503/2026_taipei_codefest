@@ -3,5 +3,10 @@ import vue from '@vitejs/plugin-vue';
 
 export default defineConfig({
   plugins: [vue()],
-  server: { port: 5173, strictPort: true, fs: { allow: ['.', '../../tools/townpass'] } },
+  css: { postcss: { plugins: [] } },
+  server: {
+    port: 5173,
+    strictPort: true,
+    fs: { allow: ['.', '../../tools/townpass', '../../assets/svg'] },
+  },
 });
