@@ -1,3 +1,4 @@
+import { recordInference } from '../dev/hud';
 import { destinationFor } from './skills/navigation';
 import type { Message, ModelAdapter, ToolCall } from './types';
 
@@ -401,6 +402,7 @@ export class LocalModel implements ModelAdapter {
   }
   async complete(input: Parameters<ModelAdapter['complete']>[0]) {
     aborted(input.signal);
+    const started = performance.now();
     const controller = new AbortController();
     const cancel = () => controller.abort();
     input.signal.addEventListener('abort', cancel, { once: true });
@@ -432,7 +434,9 @@ export class LocalModel implements ModelAdapter {
       if (!response.ok) throw new Error(`MODEL_HTTP_${response.status}`);
       const text = await response.text();
       if (text.length > 100000) throw new Error('RESPONSE_TOO_LARGE');
-      return parseCompletion(JSON.parse(text));
+      const body: unknown = JSON.parse(text);
+      recordInference({ model: this.model, latencyMs: performance.now() - started, body });
+      return parseCompletion(body);
     } finally {
       clearTimeout(timer);
       input.signal.removeEventListener('abort', cancel);
