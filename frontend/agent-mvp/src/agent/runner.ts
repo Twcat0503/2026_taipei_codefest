@@ -91,6 +91,11 @@ async function bounded<T>(
 const PROFILE_QUESTION =
   /我的(基本)?(資料|個資|地址|電話|手機|信箱|email|生日|水號)|我住(在)?(哪|那)|你(知道|記得|有)(我|什麼).{0,6}(資料|事)|what do you know about me|my (profile|address|phone)/i;
 
+/** True when `request` is a short district reply that answers the pending location question. */
+export function fillsPendingLocation(state: TaskState, request: string) {
+  return !!state.pendingLocation && /^(?:我在|在)?[一-鿿]{2,3}區[。！!]?$/u.test(request.trim());
+}
+
 export class AgentRunner {
   private controller: AbortController | null = null;
   /** A separate channel so a photo lookup can run (and be cancelled) from the draft card. */
@@ -149,7 +154,7 @@ export class AgentRunner {
   run(request: string, onProgress: (stage: 'routing' | 'searching') => void = () => {}) {
     const pending = this.state.pendingLocation;
     // A short district reply fills the pending location slot; unrelated requests start fresh.
-    if (pending && /^(?:我在|在)?[一-鿿]{2,3}區[。！!]?$/u.test(request.trim())) {
+    if (pending && fillsPendingLocation(this.state, request)) {
       request = `${pending.request.replace(/附近|最近的?|nearby|nearest/gi, '')} ${request.trim()}`;
     }
     return this.execute(request, onProgress);

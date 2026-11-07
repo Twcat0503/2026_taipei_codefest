@@ -33,7 +33,7 @@ import {
   type Navigation,
   type TaskState,
 } from './agent/types';
-import { AgentRunner } from './agent/runner';
+import { AgentRunner, fillsPendingLocation } from './agent/runner';
 import { createAgentToolClient } from '../../../tools/townpass/src/agent-client';
 import { DemoModel, LocalModel } from './agent/model';
 import { cancelDraft, changeBranch, confirmReservation, prepareReservation } from './agent/tools';
@@ -74,6 +74,8 @@ const state = reactive(initialState());
 const resumed = ref(restoreTask(state));
 const input = ref('');
 const lastRequest = ref('');
+/** Page heading: the task being worked on, kept when a reply only answers a follow-up question. */
+const taskTitle = ref('');
 const busy = ref(false);
 const stage = ref<'routing' | 'searching' | 'locating'>('routing');
 type ParkingSpace = 'disabled' | 'pregnancy';
@@ -87,6 +89,8 @@ const pendingPhoto = ref<File | null>(null);
 const photoEntryNotice = ref<'photoSimulated' | 'photoNotReady' | 'photoError' | null>(null);
 const assistantBody = ref<HTMLElement>();
 const keyboardViewportHeight = ref<number | null>(null);
+/** Typing with little height left (soft keyboard open, or large text): hide the quick chips. */
+const composerCompact = ref(false);
 const preferencesDialog = ref<HTMLDialogElement>();
 const home = ref(!resumed.value);
 const native = !!window.flutterObject;
@@ -373,6 +377,10 @@ function updateKeyboardViewport() {
     editing && viewport && viewport.scale === 1 && window.innerHeight - viewport.height > 100
       ? viewport.height
       : null;
+  // Android WebView resizes the layout viewport for the keyboard, so innerHeight shrinks too.
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  composerCompact.value =
+    editing && (keyboardViewportHeight.value !== null || window.innerHeight < rem * 36);
 }
 function updateKeyboardAfterFocusOut() {
   queueMicrotask(updateKeyboardViewport);
@@ -447,6 +455,7 @@ async function searchParking(
   parkingSearch.value = { space, radius, area };
   lastRequest.value =
     space === 'disabled' ? t.value.parkingSuggestion : t.value.pregnancyParkingSuggestion;
+  taskTitle.value = lastRequest.value;
   home.value = false;
   resumed.value = false;
   stage.value = area ? 'searching' : 'locating';
@@ -516,6 +525,7 @@ async function submit(text = input.value) {
   if (/^(?:你好|您好|嗨|哈囉|hello|hi)[!！。,.，\s]*$/iu.test(text.trim())) {
     archiveTurn();
     lastRequest.value = text.trim();
+    taskTitle.value = lastRequest.value;
     input.value = '';
     home.value = false;
     resumed.value = false;
@@ -536,6 +546,10 @@ async function submit(text = input.value) {
   home.value = false;
   archiveTurn();
   lastRequest.value = text.trim();
+  // A district reply continues the same task, so the heading keeps the original request.
+  taskTitle.value = fillsPendingLocation(state, text)
+    ? taskTitle.value || state.pendingLocation!.request
+    : lastRequest.value;
   input.value = '';
   resumed.value = false;
   busy.value = true;
@@ -616,6 +630,7 @@ function reset() {
   turns.value = [];
   resumed.value = false;
   lastRequest.value = '';
+  taskTitle.value = '';
   input.value = '';
   pendingPhoto.value = null;
   photoEntryNotice.value = null;
@@ -836,7 +851,7 @@ onBeforeUnmount(() => {
 
         <div v-else class="conversation">
           <div class="conversation-heading" :class="{ 'has-request': hasConversation }">
-            <h1>{{ lastRequest || t.today }}</h1>
+            <h1>{{ taskTitle || t.today }}</h1>
             <button class="icon-button" :aria-label="t.settings" @click="openSettings">
               <UiIcon name="settings" />
             </button>
@@ -1262,7 +1277,12 @@ onBeforeUnmount(() => {
       </div>
     </section>
     <footer v-else class="composer-dock">
-      <div v-if="!home && !state.draft" class="quick-chips" role="group" :aria-label="t.quick">
+      <div
+        v-if="!home && !state.draft && !composerCompact"
+        class="quick-chips"
+        role="group"
+        :aria-label="t.quick"
+      >
         <button :disabled="inputDisabled" :aria-label="t.browseBills" @click="pick(t.browseBills)">
           <span aria-hidden="true"></span>{{ t.billShortcut }}
         </button>
