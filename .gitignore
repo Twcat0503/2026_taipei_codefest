@@ -105,3 +105,6 @@ app.*.map.json
 
 # FVM Version Cache
 .fvm/
+
+# npm lockfiles (this repo uses pnpm under frontend/; see CONTRIBUTING.md)
+package-lock.json
