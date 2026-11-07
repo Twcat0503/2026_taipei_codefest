@@ -123,16 +123,17 @@ const bookRecord = (book: { id: string; book_name: string; author: string; subje
 export const AGENT_TOOLS = [
   define({
     name: "list_townpass_services",
-    data: "demo",
+    // 只是台北通站內頁面的清單與連結，不含示範資料，所以 App 預設提供。
+    data: "real",
     description: "列出台北通所有網頁服務與連結，含警政、訂閱、票券錢包、繳費紀錄這些只能到頁面操作的服務。問「有哪些服務」或要找某個服務頁時使用。",
     input: z.strictObject({ keyword }),
     run: async ({ keyword: key }, ctx) => {
       const needle = orAll(key);
       const hits = CATALOG.filter((s) => !needle || s.title.includes(needle) || s.note?.includes(needle));
       return {
-        source: "demo",
-        source_label: "服務清單",
-        source_note: "標示「到頁面操作」的服務涉及送件、付款或個人資料，agent 不代為操作。",
+        source: "link",
+        source_label: "台北通站內服務",
+        source_note: "按下前往會在台北通裡開啟該服務；頁面內容是台北通範本的示範資料，助手不代為送件或付款。",
         source_url: ctx.baseUrl,
         total: hits.length,
         truncated: false,
@@ -140,7 +141,6 @@ export const AGENT_TOOLS = [
           id: s.id,
           title: text(s.title),
           description: s.note ? text(s.note) : undefined,
-          fields: fields({ 方式: s.mode === "link_only" ? "到頁面操作" : "可直接查詢" }),
           url: httpsOnly(`${ctx.baseUrl}${s.path}`),
         })),
       };
@@ -380,18 +380,21 @@ export const AGENT_TOOLS = [
     name: "open_official_service",
     data: "real",
     description:
-      "找出可以辦這件事的臺北市政府官方網站或電話，由使用者確認後才前往：查書借書（library_catalog，可帶書名或主題 keyword）、身障者服務與補助（services_disabled）、孕婦服務（services_maternity）、長者服務（services_elderly）、其他申辦（services_home）、陳情或反映問題（petition）、打電話問 1999（call_1999）、繳費（pay）。這個工具不會送出任何東西。",
+      "找出可以辦這件事的台北通站內服務（優先）或臺北市政府官方網站，由使用者確認後才前往：陳情反映問題（townpass_report）、災情通報（townpass_disaster）、申辦（townpass_apply）、臨櫃叫號（townpass_counter）、找書借書（townpass_library，可帶書名或主題 keyword）、訂閱市政訊息（townpass_subscription）、報案（townpass_police）、優惠票券（townpass_coupon）、票券錢包（townpass_ticket_wallet）、常見問題（townpass_faq）、繳費（fee，或 fee_water、fee_parking、fee_tax 等指定項目，fee_history 看紀錄）、身障者／孕婦／長者服務（services_disabled、services_maternity、services_elderly）、打電話問 1999（call_1999）。這個工具不會送出任何東西。",
     input: z.strictObject({
-      destination: z.enum(DESTINATION_IDS).describe("官方入口代號"),
-      keyword: z.string().trim().max(30).optional().describe("只有 library_catalog 使用：書名、作者或主題；沒有指定就省略"),
+      destination: z.enum(DESTINATION_IDS).describe("入口代號"),
+      keyword: z.string().trim().max(30).optional().describe("只有 townpass_library 使用：書名、作者或主題；沒有指定就省略"),
     }),
-    run: async ({ destination, keyword: key }) => {
+    run: async ({ destination, keyword: key }, ctx) => {
       const target = DESTINATIONS.find((d) => d.id === destination)!;
-      const url = destinationUrl(target, key as string | undefined);
+      const url = destinationUrl(target, key as string | undefined, ctx.baseUrl);
+      const inApp = target.path !== undefined;
       return {
         source: "link",
-        source_label: "官方入口",
-        source_note: `${target.provider}的官方服務。按下前往才會開啟，助手不會替你送出資料。`,
+        source_label: inApp ? "台北通站內服務" : "官方入口",
+        source_note: inApp
+          ? "按下前往會在台北通裡開啟這個服務；頁面內容是台北通範本的示範資料，送出不會傳到政府機關。"
+          : `${target.provider}的官方服務。按下前往才會開啟，助手不會替你送出資料。`,
         source_url: url,
         total: 1,
         truncated: false,
@@ -400,7 +403,14 @@ export const AGENT_TOOLS = [
             id: target.id,
             title: text(target.title),
             description: text(target.description),
-            fields: fields({ 提供單位: target.provider, 前往: url.startsWith("tel:") ? `撥打 ${url.slice(4)}` : new URL(url).host }),
+            fields: fields({
+              提供單位: target.provider,
+              前往: inApp
+                ? `台北通「${target.title}」`
+                : url.startsWith("tel:")
+                  ? `撥打 ${url.slice(4)}`
+                  : new URL(url).host,
+            }),
             url,
           },
         ],

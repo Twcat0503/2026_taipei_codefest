@@ -23,7 +23,7 @@ await client.callTool({ name: "find_nearby_youbike", arguments: { near_me: true 
 | library | `get_library_ranking` | 無 | 示範 |
 | library | `list_library_branches` | `area?` | 示範 |
 | library | `list_library_notices` | 無 | 示範 |
-| services | `list_townpass_services` | `keyword?` | 服務清單，含只能到頁面操作的服務 |
+| services | `list_townpass_services` | `keyword?` | 台北通站內服務清單與連結（App 預設提供） |
 | services | `search_application_services` | `keyword?` | 示範 |
 | services | `search_service_counters` | `keyword?` | 示範，號碼不是現場實際叫號 |
 | services | `search_faq` | `keyword?` | 示範 |
@@ -34,30 +34,32 @@ await client.callTool({ name: "find_nearby_youbike", arguments: { near_me: true 
 | places | `find_nearby_youbike` | 見下方 | 真實：交通局即時資料 |
 | places | `find_nearby_parking` | 見下方 | 真實：停管處官方資料，含身障、孕婦車位數；不是即時空位 |
 | places | `find_nearby_toilets` | 見下方 | 真實：環保局官方資料的日期快照，含無障礙、親子廁座與照護床 |
-| library、services、bills | `open_official_service` | `destination`、`keyword?` | 真實：官方入口白名單，由使用者確認後前往 |
+| library、services、bills、perks | `open_official_service` | `destination`、`keyword?` | 台北通站內服務或官方入口白名單，由使用者確認後前往 |
 
 `find_nearby_*` 的參數是 `near_me`、`radius_m`（預設 1000）、`area`、`keyword`、`accessible`。`accessible: true` 時公廁只列有無障礙廁座的，停車場只列有身障或孕婦車位的。
 
-### 官方入口 `open_official_service`
+### 服務入口 `open_official_service`
 
-模型只選代號，網址一律由 [src/destinations.ts](../src/destinations.ts) 組出；只有 `library_catalog` 會帶 `keyword`（書名、作者或主題），其他入口忽略。回傳 `source: "link"`、一筆紀錄，**不代表已開啟**：前端必須先讓使用者確認。
+模型只選代號，網址一律由 [src/destinations.ts](../src/destinations.ts) 組出；只有 `townpass_library` 會帶 `keyword`（開站內圖書關鍵字搜尋），其他入口忽略。回傳 `source: "link"`、一筆紀錄，**不代表已開啟**：前端必須先讓使用者確認。
 
-| 代號 | 入口 | 網址 |
+**台北通站內優先**：和 App 服務頁、帳務頁開的是同一組微服務頁面（`baseUrl` 預設為範本站）。頁面內容是範本示範資料，`source_note` 會照實說明。
+
+| 代號 | 站內服務 | 路徑 |
 | --- | --- | --- |
-| `library_catalog` | 臺北市立圖書館館藏查詢 | `https://book.tpml.edu.tw/search?…`（有 keyword 時） |
-| `services_disabled` | 台北服務通：身障者相關服務 | `https://service.taipei/search-item?…Disabled` |
-| `services_maternity` | 台北服務通：孕婦相關服務 | `…Maternity` |
-| `services_elderly` | 台北服務通：長者相關服務 | `…Elderly` |
-| `services_home` | 台北服務通 | `https://service.taipei/` |
-| `petition` | 臺北市陳情系統 | `https://1999.gov.taipei/` |
-| `call_1999` | 撥打 1999 | `tel:1999`（App 內走 `phone_call` bridge） |
-| `pay` | 臺北市政府智慧支付平台 | `https://pay.taipei/` |
+| `townpass_report` | 有話要說（陳情） | `/citizen-report/` |
+| `townpass_disaster` | 災情通報 | `/disaster-report` |
+| `townpass_apply` | 申辦服務 | `/` |
+| `townpass_counter` | 臨櫃叫號 | `/counter-calling/` |
+| `townpass_library` | 圖書借閱（有 keyword 時開關鍵字搜尋） | `/library-service/` |
+| `townpass_subscription` | 市政訊息訂閱 | `/subscription` |
+| `townpass_police` | 警政服務 | `/police-report` |
+| `townpass_coupon`、`townpass_ticket_wallet` | 優惠與票券、票券錢包 | `/coupon/`、`/ticket-wallet` |
+| `townpass_faq` | 常見問題 | `/qna` |
+| `fee`、`fee_water`、`fee_parking`、`fee_tax`… | 繳費（與帳務頁相同的各項目頁） | `/fee-payment/…` |
 
-網址都在 2026-11-07 實際開啟確認過。舊的「市民服務大平臺」`service.gov.taipei` 已公告搬到 `service.taipei`，不要再用；`service.taipei` 帶 `keyword` 的網址不會出結果，所以只用分類頁。
+**台北通沒有對應微服務時才用官方網站**：`services_disabled`、`services_maternity`、`services_elderly`（台北服務通分類頁）、`call_1999`（App 內走 `1999agree` 的使用同意與撥號流程）。網址都在 2026-11-07 實際開啟確認過。
 
-- **定位不經過模型：** 模型只會設 `near_me: true`，座標由呼叫端的 `getLocation` 在瀏覽器內取得，只用來算距離。
-- 沒有 `area` 和 `keyword` 時一律視為問附近。拿不到定位會回 `LOCATION_UNAVAILABLE`，agent 會請使用者改說行政區。
-- 只有定位時才依距離排序；`area` 和 `keyword` 只做文字比對。
+`list_townpass_services` 只列站內頁面與連結、不含示範資料，所以 App 預設也提供（「有哪些服務？」）。
 
 ## 回傳格式
 
