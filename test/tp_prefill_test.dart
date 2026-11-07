@@ -37,6 +37,19 @@ void main() {
     expect(sanitizePrefill({'title': '   '}), isNull);
   });
 
+  test('accepts disaster report details with their own limits', () {
+    expect(
+      sanitizePrefill({
+        'location': '仁愛路四段',
+        'desc': '靠近敦化南路口',
+        'additional_disc': '路樹倒下擋住機車道',
+      }),
+      {'location': '仁愛路四段', 'desc': '靠近敦化南路口', 'additional_disc': '路樹倒下擋住機車道'},
+    );
+    expect(sanitizePrefill({'desc': '一' * 201}), isNull);
+    expect(sanitizePrefill({'additional_disc': '一' * 501}), isNull);
+  });
+
   test('embeds report text as JSON data, including quotes and script tags', () {
     final String script = prefillScript({
       'description': '他說"</script><script>alert(1)</script>',

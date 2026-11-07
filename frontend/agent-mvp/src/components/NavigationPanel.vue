@@ -3,8 +3,15 @@ import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import UiIcon from './UiIcon.vue';
 import { messages } from '../i18n';
 import type { Locale, Navigation, TaskState } from '../agent/types';
-import { PREFILL_FORM_PATH, PREFILL_SLOTS } from '../agent/prefill';
+import { DISASTER_FORM_IDS, PREFILL_FORM_PATH, PREFILL_SLOTS } from '../agent/prefill';
 import { draftReport, type ReportDraft } from '../agent/skills/report-draft';
+import {
+  CITIZEN_REPORT_FORM,
+  type FormContext,
+  type FormSpec,
+  type FormValues,
+} from '../agent/skills/form-fill';
+import { DISASTER_CATEGORIES, TOWNPASS_FORMS } from '../agent/skills/townpass-forms';
 import type { ReportVision } from '../agent/skills/report-vision';
 import { DISTRICTS, DISTRICT_SOURCE, PETITION_SOURCE } from '../agent/open-data/taipei';
 import { pickReportPhoto } from '../platform/image';
@@ -21,6 +28,8 @@ import {
 /**
  * 「前往台北通服務」確認卡：助手只幫忙整理要帶過去的資料，前往要使用者按下才會開啟。
  * - 有話要說（townpass_report）：結構化報案表單（主旨／描述／行政區／地點）＋拍照描述
+ * - 災情通報（townpass_disaster）：分類、地點、地點描述、補充描述，開到該分類的表單頁
+ *   兩者先顯示規則草稿（陳情）或空白，再由模型依原話填（fillFormGuarded），只補民眾沒改過的欄位
  * - 報案、繳費等：用台北通會員資料（手機、Email、身分證字號）或記住的水號帶入，只顯示不儲存
  */
 const props = defineProps<{
@@ -36,6 +45,13 @@ const props = defineProps<{
   cancelDescribe: () => void;
   /** 從輸入框附件加進來、等著描述的照片。 */
   photoFile: File | null;
+  /** 依原話填表（fillFormGuarded）；沒有可用模型時不提供，陳情退回規則草稿。 */
+  fillForm?: (
+    spec: FormSpec,
+    request: string,
+    context: FormContext,
+  ) => Promise<{ values: FormValues; correctionDetected: boolean }>;
+  cancelFill?: () => void;
 }>();
 const emit = defineEmits<{ stay: []; photoConsumed: [] }>();
 const t = computed(() => messages[props.locale]);
@@ -94,6 +110,78 @@ const draft = reactive<ReportDraft>({
   category: null,
 });
 const draftError = ref(false);
+
+// --- Disaster report draft ---
+const DISASTER_FORM = TOWNPASS_FORMS.find((form) => form.id === 'disaster_report')!;
+const isDisaster = computed(() => props.navigation.id === 'townpass_disaster');
+const emptyDisaster = () => ({
+  category: '',
+  location: '',
+  location_desc: '',
+  additional_disc: '',
+});
+const disaster = reactive(emptyDisaster());
+
+// --- Model-filled drafts (fillFormGuarded) ---
+const filling = ref(false);
+const fillCorrected = ref(false);
+let fillToken = 0;
+let memberLoad: Promise<void> | null = null;
+function localToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+/** Ask the model to fill `spec` from this turn's words; `apply` runs only for the current card. */
+async function fillFromModel(spec: FormSpec, apply: (values: FormValues) => void) {
+  const request = props.request.trim();
+  if (!props.fillForm || !request || isCannedRequest(request)) return;
+  const token = ++fillToken;
+  filling.value = true;
+  fillCorrected.value = false;
+  try {
+    await memberLoad;
+    const m = member.value;
+    const result = await props.fillForm(spec, request, {
+      today: localToday(),
+      memberAddress: typeof m === 'object' && m ? m.address : undefined,
+    });
+    if (token !== fillToken) return;
+    fillCorrected.value = result.correctionDetected;
+    apply(result.values);
+  } catch {
+    // 模型沒回應或被取消：留著規則草稿（陳情）或空白欄位，民眾自己填。
+  } finally {
+    if (token === fillToken) filling.value = false;
+  }
+}
+/**
+ * A place is a short span. A small model sometimes copies the whole sentence into it, which the
+ * guard accepts because those words were said: fall back to the place the rules pick out.
+ */
+function placeOnly(value: string) {
+  const request = props.request.trim();
+  if (value.length <= 30 && value !== request && !/[，,。！？!?]/.test(value)) return value;
+  return draftReport(request, undefined).location;
+}
+const REPORT_LIMITS = { title: 40, description: 500, location: 100, district: 10 } as const;
+/** Model values replace the rule draft only where the person has not edited it yet. */
+function applyReport(rule: ReportDraft) {
+  return (values: FormValues) => {
+    for (const field of ['title', 'description', 'location', 'district'] as const) {
+      const raw = values[field]?.trim();
+      const value = field === 'location' && raw ? placeOnly(raw) : raw;
+      if (value && draft[field] === rule[field])
+        draft[field] = value.slice(0, REPORT_LIMITS[field]);
+    }
+  };
+}
+function applyDisaster(values: FormValues) {
+  for (const field of ['category', 'location', 'location_desc', 'additional_disc'] as const) {
+    const raw = values[field]?.trim();
+    const value = field === 'location' && raw ? placeOnly(raw) : raw;
+    if (value && !disaster[field]) disaster[field] = value;
+  }
+}
 
 // --- Photo description ---
 const photo = ref<string | null>(null);
@@ -181,12 +269,15 @@ const leftFor = ref(false);
 watch(
   () => props.navigation,
   () => {
-    Object.assign(
-      draft,
-      isReport.value
-        ? draftReport(isCannedRequest(props.request) ? '' : props.request, undefined)
-        : { title: '', description: '', location: '', district: '', category: null },
-    );
+    props.cancelFill?.();
+    fillToken++;
+    filling.value = false;
+    fillCorrected.value = false;
+    const rule: ReportDraft = isReport.value
+      ? draftReport(isCannedRequest(props.request) ? '' : props.request, undefined)
+      : { title: '', description: '', location: '', district: '', category: null };
+    Object.assign(draft, rule);
+    Object.assign(disaster, emptyDisaster());
     resetPhoto();
     draftError.value = false;
     waterInput.value = '';
@@ -195,7 +286,9 @@ watch(
     leftFor.value = false;
     member.value = null;
     // 報案草稿的「我家」地址與電話／Email 都來自會員資料。
-    if (isReport.value || needsMember.value) void loadMember();
+    memberLoad = isReport.value || isDisaster.value || needsMember.value ? loadMember() : null;
+    if (isReport.value) void fillFromModel(CITIZEN_REPORT_FORM, applyReport({ ...rule }));
+    else if (isDisaster.value) void fillFromModel(DISASTER_FORM, applyDisaster);
   },
   { immediate: true },
 );
@@ -217,13 +310,26 @@ watch(
   },
   { immediate: true },
 );
-onBeforeUnmount(() => props.cancelDescribe());
+onBeforeUnmount(() => {
+  props.cancelDescribe();
+  props.cancelFill?.();
+});
 
 function go(url: string, prefill?: Record<string, string>) {
   openLink(url, prefill);
   leftFor.value = true;
 }
 function goNavigation() {
+  if (isDisaster.value) {
+    // 選了分類就直接開該分類的表單頁並帶入；沒選就開分類清單，民眾自己挑。
+    const id = DISASTER_FORM_IDS[disaster.category];
+    const prefill: Record<string, string> = {};
+    if (disaster.location.trim()) prefill.location = disaster.location.trim();
+    if (disaster.location_desc.trim()) prefill.desc = disaster.location_desc.trim();
+    if (disaster.additional_disc.trim()) prefill.additional_disc = disaster.additional_disc.trim();
+    go(id ? `${serviceOrigin}/disaster-report/form/${id}` : props.navigation.url, prefill);
+    return;
+  }
   const prefill: Record<string, string> = {};
   for (const slot of slots.value) {
     if (slot.field === 'water_number') {
@@ -294,6 +400,8 @@ function goNavigation() {
 
     <form v-if="isReport" class="report-form" @submit.prevent="goNavigation">
       <p class="field-label">{{ t.draftIntro }}</p>
+      <p v-if="filling" class="small-note" role="status">{{ t.formFilling }}</p>
+      <p v-else-if="fillCorrected" class="small-note" role="status">{{ t.formCorrected }}</p>
       <div v-if="canSeePhotos" class="report-photo">
         <input
           id="report-photo-input"
@@ -373,6 +481,40 @@ function goNavigation() {
           >{{ DISTRICT_SOURCE.name }}</a
         >（{{ DISTRICT_SOURCE.provider }}）
       </p>
+    </form>
+    <form v-else-if="isDisaster" class="report-form" @submit.prevent="goNavigation">
+      <p class="field-label">{{ t.disasterIntro }}</p>
+      <p v-if="filling" class="small-note" role="status">{{ t.formFilling }}</p>
+      <p v-else-if="fillCorrected" class="small-note" role="status">{{ t.formCorrected }}</p>
+      <label class="field-label" for="disaster-category">{{ t.disasterCategory }}</label>
+      <select id="disaster-category" v-model="disaster.category" class="draft-district">
+        <option value="">{{ t.draftDistrictAny }}</option>
+        <option v-for="category in DISASTER_CATEGORIES" :key="category" :value="category">
+          {{ category }}
+        </option>
+      </select>
+      <label class="field-label" for="disaster-location">{{ t.disasterLocation }}</label>
+      <input
+        id="disaster-location"
+        v-model="disaster.location"
+        maxlength="100"
+        autocomplete="off"
+        :placeholder="t.draftLocationHint"
+      />
+      <label class="field-label" for="disaster-location-desc">{{ t.disasterLocationDesc }}</label>
+      <textarea
+        id="disaster-location-desc"
+        v-model="disaster.location_desc"
+        maxlength="200"
+        rows="2"
+      ></textarea>
+      <label class="field-label" for="disaster-more">{{ t.disasterMore }}</label>
+      <textarea
+        id="disaster-more"
+        v-model="disaster.additional_disc"
+        maxlength="500"
+        rows="3"
+      ></textarea>
     </form>
     <div v-else-if="slots.length" class="prefill">
       <template v-for="slot in slots" :key="slot.field">

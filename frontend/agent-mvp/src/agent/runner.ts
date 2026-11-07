@@ -16,6 +16,7 @@ const NOW_DANGER = /救命|快叫|救護車|報警|help/i;
 import { normalizeRequest } from './skills/normalize';
 import { landmarkDistrict } from './skills/landmarks';
 import { sanitizeRequest } from './skills/form-guard';
+import { fillFormGuarded, type FormContext, type FormSpec } from './skills/form-fill';
 
 const TAIPEI_DISTRICTS = [
   '中正區',
@@ -193,6 +194,7 @@ export class AgentRunner {
   private controller: AbortController | null = null;
   /** A separate channel so a photo lookup can run (and be cancelled) from the draft card. */
   private visionController: AbortController | null = null;
+  private formController: AbortController | null = null;
   /** The person's own settings (from the on-phone profile); applied to place lookups. */
   preferences = { accessible: false };
   constructor(
@@ -212,6 +214,30 @@ export class AgentRunner {
 
   cancelVision() {
     this.visionController?.abort();
+  }
+
+  cancelForm() {
+    this.formController?.abort();
+  }
+
+  /**
+   * Fill a Town Pass form from what the person said (`fillFormGuarded`: instructions removed,
+   * every value checked against their own words). A newer call replaces an unfinished one. The
+   * caller shows the values on the confirmation card for the person to edit before anything opens.
+   */
+  async fillForm(spec: FormSpec, request: string, context: FormContext) {
+    this.formController?.abort();
+    const controller = new AbortController();
+    this.formController = controller;
+    try {
+      return await bounded(
+        (child) => fillFormGuarded(this.model, spec, request, { context, signal: child }),
+        controller.signal,
+        Math.min(120000, Math.max(45000, this.model.requestTimeoutMs ?? 45000)),
+      );
+    } finally {
+      if (this.formController === controller) this.formController = null;
+    }
   }
 
   /**

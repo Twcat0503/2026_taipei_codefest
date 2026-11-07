@@ -13,11 +13,13 @@ const String kPrefillOrigin = 'https://taipei-pass-service.vercel.app';
 /// 號碼類欄位：只接受英數與連字號。
 const Set<String> kCodeFields = {'water_number', 'tax_id'};
 
-/// 文字類欄位與長度上限（有話要說的地點、主旨、描述）。
+/// 文字類欄位與長度上限（有話要說的地點、主旨、描述；災情通報的地點描述、補充描述）。
 const Map<String, int> kTextFields = {
   'location': 100,
   'title': 40,
   'description': 500,
+  'desc': 200,
+  'additional_disc': 500,
 };
 
 /// 聯絡資料（線上報案）：各自有嚴格格式。
