@@ -5,7 +5,7 @@
 ## 共同
 
 - [ ] 決定 agent 的位置：沿用 #11 的前端 harness（`frontend/agent-mvp/`），或另做 `agent/` 服務
-- [ ] 定好跨線介面：`ModelAdapter`、`McpClient`／工具名稱與參數、模型的工具呼叫格式（先 PR 到 `main`；目前的契約見 #11 的 `frontend/agent-mvp/README.md`）
+- [ ] 定好跨線介面：`ModelAdapter`、`ToolClient`／工具名稱與參數、模型的工具呼叫格式（先 PR 到 `main`；目前的契約見 #11 的 `frontend/agent-mvp/README.md`）
 - [ ] 填上各開發線負責人（GitHub 帳號）
 
 ## 前端（`frontend`）
@@ -18,7 +18,7 @@
 
 ## Agent
 
-- [ ] 接上正式 MCP，取代 `DemoMcpClient`
+- [x] 用 `tools/townpass/` 取代 `DemoToolClient`（預設啟用，直接函式呼叫，16 支工具）
 - [ ] 接上正式模型，取代規則模擬與暫用的 Qwen3 1.7B
 - [ ] 接上正式服務後，重新驗證逾時、取消、工具失敗與模型輸出格式錯誤的處理
 
@@ -30,9 +30,9 @@
 
 ## 工具（`tools`）
 
-- [ ] 把 `townpass-mcp`（15 支唯讀工具）搬進 `tools/townpass-mcp/`
-- [ ] 資料讀取層：逾時、快取、格式驗證
-- [ ] YouBike 即時資料工具，附上資料來源
+- [x] 把唯讀工具搬進 `tools/townpass/`，由 agent 直接呼叫
+- [x] 資料讀取層：逾時、快取、格式驗證
+- [x] YouBike 即時資料工具，附上資料來源
 
 ## App（Flutter，從 `main` 切出）
 

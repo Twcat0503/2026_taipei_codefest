@@ -1,17 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AgentRunner } from '../src/agent/runner';
 import { DemoModel } from '../src/agent/model';
-import { DemoMcpClient, type McpClient, type McpResult } from '../src/agent/mcp';
+import { DemoToolClient, type ToolClient, type ToolResult } from '../src/agent/tool-client';
 import { initialState, type ModelAdapter } from '../src/agent/types';
 import { billReadTool, demoBillResult, parseBillOutcome } from '../src/agent/skills/bills';
 import { billServiceUrl, requestNativeBillPage } from '../src/platform/service-navigation';
 import { saveTask } from '../src/platform/storage';
 
 afterEach(() => vi.unstubAllGlobals());
-const result = (data: unknown): McpResult => ({
+const result = (data: unknown): ToolResult => ({
   content: [{ type: 'text', text: JSON.stringify(data) }],
 });
-const client = () => new DemoMcpClient([billReadTool]);
+const client = () => new DemoToolClient([billReadTool]);
 function fixedModel(category = 'water', period = 'current', action = 'read'): ModelAdapter {
   return {
     mode: 'local',
@@ -137,7 +137,7 @@ describe('bill skill orchestration', () => {
   });
   it('shows unavailable when the teammate has not exposed list_bills', async () => {
     const state = initialState();
-    const mcp = new DemoMcpClient([]);
+    const mcp = new DemoToolClient([]);
     const call = vi.spyOn(mcp, 'callTool');
     await new AgentRunner(fixedModel(), state, mcp).run('water');
     expect(state.notice).toBe('billUnavailable');
@@ -145,7 +145,7 @@ describe('bill skill orchestration', () => {
   });
   it('times out a non-cooperative MCP adapter and ignores its late response', async () => {
     const state = initialState();
-    let finish!: (value: McpResult) => void;
+    let finish!: (value: ToolResult) => void;
     const mcp = client();
     vi.spyOn(mcp, 'callTool').mockImplementation(
       () =>
@@ -166,7 +166,7 @@ describe('bill skill orchestration', () => {
     const ready = new Promise<void>((resolve) => {
       entered = resolve;
     });
-    const mcp: McpClient = {
+    const mcp: ToolClient = {
       listTools: client().listTools.bind(client()),
       callTool: () => {
         entered();

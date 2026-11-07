@@ -1,7 +1,13 @@
 import type { Localized } from './types';
 
 // Original, fictional fixtures. These are not live municipal or library records.
-export type Book = { id: string; title: Localized; author: Localized; category: Localized };
+export type Book = {
+  url?: string;
+  id: string;
+  title: Localized;
+  author: Localized;
+  category: Localized;
+};
 export type Service = { id: string; title: Localized; description: Localized; keywords: string[] };
 
 export const books: Book[] = [

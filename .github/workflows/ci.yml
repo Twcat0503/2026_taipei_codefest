@@ -59,7 +59,7 @@ jobs:
           echo "flutter=$flutter" >> "$GITHUB_OUTPUT"
           agent=false
           if [ -f frontend/agent-mvp/package.json ] &&
-            { [ "$workflow_changed" = true ] || grep -qE '^frontend/agent-mvp/' <<<"$changed"; }; then
+            { [ "$workflow_changed" = true ] || grep -qE '^(frontend/agent-mvp|tools/townpass)/' <<<"$changed"; }; then
             agent=true
           fi
           echo "agent=$agent" >> "$GITHUB_OUTPUT"
@@ -103,6 +103,12 @@ jobs:
           working_directory: frontend/agent-mvp
           github_token: ${{ github.token }}
       - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
+        working-directory: tools/townpass
+      - run: pnpm typecheck
+        working-directory: tools/townpass
+      - run: pnpm test
+        working-directory: tools/townpass
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm test

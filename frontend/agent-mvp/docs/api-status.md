@@ -1,45 +1,32 @@
 # 可用 API 與目前串接狀態
 
-依 2026-11-07 本專案實際程式碼盤點。這份清單描述開發版，不代表臺北通正式環境的 API 授權或可用性。
+依 2026-11-07 整合程式碼盤點，描述本專案開發版，不代表取得臺北通正式環境授權。
 
-| 介面                         | 現況                                                                         | Agent 現在能做什麼                                                |
-| ---------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `POST /v1/chat/completions`  | 已連到 Mac 的 Ollama / Qwen3 1.7B，手機以 ADB reverse 連到 `127.0.0.1:11434` | 需求分流與搜尋參數產生；不是政府服務資料 API                      |
-| MCP `listTools` / `callTool` | 只有本機 TypeScript DemoMcpClient，沒有 MCP server／transport                | 呼叫 `search_books`、`search_services`、`list_bills` 取得虛構資料 |
-| 圖書查詢、預約               | 未接正式圖書館 API                                                           | 查詢示範書目、產生本機示範回執                                    |
-| 申辦、叫號、繳費、票券、陳情 | 未接正式服務 API                                                             | Agent 只有部分服務介紹，不能送件、取號或付款                      |
-| WebView 原生 bridge          | App 已實作以下 handlers；MVP 使用既有 open_link 導頁，其餘未接               | 導頁由使用者點選固定入口，不作為任意 LLM tool                     |
+| 介面                                                          | 現況                                                                                                |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| 手機 `/v1/chat/completions`                                   | `PhoneModel` 經 `llm_start/status/stop` 管理 Android LFM3；動態 loopback 接點、私有 Bearer key      |
+| 電腦 `/v1/chat/completions`                                   | 可選 Ollama 等相容服務；與手機模型模式分開                                                          |
+| `ToolClient.listTools/callTool`                               | 預設直接呼叫 `tools/townpass` 的 16 個唯讀工具，沒有 MCP transport/server                           |
+| 圖書／申辦／叫號機關／FAQ／繳費類型／通報分類／訂閱主題／優惠 | 讀取示範站 JSON；非正式館藏、號碼、費用或優惠                                                       |
+| 公廁／停車場                                                  | 示範站內建的靜態快照，更新時間未知；停車場沒有即時空位                                              |
+| YouBike                                                       | 讀取台北市公開即時資料，畫面標示來源及更新時間                                                      |
+| 個人帳單                                                      | `withDemoBills` 提供 `list_bills` fixture；保留分類追問、四種狀態與固定範本導頁，沒有真實帳務或付款 |
+| 預約／送件／購票／繳費                                        | 不提供正式寫入；只有 `VITE_TOOL_SOURCE=demo` 顯示本機示範預約                                       |
 
-## App 現有 bridge
+完整工具名稱、參數與來源見 [工具文件](../../../tools/townpass/docs/tools.md)。`demo`、`snapshot`、`live` 依工具回傳標示，不因模型真實推論而變成真實服務。
 
-呼叫形式是 `window.flutterObject.postMessage(JSON.stringify({ name, data }))`，不是 HTTP API。回傳透過 WebMessageListener；實作在 `lib/util/web_message_handler/`。
+## 已使用的原生 bridge
 
-| `name`                     | 能力                              | 限制                                                      |
-| -------------------------- | --------------------------------- | --------------------------------------------------------- |
-| `location`                 | 讀取裝置位置                      | 需要使用者定位權限，可能回空結果                          |
-| `deviceinfo`               | 讀取裝置資訊                      | 回傳原生裝置資料；Agent 目前不需要也不讀取                |
-| `qr_code_scan`             | 開啟掃碼頁並回傳結果              | 相機與使用者操作，不是背景自主掃碼                        |
-| `open_link`                | 沿用 App route 開啟網頁／本地頁面 | 開頁不等於取得該服務 API 或完成交易                       |
-| `launch_map`               | 交給系統開啟地圖 URI              | 取決於手機可處理 URI 的應用程式                           |
-| `phone_call` / `1999agree` | 開啟系統撥號流程                  | 會產生外部操作；不可直接交給 LLM 自主呼叫                 |
-| `notify`                   | 顯示本機通知、部分示範訂閱狀態    | 不是遠端訂閱服務 API                                      |
-| `userinfo`                 | 讀取 AccountService 的帳戶        | **目前來源是 assets/mock_data/account，不是正式登入身分** |
-| `tts` / `share`            | 最新 App 已新增原生朗讀／分享     | 本 MVP Vue 尚未接入，不能宣稱畫面已可使用                 |
+呼叫形式為 `window.flutterObject.postMessage(JSON.stringify({ name, data }))`。
 
-Agent 沒有呼叫位置、相機、電話或 userinfo，沒有讀取個資。要讓 Agent 使用其中一項，應由 MCP 隊友提供受控工具，再加白名單、最小資料欄位與必要確認。
+- `llm_start/status/stop`：手機模型生命週期；requestId 對應回覆，金鑰不存前端儲存。
+- `location`：只在附近查詢時取得位置；無權限／逾時會提示補充行政區。座標不進入模型上下文。
+- `open_link`：使用者點選工具結果或固定帳單範本時導頁。沒有成功載入回覆，不能把請求開頁當成完成服務。
+- `userinfo` 未接；App 目前帳戶仍是 mock，不能拿來代表正式登入。
+- `tts/share` 已存在於 App，但 Vue 的語音完成／錯誤生命週期尚未接入。WebView 不使用 speechSynthesis。
 
-## 要接正式服務，隊友需交付什麼
+## 正式服務仍需交付
 
-1. LLM：本機 Chat Completions 接點、模型名稱、原生 tool calls 或 JSON schema 能力、取消與錯誤格式。
-2. MCP：client adapter 或可連線 transport、工具名稱／schema、回傳欄位與來源、登入授權方式、測試帳號／環境。
-3. 寫入型服務：預覽內容、確認後才提交的介面、冪等鍵、交易查詢及失敗重試規則。
+工具負責人需提供工具 schema、回傳來源與欄位、授權／登入方式、測試環境與錯誤格式。個人帳單契約見 [帳單 skill](skills/bills.md)，接正式資料前需擴充目前只允許 demo 的驗證器。任何寫入還需預覽確認、伺服器冪等鍵及交易狀態查詢。
 
-正式 API 需由服務維運方提供授權與文件。原有 App 中的 `taipei-pass-service.vercel.app` 網頁連結不能當成可供 agent 呼叫的正式 API；不能用模擬回執宣稱正式服務成功。
-
-## 手機模型增量
-
-已整合隊友 Android LFM3 runtime，新增 `PhoneModel` adapter；以 `llm_start/status/stop` 取得動態接點、暫存授權並取消／停止。讀取手機模型時不再需要 Mac Ollama。模型不自動下載，需按畫面啟動；實機驗證記錄另外列於 PR。細節見 [手機模型文件](phone-model.md)。MCP 與帳單仍是 demo。
-
-## 帳單增量
-
-已提供本期帳單 skill、缺類型追問、四種繳費狀態、錯誤重試及固定開發範本導頁。仍是自製 demo 帳單；沒有查真實帳務、正式登入或付款。契約與分工見 [帳單 skill](skills/bills.md)。`open_link` 沒有成功回覆，所以只顯示已請求開頁，不能宣稱頁面載入或定位本期成功。
+手機模型細節見 [PhoneModel](phone-model.md)。正式 HTTPS 部署、首次完整模型下載／續傳與長時間實機測試仍需分別驗證。
