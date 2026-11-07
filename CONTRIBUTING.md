@@ -22,24 +22,33 @@
 3. 開 PR 到 `main`，一個 PR 只做一件事。
 4. **PR 需至少一位 reviewer approve**，由維護者以 **squash merge** 併入 `main`。
 
-### 常駐 branch：`frontend`
+### 常駐 branch（各開發線）
 
-前端（`frontend/`）的開發集中在常駐的 `frontend` branch；其他工作仍以 `main` 為基準。
+四條開發線各有一條常駐 branch，對應各自的目錄；其他工作（Flutter app、文件、CI）仍以 `main` 為基準。
 
-- 前端功能從 `frontend` 切出 branch，PR 的 base 選 `frontend`，審過後 squash 合併：
+| 常駐 branch | 目錄 | 內容 |
+| --- | --- | --- |
+| `frontend` | `frontend/` | Vue 3 前端：聊天畫面、結果卡片 |
+| `agent` | `agent/` | Agent 服務：聊天 API、對話流程、逐步拆解與工具呼叫、錯誤處理 |
+| `model` | `model/` | 自訓模型（LFM3 1.7B、int4）：訓練、量化、推理服務 |
+| `tools` | `tools/` | 工具包裝：`townpass-mcp`（把台北通服務包裝成工具）與資料讀取層 |
+
+- 功能從所屬的常駐 branch 切出，PR 的 base 選同一條常駐 branch，審過後 squash 合併：
 
   ```sh
-  git switch frontend && git pull --rebase
+  git switch agent && git pull --rebase
   git switch -c feat/<short-name>
   ```
 
-- `frontend` 穩定時，由維護者開 PR 把 `frontend` 合進 `main`，**用 merge commit，不要 squash**，兩邊的歷史才不會分叉。
-- `main` 有更新（文件、CI、Flutter 等）時，由維護者把 `main` merge 回 `frontend` 保持同步；`frontend` 不 rebase、不 force push。
+- 一條線能跟其他線串起來時（例如前端打得到聊天 API、agent 呼叫得到工具），由維護者開 PR 把常駐 branch 合進 `main`，**用 merge commit，不要 squash**，歷史才不會分叉。
+- `main` 有更新時，由維護者把 `main` merge 回各常駐 branch；常駐 branch 不 rebase、不 force push。
+- 跨線的介面（聊天 API 的格式、工具的名稱與參數、模型輸出的工具呼叫格式）要改時，先開 PR 到 `main`，請相關負責人 review，各線再把 `main` 合回自己的 branch。
+- 模型權重、訓練資料等大型檔案不進 git，放在團隊雲端或模型平台；repo 只放下載、轉換與量化的腳本。
 - `frontend` 會自動部署成固定的預覽站 `https://frontend.<project>.pages.dev`（見「部署」），可以當作整合測試環境。
 
 ### 日常 Git 操作
 
-- **開工前確認 branch 還沒被合併**：`git fetch --prune` 後跑 `git branch -vv`，標示 `[gone]` 的是已合併、GitHub 上已刪除的 branch，不要在上面繼續開發；新工作一律從最新的 `main` 開新 branch。
+- **開工前確認 branch 還沒被合併**：`git fetch --prune` 後跑 `git branch -vv`，標示 `[gone]` 的是已合併、GitHub 上已刪除的 branch，不要在上面繼續開發；新工作一律從最新的常駐 branch 或 `main` 開新 branch。
 - **同步 main**：PR 落後 `main` 或出現衝突時，用 rebase 同步，衝突在本機解決並重跑自檢：
 
   ```sh
@@ -136,6 +145,7 @@
 | Root directory | `frontend` |
 | Build command | `pnpm build` |
 | Build output directory | `dist` |
+| Build watch paths | 只包含 `frontend/*`，其他開發線的 push 不會觸發前端建置 |
 | 環境變數 | `NODE_VERSION`、`PNPM_VERSION`，值與 `frontend/mise.toml` 相同；改版本時兩邊一起改 |
 
 - 每次合併進 `main` 都會更新正式站 `https://<project>.pages.dev`。
