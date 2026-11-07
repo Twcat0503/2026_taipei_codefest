@@ -34,7 +34,8 @@ import {
   normalizeWaterNumber,
   rememberWaterNumber,
 } from './platform/profile';
-import { maskIdNo, readMember, type Member } from './platform/member';
+import { maskIdNo, maskPhone, readMember, type Member } from './platform/member';
+import { TAIPEI_DISTRICTS, updateProfile } from './platform/profile';
 import { EMERGENCY_NUMBERS } from './agent/skills/emergency';
 
 const EMERGENCY_TEXT = {
@@ -103,6 +104,9 @@ const toolClient =
       ? withDemoBills(createAgentToolClient({ getLocation }), billReadTool)
       : createAgentToolClient({ getLocation, includeDemo: false });
 let runner = new AgentRunner(adapter, state, toolClient);
+// Town Pass member data, read once from the app (memory only) for choices, drafts and the profile card.
+const memberInfo = ref<Member | null>(null);
+if (window.flutterObject) void readMember().then((m) => (memberInfo.value = m));
 const speechSupported = ref(canReadAloud());
 const speaking = ref(false);
 const speechFailed = ref(false);
@@ -169,7 +173,7 @@ watch(
     Object.assign(
       draft,
       slots.value.some((slot) => slot.source === 'draft')
-        ? draftReport(lastRequest.value)
+        ? draftReport(lastRequest.value, memberInfo.value?.address)
         : { title: '', description: '', location: '' },
     );
     draftError.value = false;
@@ -204,16 +208,25 @@ function goNavigation() {
     } else if (slot.source === 'draft') {
       const value = draft[slot.field as keyof ReportDraft].trim();
       if (value) prefill[slot.field] = value;
-    } else if (typeof member.value === 'object' && member.value) prefill.tax_id = member.value.idNo;
+    } else if (typeof member.value === 'object' && member.value) {
+      const value = memberField(member.value, slot.field);
+      if (value) prefill[slot.field] = value;
+    }
   }
   const formPath = PREFILL_FORM_PATH[state.navigation.id];
   if (formPath) {
-    // The form requires a subject and a description; an empty draft opens the category list.
-    if (Boolean(prefill.title) !== Boolean(prefill.description)) {
-      draftError.value = true;
-      return;
-    }
-    if (prefill.title) {
+    if (slots.value.some((slot) => slot.source === 'draft')) {
+      // The report form requires a subject and a description; an empty draft opens the list.
+      if (Boolean(prefill.title) !== Boolean(prefill.description)) {
+        draftError.value = true;
+        return;
+      }
+      if (prefill.title) {
+        go(`${serviceOrigin}${formPath}`, prefill);
+        return;
+      }
+    } else if (Object.keys(prefill).length) {
+      // Something to fill in: open the form itself instead of the service home.
       go(`${serviceOrigin}${formPath}`, prefill);
       return;
     }
@@ -240,7 +253,47 @@ const inputDisabled = computed(
   () => busy.value || !!state.draft || (mode.value === 'phone' && !phoneState.value.ready),
 );
 // Tap-to-answer choices: missing details (district, bill type) or what to do next.
-const choices = computed(() => (busy.value || state.draft ? null : followUps(state)));
+const homeDistrict = computed(() => profile.value.homeDistrict ?? memberInfo.value?.district);
+const choices = computed(() =>
+  busy.value || state.draft ? null : followUps(state, { homeDistrict: homeDistrict.value }),
+);
+/** Member values a form field can take; sensitive ones are masked wherever they are shown. */
+function memberField(m: Member, field: string) {
+  return field === 'tax_id'
+    ? m.idNo
+    : field === 'mobile_number'
+      ? m.phone
+      : field === 'mail'
+        ? m.email
+        : undefined;
+}
+const shownMemberField = (m: Member, field: string) => {
+  const value = memberField(m, field);
+  if (!value) return '';
+  return field === 'tax_id'
+    ? maskIdNo(value)
+    : field === 'mobile_number'
+      ? maskPhone(value)
+      : value;
+};
+const MEMBER_LABEL: Record<string, 'prefillIdNo' | 'prefillPhone' | 'prefillMail'> = {
+  tax_id: 'prefillIdNo',
+  mobile_number: 'prefillPhone',
+  mail: 'prefillMail',
+};
+function setHomeDistrict(event: Event) {
+  updateProfile({ homeDistrict: (event.target as HTMLSelectElement).value || undefined });
+  profile.value = loadProfile();
+}
+function setPreferAccessible(event: Event) {
+  updateProfile({ preferAccessible: (event.target as HTMLInputElement).checked });
+  profile.value = loadProfile();
+}
+watch(
+  () => profile.value.preferAccessible,
+  (on) => (runner.preferences.accessible = Boolean(on)),
+  { immediate: true },
+);
 const showSuggestions = computed(
   () =>
     !busy.value &&
@@ -409,6 +462,7 @@ async function applyConfig() {
             )
           : new DemoModel();
     runner = new AgentRunner(adapter, state, toolClient);
+    runner.preferences.accessible = Boolean(profile.value.preferAccessible);
     mode.value = selectedMode.value;
     configStatus.value = 'applied';
   } catch {
@@ -544,6 +598,28 @@ onBeforeUnmount(() => {
               <span>{{ t.rememberedWater }} {{ formatWaterNumber(profile.waterNumber) }}</span>
               <button class="text-button" @click="forgetWater">{{ t.rememberedDelete }}</button>
             </div>
+            <label class="field-label" for="home-district">{{ t.fieldHome }}</label>
+            <select
+              id="home-district"
+              :value="profile.homeDistrict ?? ''"
+              @change="setHomeDistrict"
+            >
+              <option value="">
+                {{
+                  memberInfo?.district
+                    ? `${t.homeFromMember}（${memberInfo.district}）`
+                    : t.homeUnset
+                }}
+              </option>
+              <option v-for="d in TAIPEI_DISTRICTS" :key="d" :value="d">{{ d }}</option>
+            </select>
+            <label class="check"
+              ><input
+                type="checkbox"
+                :checked="profile.preferAccessible"
+                @change="setPreferAccessible"
+              />{{ t.fieldAccessible }}</label
+            >
           </section>
           <details class="developer-panel">
             <summary>{{ t.developer }}</summary>
@@ -708,6 +784,48 @@ onBeforeUnmount(() => {
           </li>
         </ul>
         <section
+          v-if="state.notice === 'profile'"
+          class="result-card"
+          aria-labelledby="profile-title"
+        >
+          <h2 id="profile-title">{{ t.profileMember }}</h2>
+          <dl v-if="memberInfo">
+            <template v-if="memberInfo.realName"
+              ><dt>{{ t.fieldName }}</dt>
+              <dd>{{ memberInfo.realName }}</dd></template
+            >
+            <template v-if="memberInfo.phone"
+              ><dt>{{ t.fieldPhone }}</dt>
+              <dd>{{ maskPhone(memberInfo.phone) }}</dd></template
+            >
+            <template v-if="memberInfo.email"
+              ><dt>{{ t.fieldEmail }}</dt>
+              <dd>{{ memberInfo.email }}</dd></template
+            >
+            <template v-if="memberInfo.birthday"
+              ><dt>{{ t.fieldBirthday }}</dt>
+              <dd>{{ memberInfo.birthday }}</dd></template
+            >
+            <template v-if="memberInfo.address"
+              ><dt>{{ t.fieldAddress }}</dt>
+              <dd>{{ memberInfo.address }}</dd></template
+            >
+            <dt>{{ t.fieldIdNo }}</dt>
+            <dd>{{ maskIdNo(memberInfo.idNo) }}</dd>
+          </dl>
+          <p v-else class="small-note">{{ t.profileNoMember }}</p>
+          <h2>{{ t.profileRemembered }}</h2>
+          <dl>
+            <dt>{{ t.rememberedWater }}</dt>
+            <dd>{{ profile.waterNumber ? formatWaterNumber(profile.waterNumber) : t.notSet }}</dd>
+            <dt>{{ t.fieldHome }}</dt>
+            <dd>{{ homeDistrict ?? t.notSet }}</dd>
+            <dt>{{ t.fieldAccessible }}</dt>
+            <dd>{{ profile.preferAccessible ? t.yes : t.no }}</dd>
+          </dl>
+          <p class="small-note">{{ t.profileNote }}</p>
+        </section>
+        <section
           v-if="state.notice === 'emergency' && state.emergency"
           class="result-card emergency-card"
           aria-labelledby="emergency-title"
@@ -794,9 +912,9 @@ onBeforeUnmount(() => {
                 </template>
               </template>
               <template v-else>
-                <dl v-if="typeof member === 'object' && member">
-                  <dt>{{ t.prefillIdNo }}</dt>
-                  <dd>{{ maskIdNo(member.idNo) }}</dd>
+                <dl v-if="typeof member === 'object' && member && memberField(member, slot.field)">
+                  <dt>{{ t[MEMBER_LABEL[slot.field]!] }}</dt>
+                  <dd>{{ shownMemberField(member, slot.field) }}</dd>
                 </dl>
                 <p v-else-if="member === 'unavailable'" class="small-note">
                   {{ t.prefillNoMember }}

@@ -117,13 +117,25 @@ const AFTER_PLACES: Record<string, FollowUpOption[]> = {
   find_nearby_youbike: [townpassMap, toilets, parking],
 };
 
-export function followUps(state: TaskState): FollowUps | null {
-  if (state.notice === 'needLocation')
+export function followUps(
+  state: TaskState,
+  personal: { homeDistrict?: string } = {},
+): FollowUps | null {
+  if (state.notice === 'needLocation') {
+    const home = personal.homeDistrict;
+    const districts = DISTRICTS.map(([zh, en]) => option(zh, en));
     return {
       kind: 'choose',
       prompt: prompt('你在哪一區？', 'Which district are you in?'),
-      options: DISTRICTS.map(([zh, en]) => option(zh, en)),
+      // The person's own district first, so the common case is one tap.
+      options: home
+        ? [
+            option(`我家附近（${home}）`, `Near home (${home})`, home),
+            ...districts.filter((o) => o.request !== home),
+          ]
+        : districts,
     };
+  }
   if (state.notice === 'navigate' && state.navigation) {
     const id = state.navigation.id;
     // A generic "pay" request is really a question: which bill?

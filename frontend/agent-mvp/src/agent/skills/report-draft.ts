@@ -32,9 +32,12 @@ const TRAILING =
 
 /** Places people mention: a road with optional section/lane/number, a junction, or a landmark. */
 const LOCATION =
-  /(?:[一-鿿]{2}區)?[一-鿿]{1,6}(?:路|街|大道)(?:[一二三四五六七八九十\d]+段)?(?:\d+巷)?(?:\d+弄)?(?:\d+號)?(?:[一-鿿]{0,4}(?:路口|口|前|旁|附近|對面))?|(?:捷運)?[一-鿿]{2,6}(?:站|公園|國小|國中|市場|醫院)(?:[一-鿿]{0,2}(?:出口|門口|前|旁|附近))?|[一-鿿]{2}區/;
+  /(?:[一-鿿]{2}區)?(?:(?![的我你在家])[一-鿿]){1,6}(?:路|街|大道)(?![燈樹面邊上線過人況])(?:[一二三四五六七八九十\d]+段)?(?:\d+巷)?(?:\d+弄)?(?:\d+號)?(?:[一-鿿]{0,4}(?:路口|口|前|旁|附近|對面))?|(?:捷運)?[一-鿿]{2,6}(?:站|公園|國小|國中|市場|醫院)(?:[一-鿿]{0,2}(?:出口|門口|前|旁|附近))?|[一-鿿]{2}區/;
 
-export function draftReport(request: string): ReportDraft {
+/** "我家門口" etc. mean the person's own address, which the app knows. */
+const AT_HOME = /我家|家門口|家裡|住家|我住的地方|家附近/;
+
+export function draftReport(request: string, homeAddress?: string): ReportDraft {
   const text = normalizeRequest(request).trim();
   const problem = text.replace(LEADING, '').replace(TRAILING, '').trim() || text;
   const subject =
@@ -43,6 +46,8 @@ export function draftReport(request: string): ReportDraft {
   return {
     title: subject.slice(0, 40),
     description: problem.slice(0, 500),
-    location: (text.match(LOCATION)?.[0] ?? '').replace(/^(?:就在|位於|在|於)/, ''),
+    location:
+      (text.match(LOCATION)?.[0] ?? '').replace(/^(?:就在|位於|附近的?|旁邊的?|在|於)/, '') ||
+      (homeAddress && AT_HOME.test(text) ? homeAddress : ''),
   };
 }

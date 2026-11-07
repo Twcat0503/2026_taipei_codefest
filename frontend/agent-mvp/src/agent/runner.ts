@@ -57,8 +57,14 @@ async function bounded<T>(
   }
 }
 
+/** Questions about what the assistant knows about the person; answered on the phone, no model. */
+const PROFILE_QUESTION =
+  /我的(基本)?(資料|個資|地址|電話|手機|信箱|email|生日|水號)|我住(在)?(哪|那)|你(知道|記得|有)(我|什麼).{0,6}(資料|事)|what do you know about me|my (profile|address|phone)/i;
+
 export class AgentRunner {
   private controller: AbortController | null = null;
+  /** The person's own settings (from the on-phone profile); applied to place lookups. */
+  preferences = { accessible: false };
   constructor(
     private model: ModelAdapter,
     private state: TaskState,
@@ -227,6 +233,11 @@ export class AgentRunner {
           'emergency',
           `${emergency}: offer ${EMERGENCY_NUMBERS[emergency].join(', ')}`,
         );
+        return;
+      }
+      if (!selectedCategory && PROFILE_QUESTION.test(ruleText)) {
+        this.state.notice = 'profile';
+        trace('profile', 'local', 'Answered from data on this phone; nothing sent to the model.');
         return;
       }
       onProgress('routing');
@@ -467,7 +478,8 @@ export class AgentRunner {
         if (call.name !== 'find_nearby_youbike') {
           const keyword = typeof call.arguments.keyword === 'string' ? call.arguments.keyword : '';
           if (ACCESSIBLE_PLACE.test(keyword)) delete call.arguments.keyword;
-          if (ACCESSIBLE_PLACE.test(ruleText)) call.arguments.accessible = true;
+          if (ACCESSIBLE_PLACE.test(ruleText) || this.preferences.accessible)
+            call.arguments.accessible = true;
         }
       }
       trace(domain, 'tool_requested', `${call.name} ${JSON.stringify(call.arguments)}`);

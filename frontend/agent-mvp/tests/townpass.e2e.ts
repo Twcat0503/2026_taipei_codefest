@@ -191,3 +191,41 @@ test('a citizen report is drafted from what was said and opens the form filled i
     },
   });
 });
+
+test('police report opens the contact form with the member phone and email filled in', async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    const listeners: ((event: { data: string }) => void)[] = [];
+    window.flutterObject = {
+      addEventListener: (_type: string, listener: (event: { data: string }) => void) =>
+        listeners.push(listener),
+      removeEventListener: () => {},
+      postMessage: (message: string) => {
+        const { name } = JSON.parse(message);
+        if (name !== 'userinfo') {
+          document.documentElement.dataset.navigation = message;
+          return;
+        }
+        const data = {
+          idNo: 'A123456789',
+          realName: '王小明',
+          phoneNo: '0912345678',
+          email: 'ming@example.com',
+          residentAddress: '臺北市中山區吉林路69號',
+        };
+        setTimeout(() => listeners.forEach((l) => l({ data: JSON.stringify({ name, data }) })));
+      },
+    } as unknown as typeof window.flutterObject;
+  });
+  await send(page, '我的機車被偷了我要報案');
+  await expect(page.getByText('0912***678')).toBeVisible();
+  await page.getByRole('button', { name: '前往', exact: true }).click();
+  expect(await posted(page)).toEqual({
+    name: 'open_link',
+    data: {
+      url: 'https://taipei-pass-service.vercel.app/police-report/form',
+      prefill: { mobile_number: '0912345678', mail: 'ming@example.com' },
+    },
+  });
+});

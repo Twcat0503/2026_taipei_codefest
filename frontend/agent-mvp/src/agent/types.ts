@@ -100,6 +100,7 @@ export type TaskState = {
     | 'navigate'
     | 'navigationDeclined'
     | 'emergency'
+    | 'profile'
     | 'review'
     | 'receipt'
     | 'cancelled'
