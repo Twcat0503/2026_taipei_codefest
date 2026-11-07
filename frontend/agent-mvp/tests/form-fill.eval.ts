@@ -36,6 +36,8 @@ import {
 import { guardValues } from '../src/agent/skills/form-guard';
 import { REHAB_HELDOUT, REPORT_HELDOUT, TOUR_FORM, TOUR_HELDOUT } from './form-fill-heldout';
 import { REHAB_CORRECTION, REPORT_CORRECTION, TOUR_CORRECTION } from './form-fill-correction';
+import { TOWNPASS_CASES } from './form-fill-townpass';
+import { TOWNPASS_FORMS } from '../src/agent/skills/townpass-forms';
 import type { ToolDefinition } from '../src/agent/types';
 
 const MODEL_NAME = process.env.MODEL_NAME || 'qwen3:1.7b';
@@ -679,22 +681,29 @@ async function runCase(spec: FormSpec, condition: Condition, item: Case): Promis
 const HELDOUT = process.env.FORM_EVAL_SET === 'heldout';
 /** FORM_EVAL_SET=correction: people who change their mind mid-request (form-fill-correction.ts). */
 const CORRECTION = process.env.FORM_EVAL_SET === 'correction';
-const SUITES: [FormSpec, Case[]][] = CORRECTION
-  ? [
-      [CITIZEN_REPORT_FORM, REPORT_CORRECTION],
-      [REHAB_BUS_FORM, REHAB_CORRECTION],
-      [TOUR_FORM, TOUR_CORRECTION],
-    ]
-  : HELDOUT
+/** FORM_EVAL_SET=townpass: every Town Pass form (townpass-forms.ts), 5 cases each. */
+const TOWNPASS = process.env.FORM_EVAL_SET === 'townpass';
+const SUITES: [FormSpec, Case[]][] = TOWNPASS
+  ? TOWNPASS_FORMS.filter((spec) => TOWNPASS_CASES[spec.id]).map((spec) => [
+      spec,
+      TOWNPASS_CASES[spec.id]!,
+    ])
+  : CORRECTION
     ? [
-        [CITIZEN_REPORT_FORM, REPORT_HELDOUT],
-        [REHAB_BUS_FORM, REHAB_HELDOUT],
-        [TOUR_FORM, TOUR_HELDOUT],
+        [CITIZEN_REPORT_FORM, REPORT_CORRECTION],
+        [REHAB_BUS_FORM, REHAB_CORRECTION],
+        [TOUR_FORM, TOUR_CORRECTION],
       ]
-    : [
-        [CITIZEN_REPORT_FORM, REPORT_CASES],
-        [REHAB_BUS_FORM, REHAB_CASES],
-      ];
+    : HELDOUT
+      ? [
+          [CITIZEN_REPORT_FORM, REPORT_HELDOUT],
+          [REHAB_BUS_FORM, REHAB_HELDOUT],
+          [TOUR_FORM, TOUR_HELDOUT],
+        ]
+      : [
+          [CITIZEN_REPORT_FORM, REPORT_CASES],
+          [REHAB_BUS_FORM, REHAB_CASES],
+        ];
 for (const [spec, cases] of SUITES)
   for (const condition of CONDITIONS) {
     if (condition === 'rule' && spec.id !== 'citizen_report') continue;

@@ -17,7 +17,30 @@ import { correctionEnd, guardValues, sanitizeRequest } from './form-guard';
  *   model sees it, and `guardValues` keeps only values the person's own words back up, reading
  *   dates and times from the words in code (see `form-guard.ts`).
  */
-export type FormFieldType = 'text' | 'district' | 'date' | 'time' | 'yesno' | 'count';
+export type FormFieldType =
+  | 'text'
+  | 'district'
+  | 'date'
+  | 'time'
+  | 'yesno'
+  | 'count'
+  /** One of `options`. */
+  | 'select'
+  /** Several of `options`, joined with 、 in option order. */
+  | 'multiselect'
+  /** Taiwan mobile number, digits only (0912345678). */
+  | 'mobile'
+  /** Any phone number, digits only. */
+  | 'phone'
+  | 'email'
+  /** An account, bill, water or other reference number: letters and digits, no separators. */
+  | 'code'
+  /** 身分證字號 (A123456789) or 統一編號 (8 digits). */
+  | 'idno'
+  /** Licence plate, e.g. ABC-1234. */
+  | 'plate'
+  /** A measured quantity (metres, lamps, floors…), any non-negative number. */
+  | 'number';
 export type FormField = {
   id: string;
   /** The label shown on the form. */
@@ -30,8 +53,12 @@ export type FormField = {
    * problem in the person's words (描述). Without it a text field is a verbatim span (a place).
    */
   kind?: 'summary' | 'longtext';
-  /** For yesno/count fields: words showing the person talked about it (default: from label). */
+  /** For yesno/count/number fields: words showing the person talked about it (default: from label). */
   cues?: string[];
+  /** For select/multiselect fields: the choices, exactly as the page shows them. */
+  options?: string[];
+  /** For select/multiselect fields: other words people use for an option (作者 → 著者). */
+  aliases?: Record<string, string[]>;
 };
 export type FormSpec = { id: string; title: string; fields: FormField[] };
 export type FormValues = Record<string, string>;
@@ -76,6 +103,28 @@ export const REHAB_BUS_FORM: FormSpec = {
   ],
 };
 
+/** Extra type notes, only for forms that use the newer field types (older prompts stay identical). */
+const MORE_TYPES: Partial<Record<FormFieldType, string>> = {
+  select: 'select = exactly one of the listed options, only if the person chose it',
+  multiselect: 'multiselect = the chosen options from the list, joined with 、',
+  mobile: 'mobile = a mobile number as digits, e.g. 0912345678',
+  phone: 'phone = a phone number as digits',
+  email: 'email = an e-mail address (小老鼠 / at means @, 點 / dot means .)',
+  code: 'code = the account, bill or reference number as letters and digits',
+  idno: 'idno = an ID or company number exactly as said',
+  plate: 'plate = the licence plate, e.g. ABC-1234',
+  number: 'number = the quantity the person stated, digits only',
+};
+export function fillPromptFor(spec: FormSpec): string {
+  const notes = [...new Set(spec.fields.map((field) => MORE_TYPES[field.type]).filter(Boolean))];
+  return notes.length
+    ? genericFillPrompt.replace(
+        'Output one fill_form call only.',
+        `More field types: ${notes.join('; ')}.\nOutput one fill_form call only.`,
+      )
+    : genericFillPrompt;
+}
+
 export const genericFillPrompt = `You fill in a web form for a citizen, using only what they said.
 The form's fields are given as data. For every field id, return the value the person stated, or an empty string when they did not state it. Never guess, assume a default or invent a value.
 Field types: text = copy names, places and wording verbatim in the person's language (Traditional Chinese stays Traditional Chinese); district = one of the listed options or empty; date = YYYY-MM-DD, resolving relative dates against "today"; time = HH:MM in 24-hour clock, empty if only a vague part of day was said; yesno = "yes" or "no"; count = a whole number such as "0" or "2".
@@ -115,12 +164,13 @@ export function formRequest(spec: FormSpec, request: string, context: FormContex
   return JSON.stringify({
     form: {
       title: spec.title,
-      fields: spec.fields.map(({ id, label, type, hint }) => ({
+      fields: spec.fields.map(({ id, label, type, hint, options }) => ({
         id,
         label,
         type,
         ...(hint ? { hint } : {}),
         ...(type === 'district' ? { options: DISTRICT_NAMES } : {}),
+        ...(options ? { options } : {}),
       })),
     },
     ...(context.today ? { today: context.today } : {}),
@@ -157,7 +207,7 @@ export async function fillForm(
   ]);
   const result = await model.complete({
     messages: [
-      { role: 'system', content: genericFillPrompt },
+      { role: 'system', content: fillPromptFor(spec) },
       ...shots,
       { role: 'user', content: formRequest(spec, request, options.context) },
     ],
@@ -314,7 +364,7 @@ async function askModel(
   const compact = options.prompt === 'compact';
   const result = await model.complete({
     messages: [
-      { role: 'system', content: compact ? guardedFillPrompt : genericFillPrompt },
+      { role: 'system', content: compact ? guardedFillPrompt : fillPromptFor(spec) },
       {
         role: 'user',
         content: compact
@@ -361,13 +411,67 @@ export function validateValues(spec: FormSpec, values: FormValues): FormValues {
   const out: FormValues = {};
   for (const field of spec.fields) {
     const value = (values[field.id] ?? '').trim();
-    out[field.id] = value ? coerce(field.type, value) : '';
+    out[field.id] = value ? coerce(field, value) : '';
   }
   return out;
 }
 
-function coerce(type: FormFieldType, value: string): string {
+/** The option a value names: exact, ignoring width/臺台/spaces, or an option's Chinese part. */
+export function matchOption(options: string[], value: string): string | undefined {
+  const plain = (text: string) =>
+    text.normalize('NFKC').replace(/臺/g, '台').replace(/\s+/g, '').toLowerCase();
+  const wanted = plain(value);
+  return (
+    options.find((option) => plain(option) === wanted) ??
+    options.find((option) => plain(option).replace(/[a-z ]+$/i, '') === wanted)
+  );
+}
+
+const SPLIT_CHOICES = /[、,，/;；]|\s+and\s+|和|及/;
+
+function coerce(field: FormField, value: string): string {
+  const options = field.options ?? [];
+  const type = field.type;
   switch (type) {
+    case 'select':
+      return matchOption(options, value) ?? '';
+    case 'multiselect': {
+      const chosen = new Set(
+        value
+          .split(SPLIT_CHOICES)
+          .map((part) => matchOption(options, part.trim()))
+          .filter((option): option is string => !!option),
+      );
+      return options.filter((option) => chosen.has(option)).join('、');
+    }
+    case 'mobile': {
+      const digits = value.replace(/[\s()-]/g, '');
+      return /^09\d{8}$/.test(digits) ? digits : '';
+    }
+    case 'phone': {
+      const digits = value.replace(/[\s()#-]/g, '');
+      return /^0\d{7,9}$/.test(digits) ? digits : '';
+    }
+    case 'email': {
+      const email = value.replace(/\s+/g, '').toLowerCase();
+      return /^[\w.+-]+@[\w-]+(?:\.[\w-]+)+$/.test(email) ? email : '';
+    }
+    case 'code': {
+      const code = value.replace(/[\s-]/g, '').toUpperCase();
+      return /^[A-Z0-9]{4,30}$/.test(code) ? code : '';
+    }
+    case 'idno': {
+      const id = value.replace(/[\s-]/g, '').toUpperCase();
+      return /^(?:[A-Z][12]\d{8}|\d{8})$/.test(id) ? id : '';
+    }
+    case 'plate': {
+      const plate = value.replace(/\s+/g, '').toUpperCase();
+      return /^[A-Z0-9]{2,4}-?[A-Z0-9]{2,4}$/.test(plate) ? plate : '';
+    }
+    case 'number': {
+      const number = Number(value.replace(/[^\d.]/g, ''));
+      return /\d/.test(value) && Number.isFinite(number) && number >= 0 ? String(number) : '';
+    }
     case 'text':
       return value.slice(0, 500);
     case 'district':

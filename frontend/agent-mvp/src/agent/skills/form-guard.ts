@@ -1,5 +1,14 @@
 import { DISTRICTS } from '../open-data/taipei';
-import type { FormContext, FormField, FormSpec, FormValues } from './form-fill';
+import {
+  matchOption as matchOptionIn,
+  type FormContext,
+  type FormField,
+  type FormSpec,
+  type FormValues,
+} from './form-fill';
+
+const SPLIT_CHOICES = /[、,，/;；]|\s+and\s+|和|及/;
+const matchOption = (option: string, value: string) => matchOptionIn([option], value) === option;
 
 /**
  * Deterministic checks between a small model and a form. They work per field TYPE, not per
@@ -118,7 +127,7 @@ function validDate(year: number, month: number, day: number): Date | undefined {
 export type Mention = { value: string; index: number };
 const unique = (mentions: Mention[]) => [...new Set(mentions.map((mention) => mention.value))];
 /** 「不是中山區」「not tomorrow」: a mention the person is ruling out. */
-const RULED_OUT = /(?:不是|不在|並非|而不是|not)\s*$/i;
+const RULED_OUT = /(?:不是|不在|並非|而不是|沒有|沒|not)\s*$/i;
 
 /**
  * The value mentioned last, skipping ones they ruled out; `undefined` when nothing is left.
@@ -153,10 +162,26 @@ export function dateMentions(text: string, context: FormContext = {}): Mention[]
       return ' '.repeat(String(args[0]).length);
     });
   };
+  // 「七十二年次、十月一號」: a birth year said on its own, for the month and day that follow.
+  const cohort = rest.match(/([0-9]{2,3}|[一二三四五六七八九十]{2,4})\s*年次/);
+  const cohortYear = cohort
+    ? ((/^\d+$/.test(cohort[1]!) ? Number(cohort[1]) : toNumber(cohort[1]!)) ?? 0)
+    : 0;
   const upcoming = (month: number, day: number) => {
+    if (cohortYear) return validDate(cohortYear + 1911, month, day);
     const date = validDate(year, month, day);
     return date && date < today ? validDate(year + 1, month, day) : date;
   };
+  // 民國 years (民國50年3月2日 = 1961-03-02), common for birthdays.
+  take(
+    /民國\s*([0-9]{1,3}|[一二三四五六七八九十]{1,3})\s*年\s*([0-9一二三四五六七八九十]{1,3})\s*月\s*([0-9一二三四五六七八九十]{1,3})\s*[日號]?/g,
+    (m) => {
+      const roc = /^\d+$/.test(m[1]!) ? Number(m[1]) : toNumber(m[1]!);
+      const month = toNumber(m[2]!);
+      const day = toNumber(m[3]!);
+      return roc && month && day ? validDate(roc + 1911, month, day) : undefined;
+    },
+  );
   take(/(\d{4})\s*[年\-/.]\s*(\d{1,2})\s*[月\-/.]\s*(\d{1,2})\s*[日號]?/g, (m) =>
     validDate(Number(m[1]), Number(m[2]), Number(m[3])),
   );
@@ -170,9 +195,14 @@ export function dateMentions(text: string, context: FormContext = {}): Mention[]
   );
   take(/(?<![\d:/])(\d{1,2})\/(\d{1,2})(?![\d:/])/g, (m) => upcoming(Number(m[1]), Number(m[2])));
   take(/day after tomorrow/gi, () => addDays(today, 2));
-  take(/大後天|後天|明天|明日|今天|今日|tomorrow|today/gi, (m) => {
+  take(/大後天|後天|明天|明日|今天|今日|大前天|前天|昨天|昨日|tomorrow|today|yesterday/gi, (m) => {
     const word = m[0]!.toLowerCase();
     const offset: Record<string, number> = {
+      大前天: -3,
+      前天: -2,
+      昨天: -1,
+      昨日: -1,
+      yesterday: -1,
       大後天: 3,
       後天: 2,
       明天: 1,
@@ -185,18 +215,28 @@ export function dateMentions(text: string, context: FormContext = {}): Mention[]
     return addDays(today, offset[word] ?? 0);
   });
   const weekStart = addDays(today, 1 - isoWeekday(today));
-  take(/(下下|下個?|這個?|本)?\s*(?:週|周|禮拜|星期)([一二三四五六日天])/g, (m) => {
+  take(/(上上|上個?|下下|下個?|這個?|本)?\s*(?:週|周|禮拜|星期)([一二三四五六日天])/g, (m) => {
     const target = WEEKDAY[m[2]!]!;
     if (!m[1]) {
       const ahead = (target - isoWeekday(today) + 7) % 7;
       return addDays(today, ahead);
     }
-    const weeks = m[1] === '下下' ? 2 : m[1].startsWith('下') ? 1 : 0;
+    const weeks =
+      m[1] === '下下'
+        ? 2
+        : m[1] === '上上'
+          ? -2
+          : m[1].startsWith('下')
+            ? 1
+            : m[1].startsWith('上')
+              ? -1
+              : 0;
     return addDays(weekStart, weeks * 7 + target - 1);
   });
-  take(new RegExp(`\\b(next |this )?(${EN_WEEKDAY.join('|')})\\b`, 'gi'), (m) => {
+  take(new RegExp(`\\b(next |this |last )?(${EN_WEEKDAY.join('|')})\\b`, 'gi'), (m) => {
     const target = EN_WEEKDAY.indexOf(m[2]!.toLowerCase()) + 1;
     if (m[1]?.toLowerCase().startsWith('next')) return addDays(weekStart, 7 + target - 1);
+    if (m[1]?.toLowerCase().startsWith('last')) return addDays(weekStart, target - 1 - 7);
     return addDays(today, (target - isoWeekday(today) + 7) % 7);
   });
   return found;
@@ -278,6 +318,138 @@ const UNSURE = /不確定|還不知道|再說|再看看|未定|not sure/i;
 
 // ---------- the guard ----------
 
+// ---------- numbers, codes, phones, e-mail, choices ----------
+
+const SPOKEN_DIGIT: Record<string, string> = {
+  零: '0',
+  〇: '0',
+  洞: '0',
+  一: '1',
+  么: '1',
+  二: '2',
+  兩: '2',
+  三: '3',
+  四: '4',
+  五: '5',
+  六: '6',
+  七: '7',
+  八: '8',
+  九: '9',
+};
+/** 「零九一二 三四五…」→ digits. Only runs of 3+ digit-words, so 一個人 stays as it is. */
+export function spokenDigits(text: string): string {
+  return text
+    .normalize('NFKC')
+    .replace(
+      /[零〇洞一么二兩三四五六七八九0-9](?:[\s、-]*[零〇洞一么二兩三四五六七八九0-9]){2,}/g,
+      (run) => [...run].map((char) => SPOKEN_DIGIT[char] ?? char).join(''),
+    );
+}
+/** Letters and digits only, upper case: what a reference number must be found in. */
+const compactOf = (text: string) =>
+  spokenDigits(text)
+    .replace(/[^A-Za-z0-9]/g, '')
+    .toUpperCase();
+
+/** E-mail addresses, also spoken ones: wang 點 ming 小老鼠 gmail 點 com. */
+export function emailsIn(text: string): string[] {
+  let spoken = text.normalize('NFKC').replace(/\s*(?:小老鼠|＠)\s*/g, '@');
+  // English "at": only the last one followed by a domain (amy.lin at yahoo dot com).
+  const ats = [...spoken.matchAll(/\s+at\s+(?=[\w-]+(?:\s*(?:\.|\s+dot\s+)\s*[\w-]+)+)/gi)];
+  const last = ats.at(-1);
+  if (last && !spoken.includes('@'))
+    spoken = spoken.slice(0, last.index) + '@' + spoken.slice(last.index + last[0].length);
+  spoken = spoken
+    .replace(/(?<=[A-Za-z0-9])\s*(?:點|\s+dot\s+)\s*(?=[A-Za-z0-9])/gi, '.')
+    .replace(/(?<=[A-Za-z0-9])\s+(?=[@.])|(?<=[@.])\s+(?=[A-Za-z0-9])/g, '');
+  return [
+    ...new Set((spoken.match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g) ?? []).map((m) => m.toLowerCase())),
+  ];
+}
+
+const CN_UNIT: Record<string, number> = { 十: 10, 百: 100, 千: 1000, 萬: 10000 };
+/** Every number in the text: 3、2.5、十二、兩百、三十五. */
+export function numbersIn(text: string): number[] {
+  const found: number[] = [];
+  const plain = text.normalize('NFKC');
+  for (const match of plain.matchAll(/\d+(?:\.\d+)?/g)) found.push(Number(match[0]));
+  for (const match of plain.matchAll(/[零一二兩三四五六七八九十百千萬]+/g)) {
+    let total = 0;
+    let digit = 0;
+    let section = 0;
+    for (const char of match[0]) {
+      if (char in CN_UNIT) {
+        const unit = CN_UNIT[char]!;
+        if (unit === 10000) {
+          section = (section + (digit || 0)) * unit;
+          total += section;
+          section = 0;
+        } else section += (digit || 1) * unit;
+        digit = 0;
+      } else digit = Number(SPOKEN_DIGIT[char] ?? 0);
+    }
+    const value = total + section + digit;
+    if (value > 0 || match[0] === '零') found.push(value);
+  }
+  return found;
+}
+
+/**
+ * Longest run of `a` that also appears in `b` but in none of `others`: 「中山地政事務所」 names
+ * 地政事務所 through 地政, not through 事務所, which 戶政事務所 has too.
+ */
+function sharedRun(a: string, b: string, others: string[] = []): number {
+  let best = 0;
+  for (let i = 0; i < a.length; i++)
+    for (let k = a.length - i; k > best; k--) {
+      const run = a.slice(i, i + k);
+      if (b.includes(run) && !others.some((other) => other.includes(run))) {
+        best = k;
+        break;
+      }
+    }
+  return best;
+}
+
+/** What tells options apart: their Chinese part without the prefix/suffix they all share. */
+function optionCores(options: string[]): string[] {
+  const zh = options.map(
+    (option) => gnorm(option.replace(/[A-Za-z][A-Za-z ]*$/, '')) || gnorm(option),
+  );
+  if (zh.length < 2) return zh;
+  let prefix = 0;
+  while (zh.every((o) => o[prefix] && o[prefix] === zh[0]![prefix])) prefix++;
+  let suffix = 0;
+  while (
+    zh.every((o) => o.length - suffix - 1 > prefix && o.at(-1 - suffix) === zh[0]!.at(-1 - suffix))
+  )
+    suffix++;
+  return zh.map((o) => o.slice(prefix, o.length - suffix) || o);
+}
+
+/**
+ * How strongly the request names each option: an alias match counts fully, otherwise the
+ * longest run it shares with the option's distinctive part. 0 when ruled out (不是…).
+ */
+function optionScores(field: FormField, request: string): number[] {
+  const options = field.options ?? [];
+  const cores = optionCores(options);
+  const said = gnorm(request);
+  return options.map((option, index) => {
+    const core = cores[index]!;
+    const aliases = (field.aliases?.[option] ?? []).map(gnorm);
+    const at = [core, ...aliases].map((word) => said.indexOf(word)).find((i) => i >= 0);
+    if (at !== undefined && RULED_OUT.test(said.slice(Math.max(0, at - 4), at))) return 0;
+    if (aliases.some((alias) => alias && said.includes(alias))) return 100;
+    // Options that contain this one whole (訂閱 in 取消訂閱) are not rivals for its words.
+    const others = cores.filter((other, i) => i !== index && !other.includes(core));
+    const run = sharedRun(core, said, others);
+    // Two shared characters of a long option (消息 of 臺北旅遊網最新消息) are not enough.
+    const enough = run >= 3 || run === core.length || (run >= 2 && run / core.length >= 0.5);
+    return enough ? run : 0;
+  });
+}
+
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const NEGATION = /(?:不用|不需要|不必|不要|不坐|沒有|免|無需|no|don't|do not|without)\s*\S{0,2}$/i;
@@ -341,7 +513,13 @@ export function guardValues(spec: FormSpec, values: FormValues, input: GuardInpu
         : problem.replace(/[，。！？,.!?].*$/s, '').slice(0, 20);
     } else if (field.kind === 'longtext') {
       // Mostly their words (not translated, not made up), and not copied from the form.
-      const ok = value && !copiesForm(value) && !injected(value) && cjkOverlap(value, clean) >= 0.6;
+      const latinOnly = !/[一-鿿]/.test(value);
+      const ok =
+        value &&
+        !copiesForm(value) &&
+        !injected(value) &&
+        cjkOverlap(value, clean) >= 0.6 &&
+        (!latinOnly || !!groundSpan(value, clean) || !/[一-鿿]/.test(clean));
       out[field.id] = (ok ? value : problem).slice(0, 500);
     } else if (!value) {
       out[field.id] = '';
@@ -434,6 +612,102 @@ export function guardValues(spec: FormSpec, values: FormValues, input: GuardInpu
           const last = at.at(-1)!;
           out[field.id] = refused(last) ? 'no' : at.some(refused) ? 'yes' : value;
         } else out[field.id] = at.some(refused) ? 'no' : value;
+        break;
+      }
+      case 'select': {
+        const options = field.options ?? [];
+        const scores = optionScores(field, clean);
+        const chosen = options.findIndex((option) => matchOption(option, value));
+        const best = Math.max(0, ...scores);
+        const top = scores.flatMap((score, index) => (score === best && best > 0 ? [index] : []));
+        // The model's choice stands when the words back it; otherwise only an unambiguous one.
+        out[field.id] =
+          chosen >= 0 && scores[chosen]! > 0 && scores[chosen] === best
+            ? options[chosen]!
+            : top.length === 1
+              ? options[top[0]!]!
+              : '';
+        break;
+      }
+      case 'multiselect': {
+        const options = field.options ?? [];
+        const scores = optionScores(field, clean);
+        const listed = value.split(SPLIT_CHOICES).map((part) => part.trim());
+        const picked = options.filter(
+          (option, index) => scores[index]! > 0 && listed.some((part) => matchOption(option, part)),
+        );
+        const backed = options.filter((_, index) => scores[index]! > 0);
+        out[field.id] = (picked.length ? picked : backed).join('、');
+        break;
+      }
+      case 'mobile':
+      case 'phone': {
+        const compact = spokenDigits(clean).replace(/[\s()#-]/g, '');
+        const mobiles: string[] = compact.match(/(?<!\d)09\d{8}(?!\d)/g) ?? [];
+        const others = (compact.match(/(?<!\d)\d{7,10}(?!\d)/g) ?? []).filter(
+          (number) => !mobiles.includes(number),
+        );
+        const hasMobileField = ofType('mobile').length > 0;
+        const candidates =
+          field.type === 'mobile' ? mobiles : hasMobileField ? others : [...mobiles, ...others];
+        const digits = value.replace(/\D/g, '');
+        out[field.id] = candidates.includes(digits)
+          ? digits
+          : ofType(field.type).length === 1 &&
+              candidates.length >= 1 &&
+              (candidates.length === 1 || corrected >= 0)
+            ? candidates.at(-1)!
+            : '';
+        break;
+      }
+      case 'email': {
+        const emails = emailsIn(clean);
+        const wanted = value.replace(/\s+/g, '').toLowerCase();
+        out[field.id] = emails.includes(wanted)
+          ? wanted
+          : ofType('email').length === 1 &&
+              emails.length >= 1 &&
+              (emails.length === 1 || corrected >= 0)
+            ? emails.at(-1)!
+            : '';
+        break;
+      }
+      case 'code':
+      case 'idno':
+      case 'plate': {
+        const compact = compactOf(clean);
+        const wanted = compactOf(value);
+        if (wanted.length >= 4 && compact.includes(wanted)) {
+          out[field.id] = field.type === 'plate' ? value.replace(/\s+/g, '').toUpperCase() : wanted;
+          break;
+        }
+        // Not backed: read the number right after the field's name (水號是 1-23-456789-0).
+        const names = cuesOf(field).concat(field.label);
+        const spoken = spokenDigits(clean);
+        const after = names
+          .map((name) => spoken.indexOf(name))
+          .filter((index) => index >= 0)
+          .map(
+            (index) =>
+              spoken.slice(index).match(/[A-Za-z0-9](?:[A-Za-z0-9\-\s]*[A-Za-z0-9]){3,}/)?.[0],
+          )
+          .find(Boolean);
+        out[field.id] = after
+          ? field.type === 'plate'
+            ? after.replace(/\s+/g, '').toUpperCase()
+            : after.replace(/[^A-Za-z0-9]/g, '').toUpperCase()
+          : '';
+        break;
+      }
+      case 'number': {
+        const cues = cuesOf(field).map((cue) => cue.toLowerCase());
+        const said = numbersIn(clean);
+        // The model may write 二十 as well as 20.
+        const number = numbersIn(value)[0];
+        out[field.id] =
+          cues.some((cue) => lower.includes(cue)) && number !== undefined && said.includes(number)
+            ? String(number)
+            : '';
         break;
       }
     }
