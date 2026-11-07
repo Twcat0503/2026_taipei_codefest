@@ -19,6 +19,27 @@ import {
 import type { Domain, Message, ModelAdapter, TaskState, ToolCall } from './types';
 
 const ACCESSIBLE_PLACE = /無障礙|身障|身心障礙|輪椅|孕婦|愛心|accessible|wheelchair|disab|pregnan/i;
+/** Taipei districts: the Chinese short name, then its English spelling as people type it. */
+const DISTRICTS: readonly (readonly [zh: string, en: RegExp])[] = [
+  ['松山', /Songshan/i],
+  ['信義', /Xinyi/i],
+  ['大安', /Da['’]?an/i],
+  ['中山', /Zhongshan/i],
+  ['中正', /Zhongzheng/i],
+  ['大同', /Datong/i],
+  ['萬華', /Wanhua/i],
+  ['文山', /Wenshan/i],
+  ['南港', /Nangang/i],
+  ['內湖', /Neihu/i],
+  ['士林', /Shilin/i],
+  ['北投', /Beitou/i],
+];
+
+/** Whether the user said the district the model picked: as 大安(區) or in English (Daan). */
+function saidDistrict(request: string, area: unknown) {
+  const name = typeof area === 'string' ? area.replace(/區$/, '') : '';
+  return DISTRICTS.some(([zh, en]) => zh === name && (request.includes(zh) || en.test(request)));
+}
 
 /** Bound even adapters that ignore AbortSignal. Late responses never mutate state. */
 async function bounded<T>(
@@ -411,15 +432,22 @@ export class AgentRunner {
         domain === 'places' &&
         ['find_nearby_youbike', 'find_nearby_parking', 'find_nearby_toilets'].includes(call.name)
       ) {
-        const districts = [
-          ...new Set(
-            request.match(/(?:松山|信義|大安|中山|中正|大同|萬華|文山|南港|內湖|士林|北投)區/g) ??
-              [],
-          ),
-        ];
+        const districts = DISTRICTS.map(([zh]) => `${zh}區`).filter((name) =>
+          request.includes(name),
+        );
+        const nearby = /附近|最近|nearby|nearest|near me/i.test(request);
         if (districts.length === 1) {
           call.arguments.area = districts[0]!;
-          if (!/附近|最近|nearby|nearest|near me/i.test(request)) delete call.arguments.near_me;
+          if (!nearby) delete call.arguments.near_me;
+        } else if (!districts.length) {
+          if (saidDistrict(request, call.arguments.area)) {
+            // Said by short or English name only: treat it like a named district.
+            if (!nearby) delete call.arguments.near_me;
+          } else {
+            // The model may only keep a district the user said; few-shot examples leak into area.
+            delete call.arguments.area;
+            if (nearby) call.arguments.near_me = true;
+          }
         }
         // Accessibility is a structured filter, not free text: names rarely contain it.
         if (call.name !== 'find_nearby_youbike') {
