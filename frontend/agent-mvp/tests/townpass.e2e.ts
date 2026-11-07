@@ -102,8 +102,9 @@ test('live YouBike cards confirm before opening the map', async ({ page }) => {
   await expect(page.getByText('要離開助手，開啟 www.google.com 嗎？')).toBeVisible();
   expect(await posted(page)).toBeNull();
   await page.getByRole('button', { name: '前往', exact: true }).click();
+  // Google Maps cannot render in a WebView, so it goes to the native map app.
   expect(await posted(page)).toEqual({
-    name: 'open_link',
+    name: 'launch_map',
     data: 'https://www.google.com/maps/search/?api=1&query=25.03,121.54',
   });
 });

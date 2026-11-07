@@ -58,7 +58,10 @@ export function openLink(url: string) {
     return;
   }
   if (window.flutterObject) {
-    window.flutterObject.postMessage(JSON.stringify({ name: 'open_link', data: url }));
+    // Google Maps refuses to render inside a WebView (it redirects to intent://), so maps go
+    // to the native map app through launch_map instead of a stacked WebView page.
+    const name = url.startsWith('https://www.google.com/maps/') ? 'launch_map' : 'open_link';
+    window.flutterObject.postMessage(JSON.stringify({ name, data: url }));
     return;
   }
   window.open(url, '_blank', 'noopener');
