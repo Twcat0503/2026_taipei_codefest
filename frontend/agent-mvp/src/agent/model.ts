@@ -1,5 +1,7 @@
+import { recordInference } from '../dev/hud';
 import { destinationFor } from './skills/navigation';
-import type { Message, ModelAdapter, ToolCall } from './types';
+import { VISION_IMAGE } from './skills/report-vision';
+import type { Message, ModelAdapter, ToolCall, VisionRequest } from './types';
 
 export type CompletionProtocol = 'json-schema' | 'tools';
 
@@ -385,6 +387,24 @@ export function parseCompletion(body: unknown): { calls: ToolCall[]; content?: s
   return { calls: [], content: message.content };
 }
 
+const VISION_SCHEMA = {
+  type: 'object',
+  properties: { subject: { type: 'string' }, description: { type: 'string' } },
+  required: ['subject', 'description'],
+  additionalProperties: false,
+} as const;
+
+/** Pull the assistant text out of a Chat Completions reply, for the vision (non-tool) path. */
+export function visionContent(body: unknown): string {
+  if (!record(body) || !Array.isArray(body.choices) || !record(body.choices[0]))
+    throw new Error('INVALID_RESPONSE');
+  const choice = body.choices[0];
+  if (choice.finish_reason === 'length') throw new Error('TRUNCATED_RESPONSE');
+  const message = choice.message;
+  if (!record(message) || typeof message.content !== 'string') throw new Error('INVALID_RESPONSE');
+  return message.content;
+}
+
 /** OpenAI Chat Completions wire format. Only on-device loopback is allowed. */
 export class LocalModel implements ModelAdapter {
   mode = 'local' as const;
@@ -401,6 +421,7 @@ export class LocalModel implements ModelAdapter {
   }
   async complete(input: Parameters<ModelAdapter['complete']>[0]) {
     aborted(input.signal);
+    const started = performance.now();
     const controller = new AbortController();
     const cancel = () => controller.abort();
     input.signal.addEventListener('abort', cancel, { once: true });
@@ -432,7 +453,65 @@ export class LocalModel implements ModelAdapter {
       if (!response.ok) throw new Error(`MODEL_HTTP_${response.status}`);
       const text = await response.text();
       if (text.length > 100000) throw new Error('RESPONSE_TOO_LARGE');
-      return parseCompletion(JSON.parse(text));
+      const body: unknown = JSON.parse(text);
+      recordInference({ model: this.model, latencyMs: performance.now() - started, body });
+      return parseCompletion(body);
+    } finally {
+      clearTimeout(timer);
+      input.signal.removeEventListener('abort', cancel);
+    }
+  }
+  async vision(input: VisionRequest): Promise<string> {
+    aborted(input.signal);
+    if (
+      !VISION_IMAGE.pattern.test(input.image) ||
+      input.image.length > VISION_IMAGE.maxDataUrlLength
+    )
+      throw new Error('INVALID_IMAGE');
+    const started = performance.now();
+    const controller = new AbortController();
+    const cancel = () => controller.abort();
+    input.signal.addEventListener('abort', cancel, { once: true });
+    // Image inference is heavier than routing; give it room but still bound it.
+    const timer = setTimeout(cancel, Math.max(this.timeoutMs, 45000));
+    try {
+      const response = await fetch(this.endpoint, {
+        method: 'POST',
+        redirect: 'error',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.options.getApiKey?.()
+            ? { Authorization: `Bearer ${this.options.getApiKey()}` }
+            : {}),
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages: [
+            { role: 'system', content: input.system },
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: input.instruction },
+                { type: 'image_url', image_url: { url: input.image } },
+              ],
+            },
+          ],
+          response_format: {
+            type: 'json_schema',
+            json_schema: { name: 'report_vision', strict: true, schema: VISION_SCHEMA },
+          },
+          stream: false,
+          temperature: 0,
+          max_tokens: 320,
+        }),
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`MODEL_HTTP_${response.status}`);
+      const text = await response.text();
+      if (text.length > 100000) throw new Error('RESPONSE_TOO_LARGE');
+      const body: unknown = JSON.parse(text);
+      recordInference({ model: this.model, latencyMs: performance.now() - started, body });
+      return visionContent(body);
     } finally {
       clearTimeout(timer);
       input.signal.removeEventListener('abort', cancel);

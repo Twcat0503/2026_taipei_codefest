@@ -18,6 +18,8 @@ abstract class TPWebMessageListener {
     QRCodeScanMessageHandler(),
     TtsMessageHandler(),
     ShareMessageHandler(),
+    HapticMessageHandler(),
+    A11yStateMessageHandler(),
     LlmStartMessageHandler(),
     LlmStopMessageHandler(),
     LlmStatusMessageHandler(),
