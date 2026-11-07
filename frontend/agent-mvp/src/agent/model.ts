@@ -288,10 +288,10 @@ function demoArguments(
     return {
       ...(/附近|最近|nearby|nearest/.test(text) || !area ? { near_me: true } : {}),
       ...(area ? { area } : {}),
-      ...(/無障礙|身障|孕婦|輪椅/.test(text) && name !== 'find_nearby_youbike'
+      ...(/無障礙|身障|孕婦|輪椅|愛心/.test(text) && name !== 'find_nearby_youbike'
         ? { accessible: true }
         : {}),
-      ...(name === 'find_nearby_parking' && /身障|輪椅|身心障礙/.test(text)
+      ...(name === 'find_nearby_parking' && /身障|輪椅|身心障礙|愛心/.test(text)
         ? { parking_space: 'disabled' }
         : name === 'find_nearby_parking' && /孕婦|懷孕/.test(text)
           ? { parking_space: 'pregnancy' }

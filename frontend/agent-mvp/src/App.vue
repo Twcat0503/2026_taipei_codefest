@@ -291,6 +291,8 @@ type Turn = {
   emergency: EmergencyKind | null;
   reference?: string;
   receiptBook?: Localized;
+  /** A saved parking lookup; after a reload it can be run again from the summary. */
+  parking?: ParkingSpace;
 };
 const restoredTurns = restoreConversation();
 const turns = ref<Turn[]>(
@@ -309,6 +311,12 @@ const turns = ref<Turn[]>(
     failure: null,
     traces: [],
     emergency: turn.emergency ?? null,
+    parking:
+      turn.request === 'parkingSuggestion'
+        ? ('disabled' as const)
+        : turn.request === 'pregnancyParkingSuggestion'
+          ? ('pregnancy' as const)
+          : undefined,
   })),
 );
 let nextTurnId = turns.value.length;
@@ -578,6 +586,10 @@ async function submit(text = input.value) {
   } catch {
     /* Runner exposes a localized, non-sensitive error state. */
   } finally {
+    // A typed parking request gets the same options (switch space type, widen, by district).
+    const place = state.lastPlace;
+    if (state.lastTool === 'find_nearby_parking' && place?.parkingSpace)
+      parkingSearch.value = { space: place.parkingSpace, radius: 1000, area: place.area ?? null };
     busy.value = false;
     feedbackForAnswer();
     saveTask(state);
@@ -892,6 +904,32 @@ onBeforeUnmount(() => {
                 <p v-if="turn.restored" class="small-note">{{ t.savedSummaryNote }}</p>
                 <p class="reply-bubble">{{ noticeText(turn.notice) }}</p>
                 <EmergencyCard v-if="turn.emergency" :kind="turn.emergency" :locale="locale" />
+                <div
+                  v-if="
+                    turn.restored &&
+                    turn.parking &&
+                    turn.id === turns.at(-1)?.id &&
+                    state.notice === 'welcome' &&
+                    !busy
+                  "
+                  class="parking-actions"
+                  role="group"
+                  :aria-label="t.parkingActions"
+                >
+                  <button class="outline-button" @click="searchParking(turn.parking)">
+                    {{ t.parkingSearchAgain }}
+                  </button>
+                  <button
+                    class="outline-button"
+                    @click="searchParking(turn.parking === 'disabled' ? 'pregnancy' : 'disabled')"
+                  >
+                    {{
+                      turn.parking === 'disabled'
+                        ? t.parkingSwitchPregnancy
+                        : t.parkingSwitchDisabled
+                    }}
+                  </button>
+                </div>
                 <ul v-if="turn.books.length" class="plain-list">
                   <li v-for="book in turn.books" :key="book.id">
                     <strong>{{ book.title[locale] }}</strong
@@ -1062,6 +1100,22 @@ onBeforeUnmount(() => {
                     @click="searchParking(parkingSearch.space, 3000, null, false)"
                   >
                     {{ t.parkingExpand }}
+                  </button>
+                  <button
+                    class="outline-button"
+                    @click="
+                      searchParking(
+                        parkingSearch.space === 'disabled' ? 'pregnancy' : 'disabled',
+                        1000,
+                        parkingSearch.area,
+                      )
+                    "
+                  >
+                    {{
+                      parkingSearch.space === 'disabled'
+                        ? t.parkingSwitchPregnancy
+                        : t.parkingSwitchDisabled
+                    }}
                   </button>
                   <button
                     v-if="state.notice === 'needLocation'"

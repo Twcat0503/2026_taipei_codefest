@@ -94,7 +94,13 @@ export type TaskState = {
   /** The last tool that produced this answer; drives the follow-up choices. */
   lastTool: string | null;
   /** The last place lookup, so 「那廁所呢」「換成大安區」 can follow it. Kept across turns. */
-  lastPlace: { tool: string; area?: string; nearMe?: boolean; accessible?: boolean } | null;
+  lastPlace: {
+    tool: string;
+    area?: string;
+    nearMe?: boolean;
+    accessible?: boolean;
+    parkingSpace?: 'disabled' | 'pregnancy';
+  } | null;
   /** The last service page offered, so 「好，帶我去那個頁面」 opens it. Kept across turns. */
   lastDestination: string | null;
   /** Set when the request sounds like an emergency; the UI offers call buttons. */

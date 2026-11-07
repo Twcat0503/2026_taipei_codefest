@@ -737,7 +737,8 @@ export class AgentRunner {
           else delete call.arguments.accessible;
         }
         if (call.name === 'find_nearby_parking') {
-          if (/身障|身心障礙|輪椅|disabled|wheelchair/i.test(ruleText))
+          // 「愛心車位」 is the everyday word for disabled spaces.
+          if (/身障|身心障礙|輪椅|愛心|disabled|wheelchair/i.test(ruleText))
             call.arguments.parking_space = 'disabled';
           else if (/孕婦|懷孕|pregnan/i.test(ruleText)) call.arguments.parking_space = 'pregnancy';
           else delete call.arguments.parking_space;
@@ -750,6 +751,10 @@ export class AgentRunner {
           area: typeof call.arguments.area === 'string' ? call.arguments.area : undefined,
           nearMe: call.arguments.near_me === true,
           accessible: call.arguments.accessible === true,
+          ...(call.arguments.parking_space === 'disabled' ||
+          call.arguments.parking_space === 'pregnancy'
+            ? { parkingSpace: call.arguments.parking_space }
+            : {}),
         };
       // Only the bounded transport can finish the lookup; no final LLM completion pass.
       const client: ToolClient = {
