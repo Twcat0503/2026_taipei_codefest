@@ -22,6 +22,21 @@
 3. 開 PR 到 `main`，一個 PR 只做一件事。
 4. **PR 需至少一位 reviewer approve**，由維護者以 **squash merge** 併入 `main`。
 
+### 常駐 branch：`frontend`
+
+前端（`frontend/`）的開發集中在常駐的 `frontend` branch；其他工作仍以 `main` 為基準。
+
+- 前端功能從 `frontend` 切出 branch，PR 的 base 選 `frontend`，審過後 squash 合併：
+
+  ```sh
+  git switch frontend && git pull --rebase
+  git switch -c feat/<short-name>
+  ```
+
+- `frontend` 穩定時，由維護者開 PR 把 `frontend` 合進 `main`，**用 merge commit，不要 squash**，兩邊的歷史才不會分叉。
+- `main` 有更新（文件、CI、Flutter 等）時，由維護者把 `main` merge 回 `frontend` 保持同步；`frontend` 不 rebase、不 force push。
+- `frontend` 會自動部署成固定的預覽站 `https://frontend.<project>.pages.dev`（見「部署」），可以當作整合測試環境。
+
 ### 日常 Git 操作
 
 - **開工前確認 branch 還沒被合併**：`git fetch --prune` 後跑 `git branch -vv`，標示 `[gone]` 的是已合併、GitHub 上已刪除的 branch，不要在上面繼續開發；新工作一律從最新的 `main` 開新 branch。
