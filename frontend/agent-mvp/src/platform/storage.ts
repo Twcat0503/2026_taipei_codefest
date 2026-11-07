@@ -42,28 +42,58 @@ const safeNotices: TaskState['notice'][] = [
   'error',
 ];
 export type SavedTurn = { request: string; notice: TaskState['notice'] };
+export type RestoredTurn = {
+  /** Dictionary key of a suggested request, so it follows the current language. */
+  request: (typeof safeRequests)[number] | null;
+  /** What the person typed or said, with identifiers masked. */
+  text?: string;
+  notice: TaskState['notice'];
+};
+const MASK = '＊＊＊';
+const MAX_TEXT = 200;
+/**
+ * Free text comes back when the person returns, but never with identifiers in it:
+ * ID numbers, e-mail addresses and any run of 6+ digits (phone, water account, card).
+ */
+export function maskSensitive(text: string) {
+  return text
+    .replace(/[A-Z][12ABCD89]\d{8}/gi, MASK)
+    .replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, MASK)
+    .replace(/\+?\d(?:[\s-]?\d){5,}/g, MASK)
+    .trim()
+    .slice(0, MAX_TEXT);
+}
 export function saveConversation(turns: SavedTurn[]): boolean {
   try {
-    const safe = turns.map(({ request, notice }) => ({
-      request:
+    const safe = turns.map(({ request, notice }) => {
+      const key =
         safeRequests.find((name) =>
           Object.values(messages).some((dictionary) => dictionary[name] === request),
-        ) ?? null,
-      notice: safeNotices.includes(notice) ? notice : 'unsupported',
-    }));
+        ) ?? null;
+      const text = key ? '' : maskSensitive(request);
+      return {
+        request: key,
+        ...(text ? { text } : {}),
+        notice: safeNotices.includes(notice) ? notice : 'unsupported',
+      };
+    });
     localStorage.setItem(conversationKey, JSON.stringify(safe.slice(-100)));
     return true;
   } catch {
     return false;
   }
 }
-export function restoreConversation(): { request: string | null; notice: TaskState['notice'] }[] {
+export function restoreConversation(): RestoredTurn[] {
   try {
     const data: unknown = JSON.parse(localStorage.getItem(conversationKey) ?? '[]');
     if (!Array.isArray(data)) return [];
     return data.slice(-100).flatMap((entry: unknown) => {
       if (!entry || typeof entry !== 'object') return [];
-      const { request, notice } = entry as { request?: unknown; notice?: unknown };
+      const { request, text, notice } = entry as {
+        request?: unknown;
+        text?: unknown;
+        notice?: unknown;
+      };
       if (typeof notice !== 'string' || !safeNotices.includes(notice as TaskState['notice']))
         return [];
       const requestKey =
@@ -71,7 +101,14 @@ export function restoreConversation(): { request: string | null; notice: TaskSta
         safeRequests.includes(request as (typeof safeRequests)[number])
           ? (request as (typeof safeRequests)[number])
           : null;
-      return [{ request: requestKey, notice: notice as TaskState['notice'] }];
+      const saved = typeof text === 'string' && !requestKey ? maskSensitive(text) : '';
+      return [
+        {
+          request: requestKey,
+          ...(saved ? { text: saved } : {}),
+          notice: notice as TaskState['notice'],
+        },
+      ];
     });
   } catch {
     return [];
