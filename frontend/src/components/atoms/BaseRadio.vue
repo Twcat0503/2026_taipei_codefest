@@ -32,7 +32,6 @@ watch(
 );
 </script>
 
-
 <template>
   <label :for="`${props.radioName}${props.radioId}`">
     <input
