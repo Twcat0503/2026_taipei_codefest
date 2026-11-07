@@ -18,6 +18,9 @@ abstract class TPWebMessageListener {
     QRCodeScanMessageHandler(),
     TtsMessageHandler(),
     ShareMessageHandler(),
+    LlmStartMessageHandler(),
+    LlmStopMessageHandler(),
+    LlmStatusMessageHandler(),
   ];
 
   static List<TPWebMessageHandler> get messageHandler => _cachedMessageHandlers;
