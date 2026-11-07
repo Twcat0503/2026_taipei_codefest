@@ -38,8 +38,8 @@
 
 - [ ] 整合 App 入口：`a11yService`（用得了）與 #11 的「安心助手」擇一或合併
 - [ ] 入口網址換成正式站（`destinationUrl` 與 #11 的 release HTTPS URL）
-- [ ] `AndroidManifest.xml` 的 `<queries>` 補上 `TTS_SERVICE`，並在實機確認能朗讀
-- [ ] `TtsMessageHandler` 每次呼叫都能切換語言
+- [ ] `AndroidManifest.xml` 的 `<queries>` 補上 `TTS_SERVICE`，並在實機確認能朗讀（manifest 已補，待實機確認）
+- [x] `TtsMessageHandler` 每次呼叫都能切換語言
 - [ ] `flutter test` 加回 CI（#11 已處理，合併後勾選）
 
 ## Repo 與部署（維護者）
