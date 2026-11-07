@@ -1,0 +1,25 @@
+diff --git a/vendor/cpp-httplib/httplib.cpp b/vendor/cpp-httplib/httplib.cpp
+--- a/vendor/cpp-httplib/httplib.cpp
++++ b/vendor/cpp-httplib/httplib.cpp
+@@ -1776,7 +1776,13 @@
+   return process_server_socket_core(
+       svr_sock, sock, keep_alive_max_count, keep_alive_timeout_sec,
+       [&](bool close_connection, bool &connection_closed) {
++#ifdef TOWNPASS_TTS_RECEIVE_TIMEOUT_MS
++        SocketStream strm(sock, read_timeout_sec, read_timeout_usec,
++                          write_timeout_sec, write_timeout_usec,
++                          TOWNPASS_TTS_RECEIVE_TIMEOUT_MS, std::chrono::steady_clock::now());
++#else
+         SocketStream strm(sock, read_timeout_sec, read_timeout_usec,
+                           write_timeout_sec, write_timeout_usec);
++#endif
+         return callback(strm, close_connection, connection_closed);
+       });
+@@ -6415,6 +6421,7 @@
+   if (max_timeout_msec_ <= 0) {
+     return select_read(sock_, read_timeout_sec_, read_timeout_usec_) > 0;
+   }
++  if (duration() >= max_timeout_msec_) { return false; }
+
+   time_t read_timeout_sec;
+   time_t read_timeout_usec;

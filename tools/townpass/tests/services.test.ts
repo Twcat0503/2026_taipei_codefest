@@ -35,13 +35,18 @@ const ROUTES: Record<string, unknown> = {
   [`${BASE}/mock/library/library_notice_list.json`]: {
     data: [{ id: "n1", date: "2024/11/01", title: "內部公告", description: "", is_open_outer_link: false }],
   },
-  [`${BASE}/mock/find-place/TCMSV_alldesc.json`]: [
-    { id: "1", area: "信義區", name: "有入口座標", summary: "", address: "", tel: "", payex: "", serviceTime: "", tw97x: "", tw97y: "", totalcar: 1, totalmotor: 1, EntranceCoord: { EntrancecoordInfo: [{ Xcod: "25.03", Ycod: "121.56" }] } },
-    { id: "2", area: "信義區", name: "只有投影座標", summary: "", address: "", tel: "", payex: "", serviceTime: "", tw97x: "306723.6875", tw97y: "2769942.25", totalcar: 1, totalmotor: 1 },
-    { id: "4", area: "中山區", name: "入口座標錯位", summary: "", address: "", tel: "", payex: "", serviceTime: "", tw97x: "305962.625", tw97y: "2775274.75", totalcar: 1, totalmotor: 1, EntranceCoord: { EntrancecoordInfo: [{ Xcod: "25.03", Ycod: "121.56" }] } },
-    { id: "5", area: "信義區", name: "入口座標為零", summary: "", address: "", tel: "", payex: "", serviceTime: "", tw97x: "", tw97y: "", totalcar: 1, totalmotor: 1, EntranceCoord: { EntrancecoordInfo: [{ Xcod: "0", Ycod: "0" }] } },
-    { id: "3", area: "信義區", name: "沒有座標", summary: "", address: "", tel: "", payex: "", serviceTime: "", tw97x: "", tw97y: "", totalcar: 1, totalmotor: 1 },
-  ],
+  "https://tcgbusfs.blob.core.windows.net/blobtcmsv/TCMSV_alldesc.json": {
+    data: {
+      UPDATETIME: "Mon Oct 19 10:26:00 CST 2026",
+      park: [
+        { id: "1", area: "信義區", name: "有入口座標", summary: "", address: "", tel: "", payex: "", serviceTime: "", tw97x: "", tw97y: "", totalcar: 1, totalmotor: 1, Handicap_First: "2", Pregnancy_First: "0", EntranceCoord: { EntrancecoordInfo: [{ Xcod: "25.03", Ycod: "121.56" }] } },
+        { id: "2", area: "信義區", name: "只有投影座標", summary: "", address: "", tel: "", payex: "", serviceTime: "", tw97x: "306723.6875", tw97y: "2769942.25", totalcar: 1, totalmotor: 1, Handicap_First: "0", Pregnancy_First: "0" },
+        { id: "4", area: "中山區", name: "入口座標錯位", summary: "", address: "", tel: "", payex: "", serviceTime: "", tw97x: "305962.625", tw97y: "2775274.75", totalcar: 1, totalmotor: 1, EntranceCoord: { EntrancecoordInfo: [{ Xcod: "25.03", Ycod: "121.56" }] } },
+        { id: "5", area: "信義區", name: "入口座標為零", summary: "", address: "", tel: "", payex: "", serviceTime: "", tw97x: "", tw97y: "", totalcar: 1, totalmotor: 1, Pregnancy_First: "3", EntranceCoord: { EntrancecoordInfo: [{ Xcod: "0", Ycod: "0" }] } },
+        { id: "3", area: "信義區", name: "沒有座標", summary: "", address: "", tel: "", payex: "", serviceTime: "", tw97x: "", tw97y: "", totalcar: 1, totalmotor: 1 },
+      ],
+    },
+  },
   "https://tcgbusfs.blob.core.windows.net/dotapp/youbike/v2/youbike_immediate.json": [
     youbike("far", "1", 25.1), youbike("near", "1", 25.0), youbike("off", "0", 25.0),
   ],
@@ -57,6 +62,9 @@ const fakeFetch = (async (input: string | URL | Request) => {
   if (url.includes("broken")) return new Response("oops", { status: 500 });
   const body = ROUTES[url];
   if (body === undefined) return new Response("<!doctype html>", { status: 200, headers: { "content-type": "text/html" } });
+  // 官方 blob 實際以 application/octet-stream 回傳 JSON。
+  if (url.includes("blobtcmsv"))
+    return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/octet-stream" } });
   return jsonResponse(body);
 }) as typeof fetch;
 
@@ -145,6 +153,40 @@ describe("services", () => {
     expect(body.data_source.kind).toBe("snapshot");
     expect(body.results.map((p) => p.id)).toEqual(["1", "2"]);
     expect((await s.places.parking({ area: "信義區", radius_m: 1000, limit: LIMIT })).total).toBe(4);
+  });
+
+  it("parking reads the official feed, labels its data time, and filters accessible spaces", async () => {
+    const body = await s.places.parking({ area: "信義區", accessible: true, radius_m: 1000, limit: LIMIT });
+    expect(body.data_source.label).toBe("官方開放資料");
+    expect(body.data_source.note).toContain("臺北市政府交通局停車管理工程處");
+    expect(body.data_source.note).toContain("2026-10-19 10:26");
+    expect(body.data_source.note).toContain("不是即時空位");
+    expect(body.results.map((p) => [p.id, p.handicap_spaces, p.pregnancy_spaces])).toEqual([
+      ["1", 2, 0],
+      ["5", 0, 3],
+    ]);
+  });
+
+  it("keeps disabled and pregnancy spaces separate before ranking nearby parking", async () => {
+    const disabled = await s.places.parking({
+      lat: 25.03, lng: 121.56, radius_m: 3000, parking_space: "disabled", limit: LIMIT,
+    });
+    expect(disabled.results.map((p) => p.id)).toEqual(["1"]);
+    const pregnancy = await s.places.parking({
+      area: "信義區", radius_m: 1000, parking_space: "pregnancy", limit: LIMIT,
+    });
+    expect(pregnancy.results.map((p) => p.id)).toEqual(["5"]);
+  });
+
+  it("toilets come from the dated official snapshot and can require accessible seats", async () => {
+    const body = await s.places.toilets({ area: "大安區", accessible: true, radius_m: 1000, limit: LIMIT });
+    expect(body.data_source.note).toContain("臺北市政府環境保護局");
+    expect(body.data_source.note).toMatch(/資料時間 \d{4}-\d{2}-\d{2}/);
+    expect(body.total).toBeGreaterThan(0);
+    expect(body.results.every((t) => t.area === "大安區" && t.accessible_seats > 0)).toBe(true);
+    expect(fetchCalls).toBe(0);
+    const all = await s.places.toilets({ area: "大安區", radius_m: 1000, limit: LIMIT });
+    expect(all.total).toBeGreaterThan(body.total);
   });
 });
 

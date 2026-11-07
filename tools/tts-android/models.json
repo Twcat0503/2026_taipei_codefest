@@ -1,0 +1,37 @@
+{
+  "model": "bluemagpie-q8_0",
+  "source": {
+    "repo": "OpenFormosa/BlueMagpie-TTS",
+    "revision": "4c2c5bcb7e87041a8eaba9df5821ec7a3e1d0c6c",
+    "url": "https://huggingface.co/OpenFormosa/BlueMagpie-TTS",
+    "license": "other",
+    "usage": "research and evaluation; redistribution and generated speech require cleared rights and consent"
+  },
+  "runtime": {
+    "codec_cpp": "3de7df1398a1fec27ad959f3481d537bf934e540",
+    "llama_cpp": "f708a5b2caaee0226c0af220e366785699ba41e2",
+    "ggml": "9083956246f467b9317c69fdcff50829c7f95484",
+    "tokenizers": "0.23.3"
+  },
+  "official": {
+    "pytorch_model.bin": {"bytes": 7800079543, "sha256": "075a553b0981ca0ce8fe77bd9f802fe253bdf0e9f17fbc88fc2b8ae74ad11d3f"},
+    "audiovae.pth": {"bytes": 376972749, "sha256": "cc01a2d5d817910f185d959f8bb23d1a5ab80c9a03b7398ac86d7457cb663332"},
+    "config.json": {"bytes": 7667, "sha256": "b299f68aa8ee5f11953fc708b305a7db35b931ce0fa68b564199e0b82c8c4e68"},
+    "tokenizer.json": {"bytes": 9357159, "sha256": "17719160807d4450cd86f9267039d8f72a054b055c768fbbd9261b6bcc95eba3"},
+    "tokenizer_config.json": {"bytes": 5980, "sha256": "ec4f4ed2b5d61d8cbb706670059df76edbf214b5345d3b257711272e5f12965b"}
+  },
+  "quantized": {
+    "barbet-q8_0-tokenizer.gguf": {
+      "bytes": 1166805312,
+      "sha256": "d86a35697c570bb6d97134f342451ee05b1558440f6f8256938af65afffe0ec9",
+      "tensors": {"Q8_0": 183, "F32": 141},
+      "tokenizer_pre": "bluemagpie"
+    },
+    "codec-q8_0-lmq8.gguf": {
+      "bytes": 1089524000,
+      "sha256": "7b96d4d9ddd1de0b7b646e4ad745844b6c104b5f1223107b82ada4e6622cd10c",
+      "tensors": {"Q8_0": 150, "F32": 250, "F16": 75},
+      "lm_tensors": {"Q8_0": 150, "F32": 92}
+    }
+  }
+}

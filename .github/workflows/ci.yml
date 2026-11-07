@@ -20,6 +20,7 @@ jobs:
     outputs:
       frontend: ${{ steps.filter.outputs.frontend }}
       flutter: ${{ steps.filter.outputs.flutter }}
+      agent: ${{ steps.filter.outputs.agent }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -50,12 +51,18 @@ jobs:
 
           flutter=false
           if [ "$workflow_changed" = true ] ||
-            grep -qE '^(lib|test|assets|fonts)/|^(pubspec\.(yaml|lock)|analysis_options\.yaml|\.fvmrc)$' <<<"$changed"; then
+            grep -qE '^(lib|test|integration_test|android|assets|fonts)/|^tools/(llm|asr|tts)-android/|^(pubspec\.(yaml|lock)|analysis_options\.yaml|\.fvmrc)$' <<<"$changed"; then
             flutter=true
           fi
 
           echo "frontend=$frontend" >> "$GITHUB_OUTPUT"
           echo "flutter=$flutter" >> "$GITHUB_OUTPUT"
+          agent=false
+          if [ -f frontend/agent-mvp/package.json ] &&
+            { [ "$workflow_changed" = true ] || grep -qE '^(frontend/agent-mvp|tools/townpass)/' <<<"$changed"; }; then
+            agent=true
+          fi
+          echo "agent=$agent" >> "$GITHUB_OUTPUT"
           echo "frontend=$frontend flutter=$flutter"
 
   frontend:
@@ -81,8 +88,36 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
+  agent:
+    name: Agent MVP (lint, format, test, build)
+    needs: changes
+    if: needs.changes.outputs.agent == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/agent-mvp
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+        with:
+          working_directory: frontend/agent-mvp
+          github_token: ${{ github.token }}
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
+        working-directory: tools/townpass
+      - run: pnpm typecheck
+        working-directory: tools/townpass
+      - run: pnpm test
+        working-directory: tools/townpass
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+
   flutter:
-    name: Flutter (format, analyze)
+    name: Flutter (format, analyze, test, APK)
     needs: changes
     if: needs.changes.outputs.flutter == 'true'
     runs-on: ubuntu-latest
@@ -106,13 +141,23 @@ jobs:
 
       - run: flutter analyze
 
-      # `flutter test` is intentionally not run yet: test/widget_test.dart is the
-      # template counter test and fails by design (see AGENTS.md). Add it here once fixed.
+      - run: flutter test
+
+      - name: Prepare Android NDK
+        run: |
+          # yes exits on SIGPIPE after sdkmanager finishes; retain sdkmanager's status.
+          set +o pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          set -o pipefail
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;29.0.13113456"
+
+      # Compile native Kotlin and merge manifests; model runtime is tested on a device.
+      - run: flutter build apk --debug --target-platform android-arm64
 
   # Single required check for branch protection; skipped jobs count as passing.
   result:
     name: CI result
-    needs: [changes, frontend, flutter]
+    needs: [changes, frontend, agent, flutter]
     if: always()
     runs-on: ubuntu-latest
     steps:

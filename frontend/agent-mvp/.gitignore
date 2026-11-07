@@ -1,0 +1,9 @@
+node_modules/
+dist/
+playwright-report/
+test-results/
+*.tsbuildinfo
+model-eval.latest.json
+.env*
+!.env.example
+stress-results/

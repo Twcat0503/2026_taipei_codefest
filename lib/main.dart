@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:town_pass/service/account_service.dart';
@@ -17,6 +19,9 @@ const _transparentStatusBar = SystemUiOverlayStyle(
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (kDebugMode && defaultTargetPlatform == TargetPlatform.android) {
+    await InAppWebViewController.setWebContentsDebuggingEnabled(true);
+  }
   // FlutterNativeSplash.preserve(
   //   widgetsBinding: WidgetsFlutterBinding.ensureInitialized(),
   // );
