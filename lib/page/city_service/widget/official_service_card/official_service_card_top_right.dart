@@ -79,9 +79,7 @@ class _GovernmentApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () async => await TPRoute.openUri(
-        uri: 'local://online_police',
-      ),
+      onTap: () async => await TPRoute.openUri(uri: 'local://online_police'),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Row(

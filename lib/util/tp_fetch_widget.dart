@@ -3,30 +3,20 @@ import 'package:get/get.dart';
 
 sealed class FetchStatus {}
 
-class DoneFetchStatus extends FetchStatus {
+class DoneFetchStatus extends FetchStatus {}
 
-}
+class ErrorFetchStatus extends FetchStatus {}
 
-class ErrorFetchStatus extends FetchStatus {
-
-}
-
-class FetchingFetchStatus extends FetchStatus {
-
-}
-
+class FetchingFetchStatus extends FetchStatus {}
 
 class TPFetchWidgetController extends GetxController {
   final Future<void> Function()? onFetch;
 
-  TPFetchWidgetController({this.onFetch,});
+  TPFetchWidgetController({this.onFetch});
 }
 
 class TPFetchWidget extends StatelessWidget {
-  const TPFetchWidget({
-    super.key,
-    required this.fetch,
-  });
+  const TPFetchWidget({super.key, required this.fetch});
 
   final Future<void> Function() fetch;
 

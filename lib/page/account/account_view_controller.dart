@@ -20,7 +20,8 @@ class AccountViewController extends GetxController {
 
   final RxnString phoneNumber = RxnString();
 
-  String get appVersion => 'TPS-V ${Get.find<PackageService>().packageInfo?.version}';
+  String get appVersion =>
+      'TPS-V ${Get.find<PackageService>().packageInfo?.version}';
 
   @override
   void onInit() {
@@ -30,23 +31,25 @@ class AccountViewController extends GetxController {
 
   void syncAccount() {
     name.value = _accountService.account?.realName ?? '';
-    phoneNumber.value = _accountService.account?.phoneNumber.replaceRange(2, 7, '***') ?? '';
+    phoneNumber.value =
+        _accountService.account?.phoneNumber.replaceRange(2, 7, '***') ?? '';
   }
 
   String mailQuery() {
     // https://pub.dev/packages/url_launcher#encoding-urls
     // apply percentage encoded to space
     return {
-      'subject': '城市通相關事宜',
-      'body': 'APP版本：$appVersion\n'
-          '手機型號：${_model()}\n'
-          'OS 版本：${_osVersion()}\n'
-          '時間：${DateTime.now().format('yyyy/MM/dd hh:mm')}\n'
-          '----------------------------------------------------',
-    }
-        .entries
+          'subject': '城市通相關事宜',
+          'body':
+              'APP版本：$appVersion\n'
+              '手機型號：${_model()}\n'
+              'OS 版本：${_osVersion()}\n'
+              '時間：${DateTime.now().format('yyyy/MM/dd hh:mm')}\n'
+              '----------------------------------------------------',
+        }.entries
         .map(
-          (map) => '${Uri.encodeComponent(map.key)}=${Uri.encodeComponent(map.value)}',
+          (map) =>
+              '${Uri.encodeComponent(map.key)}=${Uri.encodeComponent(map.value)}',
         )
         .join('&');
   }

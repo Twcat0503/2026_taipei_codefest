@@ -55,7 +55,8 @@ class BasicInfoViewController extends GetxController {
         memberType: _accountService.account?.memberType ?? '',
         verifyLevel: _accountService.account?.verifyLevel ?? '',
         addressList: _accountService.account?.addressList ?? [],
-        residentAddress: address ?? _accountService.account?.residentAddress ?? '',
+        residentAddress:
+            address ?? _accountService.account?.residentAddress ?? '',
         citizen: _accountService.account?.citizen ?? true,
         nativePeople: _accountService.account?.nativePeople ?? true,
         cityInternetUid: _accountService.account?.cityInternetUid ?? '',

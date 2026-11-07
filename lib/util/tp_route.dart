@@ -92,15 +92,13 @@ abstract class TPRoute {
       }),
     ),
     GetPage(
-        name: feedback,
-        page: () => const FeedbackView(),
-        binding: BindingsBuilder(() {
-          Get.put<FeedbackViewController>(FeedbackViewController());
-        })),
-    GetPage(
-      name: invoiceReceipt,
-      page: () => const InvoiceReceiptView(),
+      name: feedback,
+      page: () => const FeedbackView(),
+      binding: BindingsBuilder(() {
+        Get.put<FeedbackViewController>(FeedbackViewController());
+      }),
     ),
+    GetPage(name: invoiceReceipt, page: () => const InvoiceReceiptView()),
     GetPage(
       name: language,
       page: () => const LanguageView(),
@@ -115,25 +113,18 @@ abstract class TPRoute {
         Get.put<MessageViewController>(MessageViewController());
       }),
     ),
-    GetPage(
-      name: messageDetail,
-      page: () => const MessageDetailView(),
-    ),
-    GetPage(
-      name: onlinePolice,
-      page: () => const OnlinePoliceView(),
-    ),
+    GetPage(name: messageDetail, page: () => const MessageDetailView()),
+    GetPage(name: onlinePolice, page: () => const OnlinePoliceView()),
     GetPage(
       name: phoneCallUserAgreement,
       page: () => const PhoneCallUserAgreementView(),
       binding: BindingsBuilder(() {
-        Get.put<PhoneCallUserAgreementViewController>(PhoneCallUserAgreementViewController());
+        Get.put<PhoneCallUserAgreementViewController>(
+          PhoneCallUserAgreementViewController(),
+        );
       }),
     ),
-    GetPage(
-      name: portfolioAndAuth,
-      page: () => const PortfolioAndAuthView(),
-    ),
+    GetPage(name: portfolioAndAuth, page: () => const PortfolioAndAuthView()),
     GetPage(
       name: qrCodeScan,
       page: () => const QRCodeScanView(),
@@ -162,10 +153,7 @@ abstract class TPRoute {
         Get.put<AppHomePageController>(AppHomePageController());
       }),
     ),
-    GetPage(
-      name: subscription,
-      page: () => const SubscriptionView(),
-    ),
+    GetPage(name: subscription, page: () => const SubscriptionView()),
     GetPage(
       name: suspendAccount,
       page: () => const SuspendAccountView(),
@@ -173,18 +161,9 @@ abstract class TPRoute {
         Get.put<SuspendAccountController>(SuspendAccountController());
       }),
     ),
-    GetPage(
-      name: webView,
-      page: () => TPWebView(),
-    ),
-    GetPage(
-      name: activityList,
-      page: () => const ActivityListView(),
-    ),
-    GetPage(
-      name: activityDetail,
-      page: () => const ActivityDetailView(),
-    ),
+    GetPage(name: webView, page: () => TPWebView()),
+    GetPage(name: activityList, page: () => const ActivityListView()),
+    GetPage(name: activityDetail, page: () => const ActivityDetailView()),
   ];
 
   static Future openUri({required String uri, String? forceTitle}) async {
@@ -195,15 +174,15 @@ abstract class TPRoute {
     return switch (Uri.tryParse(uri)) {
       null => Future.value(null),
       Uri uri => switch (uri.scheme) {
-          'local' => Get.toNamed(uri.host),
-          _ => Get.toNamed(
-              TPRoute.webView,
-              arguments: WebViewArgument(
-                url: uri.toString(),
-                forceTitle: forceTitle,
-              ),
-            ),
-        },
+        'local' => Get.toNamed(uri.host),
+        _ => Get.toNamed(
+          TPRoute.webView,
+          arguments: WebViewArgument(
+            url: uri.toString(),
+            forceTitle: forceTitle,
+          ),
+        ),
+      },
     };
   }
 }

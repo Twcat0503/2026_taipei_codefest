@@ -44,29 +44,33 @@ class TPTextSpan extends TextSpan {
     super.locale,
     super.spellOut,
   }) : _sourceText = text,
-        _sourceChildren = children,
-        super(
-          text: null,
-          children: [
-            ...?text?.split(_splitRegExp).map(
-                  (text) => switch (text.contains(_wordCharacter)) {
-                    true => TextSpan(
-                        text: text,
-                        style: switch (style) {
-                          TextStyle style => style.copyWith(fontFamily: 'Roboto'),
-                          null => const TextStyle(fontFamily: 'Roboto'),
-                        },
-                      ),
-                    false => TextSpan(
-                        text: text,
-                        style: switch (style) {
-                          TextStyle style => style.copyWith(fontFamily: 'PingFangTC'),
-                          null => const TextStyle(fontFamily: 'PingFangTC'),
-                        },
-                      ),
-                  },
-                ),
-            ...?children,
-          ],
-        );
+       _sourceChildren = children,
+       super(
+         text: null,
+         children: [
+           ...?text
+               ?.split(_splitRegExp)
+               .map(
+                 (text) => switch (text.contains(_wordCharacter)) {
+                   true => TextSpan(
+                     text: text,
+                     style: switch (style) {
+                       TextStyle style => style.copyWith(fontFamily: 'Roboto'),
+                       null => const TextStyle(fontFamily: 'Roboto'),
+                     },
+                   ),
+                   false => TextSpan(
+                     text: text,
+                     style: switch (style) {
+                       TextStyle style => style.copyWith(
+                         fontFamily: 'PingFangTC',
+                       ),
+                       null => const TextStyle(fontFamily: 'PingFangTC'),
+                     },
+                   ),
+                 },
+               ),
+           ...?children,
+         ],
+       );
 }

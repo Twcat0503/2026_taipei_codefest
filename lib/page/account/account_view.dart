@@ -37,7 +37,9 @@ class AccountView extends GetView<AccountViewController> {
                       ),
                       trailing: GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onTap: () async => await Get.toNamed(TPRoute.setting)?.then((value) => controller.syncAccount()),
+                        onTap: () async =>
+                            await Get.toNamed(TPRoute.setting)
+                                ?.then((value) => controller.syncAccount()),
                         child: Semantics(
                           label: '設定',
                           child: Assets.svg.iconSettings.svg(),
@@ -55,7 +57,9 @@ class AccountView extends GetView<AccountViewController> {
                       ),
                       trailing: GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onTap: () async => await Get.toNamed(TPRoute.setting)?.then((value) => controller.syncAccount()),
+                        onTap: () async =>
+                            await Get.toNamed(TPRoute.setting)
+                                ?.then((value) => controller.syncAccount()),
                         child: Semantics(
                           label: '設定',
                           child: Assets.svg.iconSettings.svg(),
@@ -68,10 +72,7 @@ class AccountView extends GetView<AccountViewController> {
                       onTap: () => Get.toNamed(TPRoute.message),
                     ),
                     TPSettingListTile.line(),
-                    TPSettingListTile.navigate(
-                      title: '歷程與授權管理',
-                      onTap: () {},
-                    ),
+                    TPSettingListTile.navigate(title: '歷程與授權管理', onTap: () {}),
                     TPSettingListTile.line(),
                     TPSettingListTile.navigate(
                       title: '訂閱',

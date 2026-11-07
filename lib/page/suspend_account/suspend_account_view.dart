@@ -18,10 +18,7 @@ class SuspendAccountView extends GetView<SuspendAccountController> {
   /// 此方法將郵件連結的建構與錯誤處理邏輯封裝起來，避免在 Widget tree 中直接寫入。
   /// 如果無法開啟郵件應用程式，則會顯示一個 Toast 提示。
   Future<void> _launchCustomerServiceMail() async {
-    final Uri uri = Uri(
-      scheme: tpLaunchMailScheme,
-      path: tpMailAddress,
-    );
+    final Uri uri = Uri(scheme: tpLaunchMailScheme, path: tpMailAddress);
 
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
@@ -33,9 +30,7 @@ class SuspendAccountView extends GetView<SuspendAccountController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: TPAppBar(
-        title: '停用帳號',
-      ),
+      appBar: TPAppBar(title: '停用帳號'),
       body: TPSettingList(
         children: [
           TPSettingListTile.header(title: '目前登入帳號'),
@@ -67,10 +62,7 @@ class SuspendAccountView extends GetView<SuspendAccountController> {
                   color: TPColors.black,
                 ),
                 const SizedBox(height: 16),
-                TPButton.primary(
-                  text: '停用帳號',
-                  onPressed: () {},
-                ),
+                TPButton.primary(text: '停用帳號', onPressed: () {}),
               ],
             ),
           ),

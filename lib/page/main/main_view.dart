@@ -24,7 +24,7 @@ class MainView extends GetView<MainViewController> {
               blurRadius: 16,
               offset: Offset(0, -10),
               spreadRadius: 0,
-            )
+            ),
           ],
         ),
         child: Obx(

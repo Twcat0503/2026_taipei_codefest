@@ -20,7 +20,9 @@ class AccountViewFooter extends GetView<AccountViewController> {
         children: [
           TPText(
             '隱私權政策',
-            style: TPTextStyles.h3Regular.copyWith(decoration: TextDecoration.underline),
+            style: TPTextStyles.h3Regular.copyWith(
+              decoration: TextDecoration.underline,
+            ),
             color: TPColors.grayscale950,
             onTap: () async => await TPRoute.openUri(
               uri: 'https://id.taipei/tpcd/about/policies/privacy',
@@ -31,7 +33,9 @@ class AccountViewFooter extends GetView<AccountViewController> {
           const SizedBox(width: 24),
           TPText(
             '與我們聯絡',
-            style: TPTextStyles.h3Regular.copyWith(decoration: TextDecoration.underline),
+            style: TPTextStyles.h3Regular.copyWith(
+              decoration: TextDecoration.underline,
+            ),
             color: TPColors.grayscale950,
             onTap: () async {
               final Uri url = Uri(

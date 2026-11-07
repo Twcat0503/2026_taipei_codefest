@@ -29,9 +29,7 @@ class OfficialServiceCardWidget extends StatelessWidget {
               OfficialServiceCardTopRight(),
             ],
           ),
-          TableRow(
-            children: List.filled(3, const SizedBox(height: 8.0)),
-          ),
+          TableRow(children: List.filled(3, const SizedBox(height: 8.0))),
           const TableRow(
             children: [
               OfficialServiceCardBottomLeft(),

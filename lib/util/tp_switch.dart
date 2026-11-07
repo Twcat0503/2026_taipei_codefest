@@ -8,10 +8,7 @@ class TPSwitchController {
   final Function(bool)? onChanged;
   bool enable = true;
 
-  TPSwitchController(
-    bool? initValue, {
-    this.onChanged,
-  }) {
+  TPSwitchController(bool? initValue, {this.onChanged}) {
     value.value = initValue ?? false;
   }
 }
@@ -20,10 +17,7 @@ class TPSwitch extends StatelessWidget {
   final RxBool _value = RxBool(false);
   final TPSwitchController? controller;
 
-  TPSwitch({
-    super.key,
-    this.controller,
-  });
+  TPSwitch({super.key, this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -37,23 +31,23 @@ class TPSwitch extends StatelessWidget {
             value: controller?.value.value ?? _value.value,
             onChanged: switch (controller?.enable) {
               true => (value) {
-                  controller?.value.value = value;
-                  controller?.onChanged?.call(value);
-                },
+                controller?.value.value = value;
+                controller?.onChanged?.call(value);
+              },
               false => null,
               null => (value) => _value.value = value,
             },
             activeTrackColor: TPColors.primary500,
             inactiveTrackColor: TPColors.grayscale100,
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            trackOutlineColor: WidgetStateProperty.resolveWith(
-              (Set<WidgetState> states) {
-                if (states.contains(WidgetState.selected)) {
-                  return null;
-                }
-                return TPColors.grayscale200;
-              },
-            ),
+            trackOutlineColor: WidgetStateProperty.resolveWith((
+              Set<WidgetState> states,
+            ) {
+              if (states.contains(WidgetState.selected)) {
+                return null;
+              }
+              return TPColors.grayscale200;
+            }),
             thumbColor: WidgetStateProperty.resolveWith(
               (Set<WidgetState> states) => TPColors.white,
             ),

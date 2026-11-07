@@ -49,10 +49,7 @@ class TPTabView extends StatelessWidget {
                     }
                     return false;
                   },
-                  child: TabBarView(
-                    controller: controller,
-                    children: children,
-                  ),
+                  child: TabBarView(controller: controller, children: children),
                 ),
               ),
             ],
@@ -84,14 +81,12 @@ class _TPTabBar extends StatelessWidget {
         labelStyle: TPTextStyles.h3SemiBold,
         unselectedLabelColor: TPColors.grayscale700,
         unselectedLabelStyle: TPTextStyles.h3Regular,
-        tabs: titles.map(
-          (title) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: TPText(title),
-            );
-          },
-        ).toList(),
+        tabs: titles.map((title) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: TPText(title),
+          );
+        }).toList(),
       ),
     );
   }
