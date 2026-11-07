@@ -143,6 +143,12 @@ export const FEES = dataset(
 
 const named = z.object({ id: z.string(), name: z.string() });
 
+export const SUBSCRIPTIONS = dataset(
+  "/mock/subscription_list.json",
+  "市政訊息訂閱主題",
+  wrapped(z.object({ data: z.array(z.object({ id: z.string(), name: z.string(), description: z.string() })) })),
+);
+
 export const CITIZEN_REPORTS = dataset(
   "/mock/citizen_report.json",
   "陳情分類",
