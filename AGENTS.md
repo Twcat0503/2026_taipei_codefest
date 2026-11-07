@@ -41,6 +41,7 @@ fvm dart run build_runner build  # 產生 *.g.dart 與 flutter_gen asset 引用�
 fvm flutter devices              # 列出可用裝置（以 Android 為基準）
 fvm flutter run -d <device-id>   # 執行於 Android 裝置／模擬器
 fvm flutter analyze              # lint
+fvm dart format lib test         # 格式化（CI 會檢查格式）
 fvm flutter test                 # 全部測試
 fvm flutter test test/widget_test.dart   # 單一測試檔
 ```
@@ -138,7 +139,7 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 完整規範見 [CONTRIBUTING.md](CONTRIBUTING.md)，重點摘要：
 
 - 不在 `main` 直接開工；切 `feat/`、`fix/`、`docs/` 等 prefix 的 feature branch，經 PR 併入。
-- PR 需至少一人 review，由維護者 squash merge；合併前無 CI 門檻，但 PR 內文附自檢結果：Flutter 變更跑 `fvm flutter analyze` + `fvm flutter test`，`frontend/` 變更跑 `pnpm lint` + `pnpm test`。
+- PR 需 CI（`.github/workflows/ci.yml`）通過且至少一人 review，由維護者 squash merge；PR 內文附自檢結果：Flutter 變更跑 `fvm dart format lib test` + `fvm flutter analyze` + `fvm flutter test`，`frontend/` 變更跑 `pnpm lint` + `pnpm format:check` + `pnpm test` + `pnpm build`。
 - Commit message 用 Conventional Commits（英文，subject ≤72 字元、祈使句、無句號）；一個 commit／PR 一件事。
 - 生成檔（`*.g.dart`、`lib/gen/`）已被 gitignore、不進 commit；勿手動編輯，改來源後跑 `build_runner` 於本地產生。
 - API key 等機密不進 commit：`.env` 已 gitignore，key 名稱登記 `.env.example`，source code 不硬編碼。
