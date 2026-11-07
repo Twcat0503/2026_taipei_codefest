@@ -1245,6 +1245,43 @@ dd {
   height: 1.25rem;
 }
 
+/* 離開助手前的確認、緊急撥號、回答下方的選項 */
+.leave-confirm {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-radius: 1.25rem;
+  background: var(--pale);
+}
+.leave-confirm p {
+  font-weight: 600;
+}
+.emergency-card {
+  border: 2px solid #a1260d;
+}
+.emergency-call {
+  min-height: 56px;
+  border-color: #a1260d;
+  background: #a1260d;
+  font-size: 1.125rem;
+}
+.emergency-call:hover:not(:disabled) {
+  background: #801d0a;
+}
+.choices {
+  display: grid;
+  gap: 0.5rem;
+}
+.choices h2 {
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.choices-ask h2 {
+  color: var(--ink);
+  font-size: 1rem;
+}
+
 /* In-place feedback: no translating, lifting or scaling interactive controls. */
 button,
 a,

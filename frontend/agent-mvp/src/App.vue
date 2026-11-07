@@ -7,6 +7,18 @@ import PhoneModelPanel from './components/PhoneModelPanel.vue';
 import { PhoneModel, type PhoneState } from './agent/phone-model';
 import UiIcon from './components/UiIcon.vue';
 import NavigationPanel from './components/NavigationPanel.vue';
+import EmergencyCard from './components/EmergencyCard.vue';
+import ProfilePanel from './components/ProfilePanel.vue';
+import { followUps } from './agent/follow-ups';
+import { serviceOrigin } from './platform/service-navigation';
+import {
+  forgetWaterNumber,
+  formatWaterNumber,
+  loadProfile,
+  TAIPEI_DISTRICTS,
+  updateProfile,
+} from './platform/profile';
+import { readMember, type Member } from './platform/member';
 import WelcomePanel from './components/WelcomePanel.vue';
 import DisasterDemo from './components/DisasterDemo.vue';
 import VoiceWave from './components/VoiceWave.vue';
@@ -123,7 +135,44 @@ const toolClient =
         createAgentToolClient({ getLocation, includeDemo: toolSource === 'townpass-demo' }),
         billReadTool,
       );
+const realData = toolSource !== 'demo' && toolSource !== 'townpass-demo';
 let runner = new AgentRunner(adapter, state, toolClient);
+// 台北通會員資料：只在 App 內讀一次、只留在記憶體，供選項、草稿與「我的資料」使用。
+const memberInfo = ref<Member | null>(null);
+if (window.flutterObject) void readMember().then((m) => (memberInfo.value = m));
+// 民眾要求助手記住的資料（只存在這支手機）。
+const profile = ref(loadProfile());
+const homeDistrict = computed(() => profile.value.homeDistrict ?? memberInfo.value?.district);
+watch(
+  () => profile.value.preferAccessible,
+  (on) => (runner.preferences.accessible = Boolean(on)),
+  { immediate: true },
+);
+function setHomeDistrict(event: Event) {
+  updateProfile({ homeDistrict: (event.target as HTMLSelectElement).value || undefined });
+  profile.value = loadProfile();
+}
+function setPreferAccessible(event: Event) {
+  updateProfile({ preferAccessible: (event.target as HTMLInputElement).checked });
+  profile.value = loadProfile();
+}
+function forgetWater() {
+  forgetWaterNumber();
+  profile.value = loadProfile();
+}
+// 離開助手一律要第二次、明確的點選。
+const confirmingLink = ref<string | null>(null);
+const leftFor = ref(false);
+const hostOf = (url: string) => (url.startsWith('tel:') ? url.slice(4) : new URL(url).host);
+const leaveQuestion = (record: TaskState['records'][number]) =>
+  record.url?.startsWith(`${serviceOrigin}/`)
+    ? t.value.leaveAskApp.replace('{name}', record.title[locale.value])
+    : t.value.leaveAsk.replace('{host}', hostOf(record.url ?? ''));
+function goRecord(url: string) {
+  openLink(url);
+  leftFor.value = true;
+  confirmingLink.value = null;
+}
 // 示範（規則模擬）模式沒有真正的視覺模型；本機與手機模型才送照片。
 const canSeePhotos = computed(() => mode.value !== 'demo');
 const speechSupported = ref(canReadAloud());
@@ -137,7 +186,30 @@ const activeBook = computed(() =>
 const activeBranch = computed(() =>
   branches.find((branch) => branch.id === state.receipt?.branchId),
 );
-const reply = computed(() => t.value[state.notice]);
+// 真實資料模式的「不支援／沒有結果」要提到官方資料，不能暗示示範內容。
+const noticeText = (notice: TaskState['notice']) =>
+  realData && notice === 'unsupported'
+    ? t.value.unsupportedReal
+    : realData && notice === 'empty'
+      ? t.value.emptyReal
+      : t.value[notice];
+const reply = computed(() => noticeText(state.notice));
+// 回答下方的選項：補資料用的選擇題（行政區、帳單種類），或下一步建議。
+const choices = computed(() =>
+  busy.value || state.draft ? null : followUps(state, { homeDistrict: homeDistrict.value }),
+);
+const suggestions = computed(() =>
+  realData
+    ? [
+        t.value.toiletSuggestion,
+        t.value.parkingSuggestion,
+        t.value.petitionSuggestion,
+        t.value.paySuggestion,
+        t.value.counter,
+        t.value.disabledSuggestion,
+      ]
+    : [t.value.browseBooks, t.value.browseServices],
+);
 const inputDisabled = computed(
   () => busy.value || !!state.draft || (mode.value === 'phone' && !phoneState.value.ready),
 );
@@ -282,6 +354,7 @@ async function focusInput() {
   requestInput.value?.focus();
 }
 function openSettings() {
+  profile.value = loadProfile();
   const dialog = preferencesDialog.value;
   if (!dialog) return;
   dialog.inert = false;
@@ -340,7 +413,10 @@ async function submit(text = input.value, withPhoto = false) {
     startDisasterDemo();
     return;
   }
+  profile.value = loadProfile();
   disasterDemo.value = false;
+  confirmingLink.value = null;
+  leftFor.value = false;
   stopReading();
   speaking.value = false;
   voice.cancel();
@@ -478,6 +554,7 @@ async function applyConfig() {
             )
           : new DemoModel();
     runner = new AgentRunner(adapter, state, toolClient);
+    runner.preferences.accessible = Boolean(profile.value.preferAccessible);
     mode.value = selectedMode.value;
     configStatus.value = 'applied';
   } catch {
@@ -538,8 +615,12 @@ function speak() {
               `${record.title[locale.value]}. ${record.description?.[locale.value] ?? ''}`,
           ),
         ].join('。');
+  // 螢幕閱讀與朗讀的使用者也要聽得到選項。
+  const choiceText = choices.value
+    ? `${choices.value.prompt[locale.value]}：${choices.value.options.map((o) => o.label[locale.value]).join('、')}`
+    : '';
   readAloud(
-    `${reply.value} ${extra}`,
+    `${reply.value} ${extra} ${choiceText}`,
     locale.value,
     Number(rate.value),
     () => (speaking.value = false),
@@ -623,7 +704,7 @@ onBeforeUnmount(() => {
               </div>
               <article class="past-message" :aria-label="t.assistant">
                 <p v-if="turn.restored" class="small-note">{{ t.savedSummaryNote }}</p>
-                <p class="reply-bubble">{{ t[turn.notice] }}</p>
+                <p class="reply-bubble">{{ noticeText(turn.notice) }}</p>
                 <ul v-if="turn.books.length" class="plain-list">
                   <li v-for="book in turn.books" :key="book.id">
                     <strong>{{ book.title[locale] }}</strong
@@ -726,11 +807,45 @@ onBeforeUnmount(() => {
                         <dd>{{ field.value[locale] }}</dd></template
                       >
                     </dl>
-                    <button v-if="record.url" class="outline-button" @click="openLink(record.url)">
-                      {{ t.openPage }}
-                    </button>
+                    <template v-if="record.url">
+                      <div
+                        v-if="confirmingLink === record.id"
+                        class="leave-confirm"
+                        role="group"
+                        :aria-label="t.leaveTitle"
+                      >
+                        <p>{{ leaveQuestion(record) }}</p>
+                        <div class="action-row">
+                          <button class="primary-button" @click="goRecord(record.url)">
+                            {{ t.leaveGo }}
+                          </button>
+                          <button class="text-button" @click="confirmingLink = null">
+                            {{ t.leaveStay }}
+                          </button>
+                        </div>
+                      </div>
+                      <button v-else class="outline-button" @click="confirmingLink = record.id">
+                        {{
+                          record.url.startsWith('https://www.google.com/maps')
+                            ? t.openMap
+                            : t.openPage
+                        }}
+                      </button>
+                    </template>
                   </li>
                 </ul>
+                <ProfilePanel
+                  v-if="state.notice === 'profile'"
+                  :member="memberInfo"
+                  :profile="profile"
+                  :home-district="homeDistrict"
+                  :locale="locale"
+                />
+                <EmergencyCard
+                  v-if="state.notice === 'emergency' && state.emergency"
+                  :kind="state.emergency"
+                  :locale="locale"
+                />
                 <NavigationPanel
                   v-if="state.navigation"
                   :navigation="state.navigation"
@@ -806,6 +921,26 @@ onBeforeUnmount(() => {
                     <p class="small-note">{{ t.saved }}</p>
                   </section>
                 </Transition>
+                <section
+                  v-if="choices"
+                  class="choices"
+                  :class="{ 'choices-ask': choices.kind === 'choose' }"
+                  aria-labelledby="choices-title"
+                >
+                  <h2 id="choices-title">{{ choices.prompt[locale] }}</h2>
+                  <div class="recovery-options">
+                    <button
+                      v-for="choice in choices.options"
+                      :key="choice.request"
+                      class="outline-button"
+                      :disabled="inputDisabled"
+                      @click="submit(choice.request)"
+                    >
+                      {{ choice.label[locale] }}
+                    </button>
+                  </div>
+                </section>
+                <p v-if="leftFor" class="small-note" role="status">{{ t.leaveRequested }}</p>
                 <div
                   v-if="showSuggestions"
                   class="recovery-options"
@@ -813,18 +948,13 @@ onBeforeUnmount(() => {
                   :aria-label="t.quick"
                 >
                   <button
+                    v-for="suggestion in suggestions"
+                    :key="suggestion"
                     class="outline-button"
                     :disabled="inputDisabled"
-                    @click="submit(t.browseBooks)"
+                    @click="submit(suggestion)"
                   >
-                    {{ t.browseBooks }}
-                  </button>
-                  <button
-                    class="outline-button"
-                    :disabled="inputDisabled"
-                    @click="submit(t.browseServices)"
-                  >
-                    {{ t.browseServices }}
+                    {{ suggestion }}
                   </button>
                 </div>
                 <button v-if="speechSupported" class="text-button read-button" @click="speak">
@@ -1018,6 +1148,40 @@ onBeforeUnmount(() => {
             </select></label
           >
           <p v-else class="small-note">{{ t.speechUnavailable }}</p>
+        </section>
+        <section class="settings-section" aria-labelledby="remembered-title">
+          <h3 id="remembered-title">{{ t.rememberedTitle }}</h3>
+          <p v-if="!profile.waterNumber" class="small-note">{{ t.rememberedNone }}</p>
+          <div v-else class="action-row">
+            <span>{{ t.rememberedWater }} {{ formatWaterNumber(profile.waterNumber) }}</span>
+            <button class="text-button" @click="forgetWater">{{ t.rememberedDelete }}</button>
+          </div>
+          <label
+            >{{ t.fieldHome
+            }}<select
+              :value="profile.homeDistrict ?? ''"
+              :aria-label="t.fieldHome"
+              @change="setHomeDistrict"
+            >
+              <option value="">
+                {{
+                  memberInfo?.district
+                    ? `${t.homeFromMember}（${memberInfo.district}）`
+                    : t.homeUnset
+                }}
+              </option>
+              <option v-for="d in TAIPEI_DISTRICTS" :key="d" :value="d">{{ d }}</option>
+            </select></label
+          >
+          <label class="check"
+            ><input
+              type="checkbox"
+              :checked="profile.preferAccessible"
+              @change="setPreferAccessible"
+            />{{ t.fieldAccessible }}</label
+          >
+        </section>
+        <section class="settings-section">
           <button
             class="outline-button"
             :disabled="inputDisabled"
