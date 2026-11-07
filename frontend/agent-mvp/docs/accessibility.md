@@ -137,7 +137,7 @@ readAloud(
 - `finished`：朗讀結束，或被原生端中斷（`done`、`stopped`）。
 - `failed`：朗讀失敗、5 秒內沒有開始、或 bridge 無法送出。
 - 呼叫 `stopReading()` 之後，那一次朗讀的 callback 都不會再被呼叫，所以呼叫端自己要把 `speaking` 之類的狀態設回來。
-- `stopReading()` 在 App 內永遠會送出 `tts` stop（即使目前沒有朗讀），這樣頁面重新載入後也能停掉上一個頁面留下的朗讀。
+- `stopReading()` 在 App 內只有朗讀進行中才會送出 `tts` stop；沒在朗讀時不送任何 bridge 訊息（原生端每次開始朗讀前也會先停掉上一段）。
 
 ## 隱私：`screenReader`
 

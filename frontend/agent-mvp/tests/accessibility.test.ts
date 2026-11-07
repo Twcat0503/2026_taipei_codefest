@@ -378,12 +378,8 @@ describe('native text-to-speech lifecycle', () => {
     const { finished, failed } = callbacks();
     speech.readAloud('first', 'en', 1, finished, failed);
     speech.readAloud('second', 'en', 1, finished, failed);
-    expect(sent().map((message) => message.data.action)).toEqual([
-      'stop',
-      'speak',
-      'stop',
-      'speak',
-    ]);
+    // Nothing was being read before the first call, so only the second one needs a stop.
+    expect(sent().map((message) => message.data.action)).toEqual(['speak', 'stop', 'speak']);
     for (const stop of sent().filter((message) => message.data.action === 'stop'))
       expect(stop.data).toEqual({ requestId: expect.any(String), action: 'stop' });
   });
@@ -511,12 +507,10 @@ describe('native text-to-speech lifecycle', () => {
     expect(failed).not.toHaveBeenCalled();
   });
 
-  it('also stops speech that outlived a page reload when nothing is being read', async () => {
+  it('posts nothing to the bridge when stopReading is called while idle', async () => {
     const { speech, sent } = await setup();
     speech.stopReading();
-    expect(sent()).toEqual([
-      { name: 'tts', data: { requestId: expect.any(String), action: 'stop' } },
-    ]);
+    expect(sent()).toEqual([]);
   });
 
   it('fails right away when the bridge cannot be reached', async () => {

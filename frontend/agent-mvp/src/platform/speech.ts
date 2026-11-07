@@ -36,9 +36,13 @@ export function canReadAloud() {
   return hasNativeBridge() || hasBrowserSpeech();
 }
 export function stopReading() {
+  // Only an active native reading needs a stop. Posting one while idle would put unrelated
+  // traffic on the bridge, and the native side already stops before every new reading.
+  const reading = nativeReading !== undefined;
   forgetNativeReading();
-  if (hasNativeBridge()) sendNativeStop();
-  else if (typeof window !== 'undefined' && 'speechSynthesis' in window)
+  if (hasNativeBridge()) {
+    if (reading) sendNativeStop();
+  } else if (typeof window !== 'undefined' && 'speechSynthesis' in window)
     window.speechSynthesis.cancel();
 }
 export function readAloud(
