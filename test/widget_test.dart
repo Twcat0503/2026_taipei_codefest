@@ -31,7 +31,7 @@ void main() {
       expect(
         tester.getSemantics(find.bySemanticsLabel(RegExp('安心助手'))),
         matchesSemantics(
-          label: '安心助手，找服務、查圖書，一步一步完成，示範體驗・送出前由你確認',
+          label: '安心助手，找無障礙廁所與車位，帶你到官方服務，官方資料・離開前由你確認',
           isButton: true,
           hasTapAction: true,
         ),
@@ -42,6 +42,37 @@ void main() {
       expect(received?.forceTitle, '安心助手');
       expect(find.text('WebView route'), findsOneWidget);
       semantics.dispose();
+    },
+  );
+
+  testWidgets(
+    'A link opened from inside a WebView stacks a new WebView instead of being dropped',
+    (tester) async {
+      final opened = <String?>[];
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: const SizedBox.shrink(),
+          getPages: [
+            GetPage(
+              name: TPRoute.webView,
+              page: () {
+                opened.add((Get.arguments as WebViewArgument?)?.url);
+                return Scaffold(body: Text('page ${opened.length}'));
+              },
+            ),
+          ],
+        ),
+      );
+      TPRoute.openUri(uri: 'http://127.0.0.1:5173/');
+      await tester.pumpAndSettle();
+      // The assistant page asks the app to open an official site (open_link).
+      TPRoute.openUri(uri: 'https://pay.taipei/');
+      await tester.pumpAndSettle();
+      expect(opened, ['http://127.0.0.1:5173/', 'https://pay.taipei/']);
+      expect(find.text('page 2'), findsOneWidget);
+      Get.back();
+      await tester.pumpAndSettle();
+      expect(find.text('page 1'), findsOneWidget);
     },
   );
 

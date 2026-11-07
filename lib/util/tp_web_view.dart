@@ -8,7 +8,9 @@ import 'package:get/get.dart';
 import 'package:town_pass/gen/assets.gen.dart';
 import 'package:town_pass/util/tp_app_bar.dart';
 import 'package:town_pass/util/tp_colors.dart';
+import 'package:town_pass/util/tp_external_link.dart';
 import 'package:town_pass/util/web_message_handler/tp_web_message_listener.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class WebViewArgument {
   final String? url;
@@ -79,7 +81,28 @@ class TPWebView extends StatelessWidget {
               // flutter_inappwebview 預設會呼叫 setTextZoom(100)，把系統字級吃掉；
               // 這裡改傳系統字級，長輩放大字級時 WebView 內的網頁才會跟著放大。
               textZoom: _systemTextZoom(context),
+              useShouldOverrideUrlLoading: true,
             ),
+            // 網頁內點擊的 intent:// 等連結在這裡攔下。
+            shouldOverrideUrlLoading: (controller, action) async {
+              final WebUri? target = action.request.url;
+              if (target == null ||
+                  !action.isForMainFrame ||
+                  isWebScheme(target.scheme)) {
+                return NavigationActionPolicy.ALLOW;
+              }
+              await _handOff(controller, target);
+              return NavigationActionPolicy.CANCEL;
+            },
+            // 伺服器轉址（例如 Google 地圖在 WebView 裡轉成 intent://）不會經過上面，
+            // 只會以 ERR_UNKNOWN_URL_SCHEME 失敗，所以在這裡補接。
+            onReceivedError: (controller, request, error) async {
+              if (request.isForMainFrame == false ||
+                  isWebScheme(request.url.scheme)) {
+                return;
+              }
+              await _handOff(controller, request.url);
+            },
             onWebViewCreated: (controller) {
               webViewController.value = controller;
               try {
@@ -113,6 +136,27 @@ class TPWebView extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 把 WebView 開不了的連結交給系統（地圖 App、撥號等），再離開這次跳轉留下的頁面。
+Future<void> _handOff(InAppWebViewController controller, Uri link) async {
+  final Uri? target = externalTarget(link);
+  if (target != null) {
+    await launchUrl(target, mode: LaunchMode.externalApplication);
+  }
+  // 往回找第一個不屬於這次跳轉的網頁；退回 Google 的轉址頁會再被導走，形成迴圈。
+  final WebHistory? history = await controller.getCopyBackForwardList();
+  final List<WebHistoryItem> items = history?.list ?? [];
+  final int current = history?.currentIndex ?? -1;
+  for (int i = current; i >= 0 && i < items.length; i--) {
+    final WebUri? url = items[i].url;
+    if (url == null || !isWebScheme(url.scheme)) continue;
+    if (target != null && url.host == target.host) continue;
+    if (i != current) await controller.goBackOrForward(steps: i - current);
+    return;
+  }
+  // 這個頁面只是為了跳轉才開的：關掉它，回到原本的畫面。
+  Get.back();
 }
 
 /// 系統字級換算成 WebView 的 textZoom（百分比整數）。

@@ -73,7 +73,8 @@ class LaunchMapWebMessageHandler extends TPWebMessageHandler {
     onReply?.call(replyWebMessage(data: canLaunch));
 
     if (canLaunch) {
-      await launchUrl(uri);
+      // 地圖網址交給地圖 App（沒有時才開瀏覽器）；不在 App 內開，Google 地圖不支援 WebView。
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
 }

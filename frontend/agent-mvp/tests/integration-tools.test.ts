@@ -4,7 +4,7 @@ import { AgentRunner } from '../src/agent/runner';
 import { DemoModel } from '../src/agent/model';
 import { withDemoBills, type ToolClient } from '../src/agent/tool-client';
 import { billReadTool } from '../src/agent/skills/bills';
-import { initialState } from '../src/agent/types';
+import { initialState, type ToolRecord } from '../src/agent/types';
 
 const toilets = [
   {
@@ -18,6 +18,17 @@ const toilets = [
     type: '無障礙廁所',
   },
 ];
+/** Toilets now come from the official 環保局 snapshot, so assert properties, not fixture names. */
+const expectAccessibleDaanToilets = (records: ToolRecord[]) => {
+  expect(records.length).toBeGreaterThan(0);
+  for (const record of records) {
+    const fields = Object.fromEntries(
+      (record.fields ?? []).map((f) => [f.label['zh-Hant-TW'], f.value['zh-Hant-TW']]),
+    );
+    expect(fields['地址']).toContain('大安區');
+    expect(fields['無障礙廁座']).toMatch(/^[1-9]\d* 座$/);
+  }
+};
 const makeClient = () => {
   const fetchFn = vi.fn(
     async () =>
@@ -38,8 +49,9 @@ describe('integrated tools and bill harness', () => {
     await runner.run('大安區');
     expect(getLocation).toHaveBeenCalledOnce();
     expect(state.domain).toBe('places');
-    expect(state.records[0]?.title['zh-Hant-TW']).toBe('測試無障礙公廁');
+    expectAccessibleDaanToilets(state.records);
     expect(state.source?.kind).toBe('snapshot');
+    expect(state.source?.note).toContain('臺北市政府環境保護局');
     expect(state.pendingLocation).toBeNull();
   });
   it('allows switching to bills while a place request is awaiting clarification', async () => {
@@ -55,11 +67,11 @@ describe('integrated tools and bill harness', () => {
     expect(state.billResult?.source).toBe('demo');
     expect(state.records).toEqual([]);
   });
-  it('discovers the 16 teammate tools and bill fixture without replacing tools', async () => {
+  it('discovers the teammate tools and bill fixture without replacing tools', async () => {
     const { client } = makeClient();
     const { tools } = await client.listTools({ signal: new AbortController().signal });
-    expect(tools).toHaveLength(17);
-    expect(new Set(tools.map((t) => t.name)).size).toBe(17);
+    expect(tools).toHaveLength(18);
+    expect(new Set(tools.map((t) => t.name)).size).toBe(18);
   });
   it('separates general payment instructions from personal bill status', async () => {
     const state = initialState();
@@ -98,10 +110,10 @@ it('corrects a model routing an explicit toilet lookup to books and retains geog
   await new AgentRunner(model, state, client).run('大安區的無障礙廁所');
   expect(getLocation).not.toHaveBeenCalled();
   expect(state.domain).toBe('places');
-  expect(state.records[0]?.title['zh-Hant-TW']).toBe('測試無障礙公廁');
+  expectAccessibleDaanToilets(state.records);
   expect(
     state.traces.some(
-      (t) => t.detail.includes('"area":"大安區"') && t.detail.includes('"keyword":"無障礙"'),
+      (t) => t.detail.includes('"area":"大安區"') && t.detail.includes('"accessible":true'),
     ),
   ).toBe(true);
 });

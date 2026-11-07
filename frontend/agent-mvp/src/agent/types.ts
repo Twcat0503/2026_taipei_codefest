@@ -45,7 +45,7 @@ export type ToolRecord = {
 };
 /** Where the shown records came from. Always displayed so demo data is never mistaken for real data. */
 export type ResultSource = {
-  kind: 'demo' | 'snapshot' | 'live';
+  kind: 'demo' | 'snapshot' | 'live' | 'link';
   label: string;
   note: string;
   url: string;
@@ -54,6 +54,17 @@ export type ResultSource = {
 };
 export type ToolFailure = { code: string; message: string; hint?: string };
 export type Draft = { id: string; bookId: string; branchId: string };
+/** A verified official destination. Opening it always needs an explicit tap by the user. */
+export type Navigation = {
+  id: string;
+  title: Localized;
+  description?: Localized;
+  provider: string;
+  /** https URL or tel: number, taken only from the tool's allowlist. */
+  url: string;
+  /** Where it opens, e.g. 台北通「有話要說」 or a website host. */
+  where: string;
+};
 export type Receipt = Draft & { reference: string; createdAt: string; source: 'demo' };
 export type TaskState = {
   domain: Domain | null;
@@ -66,6 +77,7 @@ export type TaskState = {
   source: ResultSource | null;
   failure: ToolFailure | null;
   pendingLocation: { request: string } | null;
+  navigation: Navigation | null;
   draft: Draft | null;
   receipt: Receipt | null;
   notice:
@@ -81,6 +93,8 @@ export type TaskState = {
     | 'needLocation'
     | 'empty'
     | 'unsupported'
+    | 'navigate'
+    | 'navigationDeclined'
     | 'review'
     | 'receipt'
     | 'cancelled'
@@ -98,6 +112,7 @@ export const initialState = (): TaskState => ({
   source: null,
   failure: null,
   pendingLocation: null,
+  navigation: null,
   draft: null,
   receipt: null,
   notice: 'welcome',

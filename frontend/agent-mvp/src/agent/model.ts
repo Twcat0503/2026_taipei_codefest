@@ -1,3 +1,4 @@
+import { destinationFor } from './skills/navigation';
 import type { Message, ModelAdapter, ToolCall } from './types';
 
 export type CompletionProtocol = 'json-schema' | 'tools';
@@ -20,9 +21,19 @@ const toolSamples: Sample[] = [
   ['有什麼票券優惠', 'search_perks', { keyword: '', kind: 'ticket' }],
   ['附近的 YouBike', 'find_nearby_youbike', { near_me: true }],
   ['大安區 YouBike', 'find_nearby_youbike', { area: '大安區' }],
-  ['大安區的無障礙廁所', 'find_nearby_toilets', { area: '大安區', keyword: '無障礙' }],
+  ['大安區的無障礙廁所', 'find_nearby_toilets', { area: '大安區', accessible: true }],
   ['大安區的停車場', 'find_nearby_parking', { area: '大安區' }],
-  ['最近的無障礙廁所', 'find_nearby_toilets', { near_me: true, keyword: '無障礙' }],
+  ['最近的無障礙廁所', 'find_nearby_toilets', { near_me: true, accessible: true }],
+  ['附近有身障車位的停車場', 'find_nearby_parking', { near_me: true, accessible: true }],
+  [
+    '幫我找跟貓有關的書',
+    'open_official_service',
+    { destination: 'townpass_library', keyword: '貓' },
+  ],
+  ['我想申請身障補助', 'open_official_service', { destination: 'services_disabled' }],
+  ['路燈壞了要陳情', 'open_official_service', { destination: 'townpass_report' }],
+  ['我要繳水費', 'open_official_service', { destination: 'fee_water' }],
+  ['有哪些服務', 'list_townpass_services', {}],
 ];
 
 function structuredRequest(input: Parameters<ModelAdapter['complete']>[0], ollamaHints = true) {
@@ -173,11 +184,11 @@ export class DemoModel implements ModelAdapter {
           ? 'places'
           : /優惠|票券|景點|折價|coupon|ticket/.test(text)
             ? 'perks'
-            : /圖書|借書|找書|書籍|熱門書|排行|分館|book|library|一起慢慢走|把日子過簡單|巷口的那棵樹/.test(
+            : /圖書|借書|找書|書籍|的書|本書|熱門書|排行|分館|book|library|一起慢慢走|把日子過簡單|巷口的那棵樹/.test(
                   text,
                 )
               ? 'library'
-              : /服務|申辦|叫號|臨櫃|補助|諮詢|繳費|水費|停車費|地方稅|陳情|通報|災情|常見問題|登入|註冊|警政|訂閱|service|application|counter|welfare|faq/.test(
+              : /服務|申辦|申請|叫號|臨櫃|補助|諮詢|繳費|水費|停車費|地方稅|陳情|反映|路燈|通報|災情|常見問題|登入|註冊|警政|訂閱|懷孕|孕婦|長者|長輩|銀髮|身障|1999|打電話|service|application|counter|welfare|faq/.test(
                     text,
                   )
                 ? 'services'
@@ -208,6 +219,26 @@ export class DemoModel implements ModelAdapter {
       return {
         calls: [
           { id: 'demo-bill', name: 'select_bill_query', arguments: { category, period, action } },
+        ],
+      };
+    }
+    if (
+      names.includes('open_official_service') &&
+      names.every((name) => name === 'open_official_service' || name === 'list_townpass_services')
+    ) {
+      const ruled = destinationFor(request.original_request);
+      const destination = !ruled || ruled === 'catalog' ? 'townpass_library' : ruled;
+      const keyword = quoted ?? demoArguments('search_library_books', text, said, quoted).keyword;
+      return {
+        calls: [
+          {
+            id: 'demo-call',
+            name: 'open_official_service',
+            arguments: {
+              destination,
+              ...(destination === 'townpass_library' && keyword ? { keyword } : {}),
+            },
+          },
         ],
       };
     }
@@ -248,11 +279,10 @@ function demoArguments(
     return {
       ...(/附近|最近|nearby|nearest/.test(text) || !area ? { near_me: true } : {}),
       ...(area ? { area } : {}),
-      ...(name === 'find_nearby_toilets' && text.includes('無障礙')
-        ? { keyword: '無障礙' }
-        : quoted
-          ? { keyword: quoted }
-          : {}),
+      ...(/無障礙|身障|孕婦|輪椅/.test(text) && name !== 'find_nearby_youbike'
+        ? { accessible: true }
+        : {}),
+      ...(quoted ? { keyword: quoted } : {}),
     };
   if (name === 'search_perks') {
     const kind = /票券|ticket/.test(text)
