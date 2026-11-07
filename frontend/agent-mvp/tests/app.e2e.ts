@@ -604,6 +604,16 @@ test('haptic feedback follows live events only, never a restored conversation', 
   expect(await vibrations()).toEqual([warning]);
 });
 
+test('emergency call buttons come back with the saved summary after a reload', async ({ page }) => {
+  await chooseService(page, '有人昏倒了叫不醒');
+  await expect(page.getByRole('button', { name: '撥打 119（火災、救護車）' })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: '繼續目前的需求', exact: true }).click();
+  await expect(page.getByText('這是已保存的摘要，查詢結果未保存。')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '請立刻撥打 119 叫救護車。' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '撥打 119（火災、救護車）' })).toBeVisible();
+});
+
 test('haptic and voice feedback can be switched in settings and are remembered', async ({
   page,
 }) => {
@@ -743,6 +753,10 @@ test('voice feedback also reads the reply to a greeting and the emergency notice
   const [, emergency, ...more] = await spoken();
   expect(more).toEqual([]);
   expect(emergency.text).toContain(await reply.innerText());
+  // The call card is read too, so listeners hear which number to call and how.
+  expect(emergency.text).toContain('請先離開危險的地方，立刻撥打 119。');
+  expect(emergency.text).toContain('撥打 119（火災、救護車）');
+  expect(emergency.text).toContain('按下按鈕會打開撥號畫面，由你按下撥出。');
 });
 
 test('returning with a saved conversation starts on home with the voice button', async ({

@@ -8,6 +8,7 @@ import { PhoneModel, type PhoneState } from './agent/phone-model';
 import UiIcon from './components/UiIcon.vue';
 import NavigationPanel from './components/NavigationPanel.vue';
 import EmergencyCard from './components/EmergencyCard.vue';
+import { emergencyReadout, type EmergencyKind } from './agent/skills/emergency';
 import ProfilePanel from './components/ProfilePanel.vue';
 import { shouldReadAnswerAloud } from './agent/auto-read';
 import { followUps } from './agent/follow-ups';
@@ -286,6 +287,8 @@ type Turn = {
   bills: TaskState['billResult'];
   failure: TaskState['failure'];
   traces: TaskState['traces'];
+  /** Emergency turns keep their call buttons, also after a reload. */
+  emergency: EmergencyKind | null;
   reference?: string;
   receiptBook?: Localized;
 };
@@ -305,6 +308,7 @@ const turns = ref<Turn[]>(
     bills: null,
     failure: null,
     traces: [],
+    emergency: turn.emergency ?? null,
   })),
 );
 let nextTurnId = turns.value.length;
@@ -313,7 +317,7 @@ const conversationSaveFailed = ref(false);
 function persistConversation() {
   const current =
     lastRequest.value && state.notice !== 'welcome'
-      ? [{ request: lastRequest.value, notice: state.notice }]
+      ? [{ request: lastRequest.value, notice: state.notice, emergency: state.emergency }]
       : [];
   conversationSaveFailed.value = !saveConversation([...turns.value, ...current]);
 }
@@ -332,6 +336,7 @@ function archiveTurn() {
     bills: state.billResult,
     failure: state.failure,
     traces: state.traces,
+    emergency: state.notice === 'emergency' ? (state.emergency ?? 'general') : null,
     reference: state.receipt?.reference,
     receiptBook: finished ? activeBook.value?.title : undefined,
   });
@@ -757,26 +762,29 @@ function startReading() {
   stopReading();
   speechFailed.value = false;
   speaking.value = true;
-  const extra = state.draft
-    ? `${activeBook.value?.title[locale.value]}. ${branches.find((branch) => branch.id === state.draft?.branchId)?.name[locale.value]}. ${t.value.simulated}`
-    : state.receipt
-      ? `${activeBook.value?.title[locale.value]}. ${activeBranch.value?.name[locale.value]}. ${state.receipt.reference}`
-      : [
-          ...(state.billResult?.records.map(
-            (bill) =>
-              `${billCategories[bill.category].label[locale.value]}. ${bill.periodLabel}. ${bill.amount} TWD. ${t.value[`billStatus_${bill.status}`]}`,
-          ) ?? []),
-          ...shownBooks.value.map((book) => book.title[locale.value]),
-          ...(state.navigation
-            ? [
-                `${state.navigation.title[locale.value]}. ${state.navigation.description?.[locale.value] ?? ''}`,
-              ]
-            : []),
-          ...state.records.map(
-            (record) =>
-              `${record.title[locale.value]}. ${record.description?.[locale.value] ?? ''}`,
-          ),
-        ].join('。');
+  const extra =
+    state.emergency && state.notice === 'emergency'
+      ? emergencyReadout(state.emergency, t.value)
+      : state.draft
+        ? `${activeBook.value?.title[locale.value]}. ${branches.find((branch) => branch.id === state.draft?.branchId)?.name[locale.value]}. ${t.value.simulated}`
+        : state.receipt
+          ? `${activeBook.value?.title[locale.value]}. ${activeBranch.value?.name[locale.value]}. ${state.receipt.reference}`
+          : [
+              ...(state.billResult?.records.map(
+                (bill) =>
+                  `${billCategories[bill.category].label[locale.value]}. ${bill.periodLabel}. ${bill.amount} TWD. ${t.value[`billStatus_${bill.status}`]}`,
+              ) ?? []),
+              ...shownBooks.value.map((book) => book.title[locale.value]),
+              ...(state.navigation
+                ? [
+                    `${state.navigation.title[locale.value]}. ${state.navigation.description?.[locale.value] ?? ''}`,
+                  ]
+                : []),
+              ...state.records.map(
+                (record) =>
+                  `${record.title[locale.value]}. ${record.description?.[locale.value] ?? ''}`,
+              ),
+            ].join('。');
   // 螢幕閱讀與朗讀的使用者也要聽得到選項。
   const choiceText = choices.value
     ? `${choices.value.prompt[locale.value]}：${choices.value.options.map((o) => o.label[locale.value]).join('、')}`
@@ -883,6 +891,7 @@ onBeforeUnmount(() => {
               <article class="past-message" :aria-label="t.assistant">
                 <p v-if="turn.restored" class="small-note">{{ t.savedSummaryNote }}</p>
                 <p class="reply-bubble">{{ noticeText(turn.notice) }}</p>
+                <EmergencyCard v-if="turn.emergency" :kind="turn.emergency" :locale="locale" />
                 <ul v-if="turn.books.length" class="plain-list">
                   <li v-for="book in turn.books" :key="book.id">
                     <strong>{{ book.title[locale] }}</strong

@@ -1,6 +1,7 @@
 import { books, branches } from '../agent/catalog';
 import type { Draft, TaskState } from '../agent/types';
 import { messages } from '../i18n';
+import { isEmergencyKind, type EmergencyKind } from '../agent/skills/emergency';
 
 const key = 'townpass-agent-demo-v1';
 const conversationKey = 'townpass-agent-conversation-v1';
@@ -41,13 +42,20 @@ const safeNotices: TaskState['notice'][] = [
   'cancelled',
   'error',
 ];
-export type SavedTurn = { request: string; notice: TaskState['notice'] };
+export type SavedTurn = {
+  request: string;
+  notice: TaskState['notice'];
+  /** Kept so the call buttons come back with an emergency summary. */
+  emergency?: EmergencyKind | null;
+};
 export type RestoredTurn = {
   /** Dictionary key of a suggested request, so it follows the current language. */
   request: (typeof safeRequests)[number] | null;
   /** What the person typed or said, with identifiers masked. */
   text?: string;
   notice: TaskState['notice'];
+  /** Which call buttons to show again; only on emergency turns. */
+  emergency?: EmergencyKind;
 };
 const MASK = '＊＊＊';
 const MAX_TEXT = 200;
@@ -65,7 +73,7 @@ export function maskSensitive(text: string) {
 }
 export function saveConversation(turns: SavedTurn[]): boolean {
   try {
-    const safe = turns.map(({ request, notice }) => {
+    const safe = turns.map(({ request, notice, emergency }) => {
       const key =
         safeRequests.find((name) =>
           Object.values(messages).some((dictionary) => dictionary[name] === request),
@@ -75,6 +83,7 @@ export function saveConversation(turns: SavedTurn[]): boolean {
         request: key,
         ...(text ? { text } : {}),
         notice: safeNotices.includes(notice) ? notice : 'unsupported',
+        ...(notice === 'emergency' && isEmergencyKind(emergency) ? { emergency } : {}),
       };
     });
     localStorage.setItem(conversationKey, JSON.stringify(safe.slice(-100)));
@@ -89,10 +98,11 @@ export function restoreConversation(): RestoredTurn[] {
     if (!Array.isArray(data)) return [];
     return data.slice(-100).flatMap((entry: unknown) => {
       if (!entry || typeof entry !== 'object') return [];
-      const { request, text, notice } = entry as {
+      const { request, text, notice, emergency } = entry as {
         request?: unknown;
         text?: unknown;
         notice?: unknown;
+        emergency?: unknown;
       };
       if (typeof notice !== 'string' || !safeNotices.includes(notice as TaskState['notice']))
         return [];
@@ -107,6 +117,10 @@ export function restoreConversation(): RestoredTurn[] {
           request: requestKey,
           ...(saved ? { text: saved } : {}),
           notice: notice as TaskState['notice'],
+          // Older saves have no kind; the general lines still give every number.
+          ...(notice === 'emergency'
+            ? { emergency: isEmergencyKind(emergency) ? emergency : 'general' }
+            : {}),
         },
       ];
     });
