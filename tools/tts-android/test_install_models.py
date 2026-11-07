@@ -54,6 +54,9 @@ class LocalAdb:
         self.defer_transfers = False
         self.pending_transfers = []
         self.remote_write_conflict = False
+        # Remote cat exits 1 with EIO at the end of stdin: 'complete' after writing
+        # every byte (seen on a Pixel 10 Pro XL), 'short' after only a few bytes.
+        self.stdin_eio = None
 
     def __call__(self, argv, **kwargs):
         assert isinstance(argv, list), 'adb must use argv, not a local shell'
@@ -93,6 +96,10 @@ class LocalAdb:
                 # The remote shell cannot open the target, while exec-in may still exit 0.
                 staging = next((self.root / 'no_backup/tts').glob('.install-*'))
                 (staging / NAMES[0]).mkdir()
+            if self.stdin_eio is not None:
+                fake_cat = {'complete': 'cat() { command cat "$@"; return 1; }; ',
+                            'short': 'cat() { head -c 4; return 1; }; '}[self.stdin_eio]
+                command = command[:-1] + [fake_cat + command[-1]]
         if command and command[0] == 'sha256sum':
             if self.corrupt_upload:
                 path = next((self.root / 'no_backup/tts').glob('.install-*/' + NAMES[1]))
@@ -338,6 +345,27 @@ class InstallerTests(unittest.TestCase):
         self.assertFalse((self.device / 'no_backup/tts/models').exists())
         self.assertFalse(any('mv ' in script and ' no_backup/tts/models;' in script
                              for script in self.transport.scripts()))
+
+    def test_stdin_error_after_complete_write_still_installs(self):
+        self.require_shell()
+        self.transport.stdin_eio = 'complete'
+        self.assertEqual(self.install(), 0, self.stderr.getvalue())
+        destination = self.device / 'no_backup/tts/models'
+        self.assertEqual({path.name: path.read_bytes() for path in destination.iterdir()}, self.data)
+        self.assert_no_staging()
+
+    def test_stdin_error_with_short_write_is_rejected_at_once(self):
+        self.require_shell()
+        self.transport.stdin_eio = 'short'
+        started = time.monotonic()
+        self.assertEqual(self.install(), 1)
+        self.assertLess(time.monotonic() - started, 15)
+        self.assertIn('Transfer completion not confirmed for ' + NAMES[0], self.stderr.getvalue())
+        waits = [argv for argv, _ in self.transport.calls if 'while [ ! -f ' in argv[-1]]
+        self.assertEqual(len(waits), 1)
+        self.assertFalse(any('sha256sum' in argv for argv, _ in self.transport.calls))
+        self.assert_no_staging()
+        self.assertFalse((self.device / 'no_backup/tts/models').exists())
 
     def test_device_hash_mismatch_cleans_only_owned_staging(self):
         self.require_shell()
