@@ -323,6 +323,41 @@ ol {
 .navigation-card p {
   color: var(--ink);
 }
+.prefill {
+  display: grid;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: var(--pale);
+}
+.prefill input:not([type='checkbox']) {
+  width: 100%;
+  font-size: 1.125rem;
+  letter-spacing: 0.05em;
+}
+.field-error {
+  color: #a1260d;
+  font-weight: 600;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 48px;
+}
+.check input {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.remembered {
+  display: grid;
+  gap: 0.35rem;
+}
+.remembered h2 {
+  font-size: 1rem;
+  font-weight: 600;
+}
 .leave-confirm {
   display: grid;
   gap: 0.35rem;
@@ -380,6 +415,27 @@ ol {
 }
 .suggestions button:hover {
   background: var(--pale);
+}
+
+/* 回答下方的選項：補資料用的選擇題，或下一步建議 */
+.choices {
+  display: grid;
+  gap: 0.5rem;
+  width: 100%;
+}
+.choices h2 {
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.choices-ask h2 {
+  color: var(--ink);
+  font-size: 1rem;
+}
+.choices-ask .suggestions button {
+  border-color: var(--teal);
+  border-width: 2px;
+  font-weight: 600;
 }
 
 /* 輸入框 */

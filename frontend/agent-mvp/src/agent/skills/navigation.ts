@@ -8,6 +8,7 @@
 export const CATALOG_TOOL = 'list_townpass_services';
 export const DESTINATION_RULES: readonly [id: string, pattern: RegExp][] = [
   ['catalog', /有哪些服務|有什麼服務|服務清單|可以做什麼|能做什麼|what services/i],
+  ['townpass_places', /找地點|看地圖|地圖上|打開地圖|on the map|map/i],
   ['call_1999', /1999|打電話|撥電話|撥打|call/i],
   ['townpass_disaster', /災情|淹水|樹倒|土石流|disaster|flood/i],
   ['townpass_report', /陳情|檢舉|報修|反映|投訴|路燈|坑洞|噪音|違停|有話要說|petition|complain/i],

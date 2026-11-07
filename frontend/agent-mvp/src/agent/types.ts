@@ -78,6 +78,8 @@ export type TaskState = {
   failure: ToolFailure | null;
   pendingLocation: { request: string } | null;
   navigation: Navigation | null;
+  /** The last tool that produced this answer; drives the follow-up choices. */
+  lastTool: string | null;
   draft: Draft | null;
   receipt: Receipt | null;
   notice:
@@ -113,6 +115,7 @@ export const initialState = (): TaskState => ({
   failure: null,
   pendingLocation: null,
   navigation: null,
+  lastTool: null,
   draft: null,
   receipt: null,
   notice: 'welcome',

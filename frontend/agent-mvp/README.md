@@ -44,6 +44,19 @@ mise exec -- pnpm dev
 
 對話及 trace 只留記憶體；localStorage 只保留閱讀偏好與已驗證的示範預約草稿／回執，不保存帳單、位置或模型 key。內部路由與專家提示為英文，保留原始中文名稱；上游工具 schema／資料可能含中文。畫面只呈現工具資料，不呈現模型自由生成的完成宣告。
 
+## 替民眾帶入資料
+
+前往台北通站內服務時，已知的欄位會在開頁後自動填好，不用重新輸入（[`agent/prefill.ts`](src/agent/prefill.ts)）：
+
+- **水費**：第一次在確認卡輸入水號，勾選「記住」後存在這支手機（[`platform/profile.ts`](src/platform/profile.ts)），下次直接帶入；設定的「我記住的資料」可以刪除。
+- **國／社宅租金、平價住宅維護費、聯合醫院醫療費**：身分證字號每次從台北通會員資料（`userinfo` bridge）讀取，畫面遮罩顯示，不寫入儲存空間。
+
+App 端（`lib/util/tp_prefill.dart`）只在台北通站內網域、只填白名單欄位（`water_number`、`tax_id`），值限英數與連字號。用結構化欄位而不是向量式 RAG：號碼要精確、需要哪個欄位由目的地決定，也不增加手機記憶體負擔。
+
+## 壓力測試
+
+`pnpm stress:phone` 量測手機模型與完整流程的延遲、token 吞吐量，以及 App／模型行程的記憶體、CPU、溫度與電量；用法見 [`scripts/stress-phone.js`](scripts/stress-phone.js) 開頭說明。結果寫在 `stress-results/`（不進 git）。
+
 ## 手機聯調
 
 ```sh

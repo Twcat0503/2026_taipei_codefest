@@ -152,6 +152,19 @@ const zh = {
   leaveCall: '將撥打電話',
   leaveNote: '按下前往才會開啟。助手不會替你填寫或送出任何資料；關閉該頁可回到這裡。',
   leaveRequested: '已請手機開啟。若沒有出現，請再按一次；關閉該頁就會回到這裡。',
+  prefillWater: '將帶入水號',
+  prefillWaterChange: '改用其他水號',
+  prefillWaterAsk: '你的水號是？',
+  prefillWaterHint:
+    '在水費帳單上，共 10 碼，例如 1-23-456789-0。填了就會幫你帶入；也可以留空，到頁面再填。',
+  prefillWaterInvalid: '水號要是 10 碼數字，請再確認一次。',
+  prefillRemember: '記住這個水號（只存在這支手機）',
+  prefillIdNo: '將帶入身分證字號（台北通會員資料）',
+  prefillNoMember: '不在台北通 App 裡，無法帶入會員資料，請到頁面自行填寫。',
+  rememberedTitle: '我記住的資料',
+  rememberedNone: '目前沒有記住任何資料。',
+  rememberedWater: '水號',
+  rememberedDelete: '刪除',
 };
 const en: Record<keyof typeof zh, string> = {
   phoneTitle: 'AI on this phone',
@@ -321,5 +334,19 @@ const en: Record<keyof typeof zh, string> = {
     'Nothing opens until you tap Go. The assistant never fills in or submits anything; close that page to come back here.',
   leaveRequested:
     'Asked your phone to open it. If nothing appears, tap again; close that page to return here.',
+  prefillWater: 'Water account to fill in',
+  prefillWaterChange: 'Use another account',
+  prefillWaterAsk: 'What is your water account number?',
+  prefillWaterHint:
+    '10 digits on your water bill, e.g. 1-23-456789-0. It will be filled in for you, or leave it empty and type it on the page.',
+  prefillWaterInvalid: 'A water account number has 10 digits. Please check it.',
+  prefillRemember: 'Remember this number (on this phone only)',
+  prefillIdNo: 'ID number to fill in (Town Pass member data)',
+  prefillNoMember:
+    'Not inside the Town Pass app, so member data cannot be filled in. Please type it on the page.',
+  rememberedTitle: 'What I remember',
+  rememberedNone: 'Nothing is remembered.',
+  rememberedWater: 'Water account',
+  rememberedDelete: 'Delete',
 };
 export const messages: Record<Locale, typeof en> = { 'zh-Hant-TW': zh, en };

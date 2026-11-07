@@ -17,6 +17,7 @@ import {
   type TaskState,
 } from './agent/types';
 import { AgentRunner } from './agent/runner';
+import { followUps } from './agent/follow-ups';
 import { createAgentToolClient } from '../../../tools/townpass/src/agent-client';
 import { DemoModel, LocalModel } from './agent/model';
 import { cancelDraft, changeBranch, confirmReservation, prepareReservation } from './agent/tools';
@@ -24,6 +25,15 @@ import { clearTask, getPreference, restoreTask, saveTask, setPreference } from '
 import { canReadAloud, readAloud, stopReading } from './platform/speech';
 import { getLocation, openLink } from './platform/location';
 import { serviceOrigin } from './platform/service-navigation';
+import { PREFILL_SLOTS } from './agent/prefill';
+import {
+  forgetWaterNumber,
+  formatWaterNumber,
+  loadProfile,
+  normalizeWaterNumber,
+  rememberWaterNumber,
+} from './platform/profile';
+import { maskIdNo, readMember, type Member } from './platform/member';
 
 const locale = ref<Locale>(
   getPreference('tp-language', 'zh-Hant-TW') === 'en' ? 'en' : 'zh-Hant-TW',
@@ -126,8 +136,55 @@ const leaveQuestion = (record: TaskState['records'][number]) =>
   record.url?.startsWith(`${serviceOrigin}/`)
     ? t.value.leaveAskApp.replace('{name}', record.title[locale.value])
     : t.value.leaveAsk.replace('{host}', hostOf(record.url ?? ''));
-function go(url: string) {
-  openLink(url);
+// Details the assistant fills in for the destination, so people do not type them again.
+const profile = ref(loadProfile());
+const member = ref<Member | 'loading' | 'unavailable' | null>(null);
+const waterInput = ref('');
+const rememberWater = ref(true);
+const editingWater = ref(false);
+const waterError = ref(false);
+const slots = computed(() => (state.navigation ? (PREFILL_SLOTS[state.navigation.id] ?? []) : []));
+watch(
+  () => state.navigation?.id,
+  async () => {
+    waterInput.value = '';
+    editingWater.value = false;
+    waterError.value = false;
+    member.value = null;
+    if (!slots.value.some((slot) => slot.source === 'member')) return;
+    member.value = 'loading';
+    member.value = (await readMember()) ?? 'unavailable';
+  },
+);
+function goNavigation() {
+  if (!state.navigation) return;
+  const prefill: Record<string, string> = {};
+  for (const slot of slots.value) {
+    if (slot.field === 'water_number') {
+      const typed = waterInput.value.trim();
+      if (typed) {
+        const digits = normalizeWaterNumber(typed);
+        if (!digits) {
+          waterError.value = true;
+          return;
+        }
+        prefill.water_number = digits;
+        if (rememberWater.value) {
+          rememberWaterNumber(digits);
+          profile.value = loadProfile();
+        }
+      } else if (profile.value.waterNumber && !editingWater.value)
+        prefill.water_number = profile.value.waterNumber;
+    } else if (typeof member.value === 'object' && member.value) prefill.tax_id = member.value.idNo;
+  }
+  go(state.navigation.url, prefill);
+}
+function forgetWater() {
+  forgetWaterNumber();
+  profile.value = loadProfile();
+}
+function go(url: string, prefill?: Record<string, string>) {
+  openLink(url, prefill);
   leftFor.value = url;
   confirmingLink.value = null;
 }
@@ -141,6 +198,8 @@ function stay() {
 const inputDisabled = computed(
   () => busy.value || !!state.draft || (mode.value === 'phone' && !phoneState.value.ready),
 );
+// Tap-to-answer choices: missing details (district, bill type) or what to do next.
+const choices = computed(() => (busy.value || state.draft ? null : followUps(state)));
 const showSuggestions = computed(
   () =>
     !busy.value &&
@@ -369,8 +428,12 @@ function speak() {
               `${record.title[locale.value]}. ${record.description?.[locale.value] ?? ''}`,
           ),
         ].join('。');
+  // Screen-reader and TTS users hear the choices too, not just sighted users.
+  const choiceText = choices.value
+    ? `${choices.value.prompt[locale.value]}：${choices.value.options.map((o) => o.label[locale.value]).join('、')}`
+    : '';
   readAloud(
-    `${reply.value} ${extra}`,
+    `${reply.value} ${extra} ${choiceText}`,
     locale.value,
     Number(rate.value),
     () => (speaking.value = false),
@@ -433,6 +496,14 @@ onBeforeUnmount(() => {
           >
           <p v-else class="small-note">{{ t.speechUnavailable }}</p>
 
+          <section class="remembered" aria-labelledby="remembered-title">
+            <h2 id="remembered-title">{{ t.rememberedTitle }}</h2>
+            <p v-if="!profile.waterNumber" class="small-note">{{ t.rememberedNone }}</p>
+            <div v-else class="action-row">
+              <span>{{ t.rememberedWater }} {{ formatWaterNumber(profile.waterNumber) }}</span>
+              <button class="text-button" @click="forgetWater">{{ t.rememberedDelete }}</button>
+            </div>
+          </section>
           <details class="developer-panel">
             <summary>{{ t.developer }}</summary>
             <p>{{ mode === 'phone' ? t.phoneMode : mode === 'local' ? t.local : t.fixture }}</p>
@@ -609,9 +680,53 @@ onBeforeUnmount(() => {
             <dt>{{ state.navigation.url.startsWith('tel:') ? t.leaveCall : t.leaveSite }}</dt>
             <dd>{{ state.navigation.where }}</dd>
           </dl>
+          <div v-if="slots.length" class="prefill">
+            <template v-for="slot in slots" :key="slot.field">
+              <template v-if="slot.field === 'water_number'">
+                <template v-if="profile.waterNumber && !editingWater">
+                  <dl>
+                    <dt>{{ t.prefillWater }}</dt>
+                    <dd>{{ formatWaterNumber(profile.waterNumber) }}</dd>
+                  </dl>
+                  <button class="text-button" @click="editingWater = true">
+                    {{ t.prefillWaterChange }}
+                  </button>
+                </template>
+                <template v-else>
+                  <label class="field-label" for="water-number">{{ t.prefillWaterAsk }}</label>
+                  <p id="water-hint" class="small-note">{{ t.prefillWaterHint }}</p>
+                  <input
+                    id="water-number"
+                    v-model="waterInput"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    maxlength="14"
+                    aria-describedby="water-hint"
+                    :aria-invalid="waterError"
+                    @input="waterError = false"
+                  />
+                  <p v-if="waterError" role="alert" class="field-error">
+                    {{ t.prefillWaterInvalid }}
+                  </p>
+                  <label class="check"
+                    ><input v-model="rememberWater" type="checkbox" />{{ t.prefillRemember }}</label
+                  >
+                </template>
+              </template>
+              <template v-else>
+                <dl v-if="typeof member === 'object' && member">
+                  <dt>{{ t.prefillIdNo }}</dt>
+                  <dd>{{ maskIdNo(member.idNo) }}</dd>
+                </dl>
+                <p v-else-if="member === 'unavailable'" class="small-note">
+                  {{ t.prefillNoMember }}
+                </p>
+              </template>
+            </template>
+          </div>
           <p class="small-note">{{ state.source?.note || t.leaveNote }}</p>
           <div class="action-row">
-            <button class="primary-button" @click="go(state.navigation.url)">
+            <button class="primary-button" @click="goNavigation">
               {{ state.navigation.url.startsWith('tel:') ? t.leaveDial : t.leaveGo }}</button
             ><button class="text-button" @click="stay">{{ t.leaveStay }}</button>
           </div>
@@ -656,6 +771,24 @@ onBeforeUnmount(() => {
           <p class="small-note">{{ t.saved }}</p>
         </section>
 
+        <section
+          v-if="choices"
+          class="choices"
+          :class="{ 'choices-ask': choices.kind === 'choose' }"
+          aria-labelledby="choices-title"
+        >
+          <h2 id="choices-title">{{ choices.prompt[locale] }}</h2>
+          <div class="suggestions">
+            <button
+              v-for="choice in choices.options"
+              :key="choice.request"
+              :disabled="inputDisabled"
+              @click="submit(choice.request)"
+            >
+              {{ choice.label[locale] }}
+            </button>
+          </div>
+        </section>
         <div v-if="showSuggestions" class="suggestions" role="group" :aria-label="t.quick">
           <button
             v-for="suggestion in suggestions"

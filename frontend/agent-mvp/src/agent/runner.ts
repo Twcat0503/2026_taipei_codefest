@@ -104,6 +104,7 @@ export class AgentRunner {
     this.state.failure = null;
     this.state.pendingLocation = null;
     this.state.navigation = null;
+    this.state.lastTool = null;
     this.state.billResult = null;
     this.state.billQuery = null;
     this.state.pendingBillCategory = false;
@@ -167,6 +168,7 @@ export class AgentRunner {
     this.state.failure = null;
     this.state.pendingLocation = null;
     this.state.navigation = null;
+    this.state.lastTool = null;
     this.state.domain = null;
     this.state.receipt = null;
     this.state.bookIds = [];
@@ -234,6 +236,11 @@ export class AgentRunner {
         if (explicitPlace && domain !== 'places') {
           trace('router', 'corrected', 'Explicit place lookup must use the places tools.');
           domain = 'places';
+        }
+        // Opening Town Pass's own map is an in-app service, not another place lookup.
+        if (domain !== 'services' && destinationFor(request) === 'townpass_places') {
+          trace('router', 'corrected', 'Opening the Town Pass map is an in-app service.');
+          domain = 'services';
         }
         // Queue numbers are a service lookup, never a personal bill.
         if (domain === 'bills' && /叫號|臨櫃|號碼牌|櫃檯|queue|counter/i.test(request)) {
