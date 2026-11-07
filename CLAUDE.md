@@ -20,8 +20,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 測試與 lint 現況（2026-11-07 實測）
 
 - `fvm flutter test` 必定失敗：唯一的 `test/widget_test.dart` 是 Flutter 範本留下的 counter smoke test（找 `Icons.add` 與計數文字），沒先跑 `initServices()`，會在 `SharedPreferencesService.instance` 的 null check 失敗，與本 app 無關。
-- `fvm flutter analyze` 既有 25 個 issue（7 warning、18 info、無 error），exit code 為 1。
-- PR 自檢看到以上結果屬既有狀態，只需確認沒有新增的失敗或 issue。
+- `fvm flutter analyze` 無任何 issue（exit code 0），新改動應維持零 issue。
+- PR 自檢看到上述 test 失敗屬既有狀態，只需確認沒有新增的失敗。
 
 ## 競賽限制（來源：附件1_2026臺北秋季程式設計節選手須知手冊）
 
