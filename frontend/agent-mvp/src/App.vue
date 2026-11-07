@@ -904,7 +904,14 @@ onBeforeUnmount(() => {
                   </li>
                 </ul>
                 <section
-                  v-if="parkingSearch && state.domain === 'places' && !busy"
+                  v-if="
+                    parkingSearch &&
+                    state.domain === 'places' &&
+                    !busy &&
+                    (state.notice === 'results' ||
+                      state.notice === 'needLocation' ||
+                      (state.notice === 'empty' && !parkingSearch.area))
+                  "
                   class="parking-actions"
                   :aria-label="t.parkingActions"
                 >
