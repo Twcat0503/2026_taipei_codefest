@@ -845,6 +845,53 @@ const { values } = await fillFormGuarded(model, TOUR_FORM, 原話, {
   </section>
 
   <section>
+    <h2>填表以外：路由、緊急求助、附近設施</h2>
+    <p>
+      同樣的方法用在三個不是填表的功能上，題目一樣由沒看過程式的代理撰寫，數字是修改後再用新題目量的（手機
+      LFM3）。
+    </p>
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr>
+            <th>功能</th>
+            <th>修改前</th>
+            <th>修改後（手機）</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>緊急求助（抓到／誤判）</td>
+            <td class="n">10/35／5/25</td>
+            <td class="n"><strong>25/35／3/25</strong></td>
+          </tr>
+          <tr>
+            <td>帶到對的服務（路由）</td>
+            <td class="n">規則 38%</td>
+            <td class="n"><strong>60%</strong></td>
+          </tr>
+          <tr>
+            <td>附近無障礙設施（GPS）</td>
+            <td class="n">69%（第一批）</td>
+            <td class="n"><span class="pill good">91%</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <ul>
+      <li>
+        緊急求助：規則改用一般急救說法，並讓路由模型多一個「緊急」選項當兜底，不增加等待時間。手機上還會漏掉家暴、治安的換句話說，需要繼續補。
+      </li>
+      <li>路由：口語換句話說仍是最大弱點，繳費細項最容易錯。</li>
+      <li>
+        附近設施：沒說地點就用手機 GPS（實測精度約 15
+        公尺），地標換算成行政區，無障礙要原話有提才加。
+      </li>
+      <li>手機長時間跑推論時，鎖螢幕、切 App、畫面轉向或過熱都會讓系統停掉模型。</li>
+    </ul>
+  </section>
+
+  <section>
     <h2>還要注意的</h2>
     <div class="tbl">
       <table>

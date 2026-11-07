@@ -1,28 +1,28 @@
 {
-  "generatedAt": "2026-11-07T19:22:27.976Z",
+  "generatedAt": "2026-11-07T19:45:15.942Z",
   "set": "places2",
   "model": "lfm3-1.7b-q4_0",
   "host": "Pixel 10 Pro XL (phone)",
   "summary": [
     {
       "condition": "model",
-      "cases": 45,
-      "correct": 42.2,
-      "medianMs": 12,
-      "tool": 42.2,
-      "area": 86.7,
-      "near_me": 77.8,
-      "accessible": 86.7
+      "cases": 30,
+      "correct": 86.7,
+      "medianMs": 12488,
+      "tool": 90,
+      "area": 100,
+      "near_me": 93.3,
+      "accessible": 96.7
     },
     {
       "condition": "runner",
-      "cases": 45,
-      "correct": 42.2,
-      "medianMs": 12,
-      "tool": 42.2,
-      "area": 86.7,
-      "near_me": 77.8,
-      "accessible": 86.7
+      "cases": 30,
+      "correct": 86.7,
+      "medianMs": 12488,
+      "tool": 90,
+      "area": 100,
+      "near_me": 93.3,
+      "accessible": 96.7
     }
   ],
   "rows": [
@@ -787,19 +787,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_parking",
+        "area": "萬華區",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 6763
+      "correct": true,
+      "elapsedMs": 12273
     },
     {
       "condition": "runner",
@@ -812,19 +812,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_parking",
+        "area": "萬華區",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 6763
+      "correct": true,
+      "elapsedMs": 12273
     },
     {
       "condition": "model",
@@ -837,19 +837,19 @@
         "accessible": true
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_parking",
+        "area": "北投區",
         "near_me": false,
-        "accessible": false
+        "accessible": true
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": true,
-        "accessible": false
+        "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 15
+      "correct": true,
+      "elapsedMs": 12210
     },
     {
       "condition": "runner",
@@ -862,19 +862,19 @@
         "accessible": true
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_parking",
+        "area": "北投區",
         "near_me": false,
-        "accessible": false
+        "accessible": true
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": true,
-        "accessible": false
+        "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 15
+      "correct": true,
+      "elapsedMs": 12210
     },
     {
       "condition": "model",
@@ -887,19 +887,19 @@
         "accessible": true
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_parking",
+        "area": "中山區",
         "near_me": false,
-        "accessible": false
+        "accessible": true
       },
       "fields": {
-        "tool": false,
-        "area": false,
+        "tool": true,
+        "area": true,
         "near_me": true,
-        "accessible": false
+        "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 20
+      "correct": true,
+      "elapsedMs": 11588
     },
     {
       "condition": "runner",
@@ -912,19 +912,19 @@
         "accessible": true
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_parking",
+        "area": "中山區",
         "near_me": false,
-        "accessible": false
+        "accessible": true
       },
       "fields": {
-        "tool": false,
-        "area": false,
+        "tool": true,
+        "area": true,
         "near_me": true,
-        "accessible": false
+        "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 20
+      "correct": true,
+      "elapsedMs": 11588
     },
     {
       "condition": "model",
@@ -937,19 +937,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_parking",
         "area": "",
-        "near_me": false,
+        "near_me": true,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
-        "near_me": false,
+        "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 14
+      "correct": true,
+      "elapsedMs": 12488
     },
     {
       "condition": "runner",
@@ -962,19 +962,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_parking",
         "area": "",
-        "near_me": false,
+        "near_me": true,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
-        "near_me": false,
+        "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 14
+      "correct": true,
+      "elapsedMs": 12488
     },
     {
       "condition": "model",
@@ -987,19 +987,19 @@
         "accessible": true
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_parking",
         "area": "",
-        "near_me": false,
-        "accessible": false
+        "near_me": true,
+        "accessible": true
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
-        "near_me": false,
-        "accessible": false
+        "near_me": true,
+        "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 6
+      "correct": true,
+      "elapsedMs": 12497
     },
     {
       "condition": "runner",
@@ -1012,19 +1012,19 @@
         "accessible": true
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_parking",
         "area": "",
-        "near_me": false,
-        "accessible": false
+        "near_me": true,
+        "accessible": true
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
-        "near_me": false,
-        "accessible": false
+        "near_me": true,
+        "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 6
+      "correct": true,
+      "elapsedMs": 12497
     },
     {
       "condition": "model",
@@ -1037,19 +1037,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_parking",
         "area": "",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 7
+      "correct": true,
+      "elapsedMs": 17144
     },
     {
       "condition": "runner",
@@ -1062,19 +1062,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_parking",
         "area": "",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 7
+      "correct": true,
+      "elapsedMs": 17144
     },
     {
       "condition": "model",
@@ -1099,7 +1099,7 @@
         "accessible": false
       },
       "correct": false,
-      "elapsedMs": 7
+      "elapsedMs": 6115
     },
     {
       "condition": "runner",
@@ -1124,7 +1124,7 @@
         "accessible": false
       },
       "correct": false,
-      "elapsedMs": 7
+      "elapsedMs": 6115
     },
     {
       "condition": "model",
@@ -1137,19 +1137,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_parking",
+        "area": "南港區",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
-        "area": false,
+        "tool": true,
+        "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 9
+      "correct": true,
+      "elapsedMs": 13436
     },
     {
       "condition": "runner",
@@ -1162,19 +1162,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_parking",
+        "area": "南港區",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
-        "area": false,
+        "tool": true,
+        "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 9
+      "correct": true,
+      "elapsedMs": 13436
     },
     {
       "condition": "model",
@@ -1187,19 +1187,19 @@
         "accessible": true
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_parking",
+        "area": "大同區",
         "near_me": false,
-        "accessible": false
+        "accessible": true
       },
       "fields": {
-        "tool": false,
-        "area": false,
+        "tool": true,
+        "area": true,
         "near_me": true,
-        "accessible": false
+        "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 7
+      "correct": true,
+      "elapsedMs": 15358
     },
     {
       "condition": "runner",
@@ -1212,19 +1212,19 @@
         "accessible": true
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_parking",
+        "area": "大同區",
         "near_me": false,
-        "accessible": false
+        "accessible": true
       },
       "fields": {
-        "tool": false,
-        "area": false,
+        "tool": true,
+        "area": true,
         "near_me": true,
-        "accessible": false
+        "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 7
+      "correct": true,
+      "elapsedMs": 15358
     },
     {
       "condition": "model",
@@ -1237,19 +1237,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_parking",
         "area": "",
-        "near_me": false,
+        "near_me": true,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
-        "near_me": false,
+        "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 6
+      "correct": true,
+      "elapsedMs": 23348
     },
     {
       "condition": "runner",
@@ -1262,19 +1262,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_parking",
         "area": "",
-        "near_me": false,
+        "near_me": true,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
-        "near_me": false,
+        "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 6
+      "correct": true,
+      "elapsedMs": 23348
     },
     {
       "condition": "model",
@@ -1287,19 +1287,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_parking",
+        "area": "大安區",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 9
+      "correct": true,
+      "elapsedMs": 14039
     },
     {
       "condition": "runner",
@@ -1312,19 +1312,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_parking",
+        "area": "大安區",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 9
+      "correct": true,
+      "elapsedMs": 14039
     },
     {
       "condition": "model",
@@ -1337,19 +1337,19 @@
         "accessible": true
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_parking",
+        "area": "中山區",
         "near_me": false,
-        "accessible": false
+        "accessible": true
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": true,
-        "accessible": false
+        "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 10
+      "correct": true,
+      "elapsedMs": 15370
     },
     {
       "condition": "runner",
@@ -1362,19 +1362,19 @@
         "accessible": true
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_parking",
+        "area": "中山區",
         "near_me": false,
-        "accessible": false
+        "accessible": true
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": true,
-        "accessible": false
+        "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 10
+      "correct": true,
+      "elapsedMs": 15370
     },
     {
       "condition": "model",
@@ -1387,19 +1387,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_parking",
+        "area": "文山區",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 11
+      "correct": true,
+      "elapsedMs": 16628
     },
     {
       "condition": "runner",
@@ -1412,19 +1412,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_parking",
+        "area": "文山區",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 11
+      "correct": true,
+      "elapsedMs": 16628
     },
     {
       "condition": "model",
@@ -1437,19 +1437,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_parking",
         "area": "",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": false,
         "accessible": true
       },
       "correct": false,
-      "elapsedMs": 10
+      "elapsedMs": 15188
     },
     {
       "condition": "runner",
@@ -1462,19 +1462,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_parking",
         "area": "",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": false,
         "accessible": true
       },
       "correct": false,
-      "elapsedMs": 10
+      "elapsedMs": 15188
     },
     {
       "condition": "model",
@@ -1487,19 +1487,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_youbike",
         "area": "",
-        "near_me": false,
+        "near_me": true,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
-        "near_me": false,
+        "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 10
+      "correct": true,
+      "elapsedMs": 10318
     },
     {
       "condition": "runner",
@@ -1512,19 +1512,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_youbike",
         "area": "",
-        "near_me": false,
+        "near_me": true,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
-        "near_me": false,
+        "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 10
+      "correct": true,
+      "elapsedMs": 10318
     },
     {
       "condition": "model",
@@ -1537,19 +1537,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_youbike",
+        "area": "中正區",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 10
+      "correct": true,
+      "elapsedMs": 11351
     },
     {
       "condition": "runner",
@@ -1562,19 +1562,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_youbike",
+        "area": "中正區",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 10
+      "correct": true,
+      "elapsedMs": 11351
     },
     {
       "condition": "model",
@@ -1587,19 +1587,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_youbike",
+        "area": "信義區",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
-        "area": false,
+        "tool": true,
+        "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 11
+      "correct": true,
+      "elapsedMs": 14355
     },
     {
       "condition": "runner",
@@ -1612,19 +1612,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_youbike",
+        "area": "信義區",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
-        "area": false,
+        "tool": true,
+        "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 11
+      "correct": true,
+      "elapsedMs": 14355
     },
     {
       "condition": "model",
@@ -1637,19 +1637,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_youbike",
         "area": "",
-        "near_me": false,
+        "near_me": true,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
-        "near_me": false,
+        "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 10
+      "correct": true,
+      "elapsedMs": 10626
     },
     {
       "condition": "runner",
@@ -1662,19 +1662,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_youbike",
         "area": "",
-        "near_me": false,
+        "near_me": true,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
-        "near_me": false,
+        "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 10
+      "correct": true,
+      "elapsedMs": 10626
     },
     {
       "condition": "model",
@@ -1687,19 +1687,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_youbike",
         "area": "",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 10
+      "correct": true,
+      "elapsedMs": 11390
     },
     {
       "condition": "runner",
@@ -1712,19 +1712,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_youbike",
         "area": "",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 10
+      "correct": true,
+      "elapsedMs": 11390
     },
     {
       "condition": "model",
@@ -1737,19 +1737,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_youbike",
+        "area": "松山區",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
-        "area": false,
+        "tool": true,
+        "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 9
+      "correct": true,
+      "elapsedMs": 14933
     },
     {
       "condition": "runner",
@@ -1762,19 +1762,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_youbike",
+        "area": "松山區",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
-        "area": false,
+        "tool": true,
+        "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 9
+      "correct": true,
+      "elapsedMs": 14933
     },
     {
       "condition": "model",
@@ -1787,19 +1787,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_youbike",
+        "area": "大同區",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 11
+      "correct": true,
+      "elapsedMs": 13500
     },
     {
       "condition": "runner",
@@ -1812,19 +1812,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_youbike",
+        "area": "大同區",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 11
+      "correct": true,
+      "elapsedMs": 13500
     },
     {
       "condition": "model",
@@ -1837,19 +1837,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_youbike",
         "area": "",
-        "near_me": false,
+        "near_me": true,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
-        "near_me": false,
+        "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 9
+      "correct": true,
+      "elapsedMs": 11843
     },
     {
       "condition": "runner",
@@ -1862,19 +1862,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_youbike",
         "area": "",
-        "near_me": false,
+        "near_me": true,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
-        "near_me": false,
+        "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 9
+      "correct": true,
+      "elapsedMs": 11843
     },
     {
       "condition": "model",
@@ -1887,19 +1887,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_youbike",
         "area": "",
-        "near_me": false,
+        "near_me": true,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
-        "near_me": false,
+        "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 11
+      "correct": true,
+      "elapsedMs": 12026
     },
     {
       "condition": "runner",
@@ -1912,19 +1912,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_youbike",
         "area": "",
-        "near_me": false,
+        "near_me": true,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
-        "near_me": false,
+        "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 11
+      "correct": true,
+      "elapsedMs": 12026
     },
     {
       "condition": "model",
@@ -1937,19 +1937,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_youbike",
+        "area": "文山區",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 11
+      "correct": true,
+      "elapsedMs": 11429
     },
     {
       "condition": "runner",
@@ -1962,19 +1962,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_youbike",
+        "area": "文山區",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 11
+      "correct": true,
+      "elapsedMs": 11429
     },
     {
       "condition": "model",
@@ -1987,19 +1987,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_youbike",
         "area": "",
-        "near_me": false,
+        "near_me": true,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
-        "near_me": false,
+        "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 12
+      "correct": true,
+      "elapsedMs": 12390
     },
     {
       "condition": "runner",
@@ -2012,19 +2012,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_youbike",
         "area": "",
-        "near_me": false,
+        "near_me": true,
         "accessible": false
       },
       "fields": {
-        "tool": false,
+        "tool": true,
         "area": true,
-        "near_me": false,
+        "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 12
+      "correct": true,
+      "elapsedMs": 12390
     },
     {
       "condition": "model",
@@ -2037,19 +2037,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_youbike",
+        "area": "北投區",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
-        "area": false,
+        "tool": true,
+        "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 32
+      "correct": true,
+      "elapsedMs": 11854
     },
     {
       "condition": "runner",
@@ -2062,19 +2062,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
-        "area": "",
+        "tool": "find_nearby_youbike",
+        "area": "北投區",
         "near_me": false,
         "accessible": false
       },
       "fields": {
-        "tool": false,
-        "area": false,
+        "tool": true,
+        "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": false,
-      "elapsedMs": 32
+      "correct": true,
+      "elapsedMs": 11854
     },
     {
       "condition": "model",
@@ -2099,7 +2099,7 @@
         "accessible": true
       },
       "correct": true,
-      "elapsedMs": 11
+      "elapsedMs": 6383
     },
     {
       "condition": "runner",
@@ -2124,7 +2124,7 @@
         "accessible": true
       },
       "correct": true,
-      "elapsedMs": 11
+      "elapsedMs": 6383
     },
     {
       "condition": "model",
@@ -2149,7 +2149,7 @@
         "accessible": true
       },
       "correct": true,
-      "elapsedMs": 10
+      "elapsedMs": 7073
     },
     {
       "condition": "runner",
@@ -2174,7 +2174,7 @@
         "accessible": true
       },
       "correct": true,
-      "elapsedMs": 10
+      "elapsedMs": 7073
     },
     {
       "condition": "model",
@@ -2187,19 +2187,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_toilets",
         "area": "",
-        "near_me": false,
+        "near_me": true,
         "accessible": false
       },
       "fields": {
-        "tool": true,
+        "tool": false,
         "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": true,
-      "elapsedMs": 14
+      "correct": false,
+      "elapsedMs": 14117
     },
     {
       "condition": "runner",
@@ -2212,19 +2212,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_toilets",
         "area": "",
-        "near_me": false,
+        "near_me": true,
         "accessible": false
       },
       "fields": {
-        "tool": true,
+        "tool": false,
         "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": true,
-      "elapsedMs": 14
+      "correct": false,
+      "elapsedMs": 14117
     },
     {
       "condition": "model",
@@ -2237,19 +2237,19 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_youbike",
         "area": "",
-        "near_me": false,
+        "near_me": true,
         "accessible": false
       },
       "fields": {
-        "tool": true,
+        "tool": false,
         "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": true,
-      "elapsedMs": 14
+      "correct": false,
+      "elapsedMs": 14570
     },
     {
       "condition": "runner",
@@ -2262,19 +2262,20 @@
         "accessible": false
       },
       "got": {
-        "tool": "none",
+        "tool": "find_nearby_youbike",
         "area": "",
-        "near_me": false,
+        "near_me": true,
         "accessible": false
       },
       "fields": {
-        "tool": true,
+        "tool": false,
         "area": true,
         "near_me": true,
         "accessible": true
       },
-      "correct": true,
-      "elapsedMs": 14
+      "correct": false,
+      "elapsedMs": 14570
     }
-  ]
+  ],
+  "note": "first 15 cases from the run the phone cut short, the other 30 from a second run (FEATURE_EVAL_FROM=15)"
 }
