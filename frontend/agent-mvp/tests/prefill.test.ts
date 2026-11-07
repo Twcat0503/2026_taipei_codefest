@@ -19,7 +19,7 @@ describe('details filled in for people', () => {
 
   it('only fills fields the app also allows', () => {
     // Must match kPrefillFields in lib/util/tp_prefill.dart.
-    const allowed = new Set(['water_number', 'tax_id']);
+    const allowed = new Set(['water_number', 'tax_id', 'title', 'description', 'location']);
     for (const slots of Object.values(PREFILL_SLOTS))
       for (const slot of slots) expect(allowed.has(slot.field)).toBe(true);
   });

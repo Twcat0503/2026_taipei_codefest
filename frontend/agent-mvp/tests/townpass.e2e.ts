@@ -72,9 +72,13 @@ test('official toilets resume with district and in-app services ask before leavi
   await send(page, '路燈壞了我要陳情');
   await expect(page.getByRole('heading', { name: '有話要說' })).toBeVisible();
   await page.getByRole('button', { name: '前往', exact: true }).click();
+  // The report form opens with a draft built from what was said.
   expect(await posted(page)).toEqual({
     name: 'open_link',
-    data: 'https://taipei-pass-service.vercel.app/citizen-report/',
+    data: {
+      url: 'https://taipei-pass-service.vercel.app/citizen-report/form/R-99',
+      prefill: { title: '路燈故障', description: '路燈壞了' },
+    },
   });
   await expect(answer).toContainText('已請手機開啟');
 });
@@ -152,4 +156,38 @@ test('water fee asks for the account number once, then fills it in', async ({ pa
   await expect(page.locator('.remembered')).toContainText('1-23-456789-0');
   await page.getByRole('button', { name: '刪除', exact: true }).click();
   await expect(page.locator('.remembered')).toContainText('目前沒有記住任何資料');
+});
+
+test('a citizen report is drafted from what was said and opens the form filled in', async ({
+  page,
+}) => {
+  await stubBridge(page);
+  await send(page, '大安區和平東路二段100號前的路燈不亮好幾天了，我要陳情');
+  await expect(page.getByRole('heading', { name: '有話要說' })).toBeVisible();
+  await expect(page.getByLabel('案件主旨')).toHaveValue('路燈故障');
+  await expect(page.getByLabel(/描述/)).toHaveValue('大安區和平東路二段100號前的路燈不亮好幾天了');
+  await expect(page.getByLabel(/發生地點/)).toHaveValue('大安區和平東路二段100號前');
+  expect(
+    (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
+      .violations,
+  ).toEqual([]);
+
+  // People can correct the draft; a half-empty draft is caught before leaving.
+  await page.getByLabel('案件主旨').fill('');
+  await page.getByRole('button', { name: '前往', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('主旨和描述都要填');
+  expect(await posted(page)).toBeNull();
+  await page.getByLabel('案件主旨').fill('路燈不亮');
+  await page.getByRole('button', { name: '前往', exact: true }).click();
+  expect(await posted(page)).toEqual({
+    name: 'open_link',
+    data: {
+      url: 'https://taipei-pass-service.vercel.app/citizen-report/form/R-99',
+      prefill: {
+        title: '路燈不亮',
+        description: '大安區和平東路二段100號前的路燈不亮好幾天了',
+        location: '大安區和平東路二段100號前',
+      },
+    },
+  });
 });

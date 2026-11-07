@@ -177,6 +177,13 @@ const zh = {
   call110: '撥打 110（報警）',
   call113: '撥打 113（保護專線）',
   call1925: '撥打 1925（安心專線）',
+  draftIntro:
+    '我先幫你整理好了，可以直接修改。按「前往」會打開「有話要說」並填好，送出前你可以再檢查一次。',
+  draftTitle: '案件主旨',
+  draftDescription: '描述（發生什麼事、從什麼時候開始）',
+  draftLocation: '發生地點（選填）',
+  draftLocationHint: '例如：大安區和平東路二段 100 號前',
+  draftIncomplete: '主旨和描述都要填，或兩個都清空、到頁面再寫。',
 };
 const en: Record<keyof typeof zh, string> = {
   phoneTitle: 'AI on this phone',
@@ -373,5 +380,13 @@ const en: Record<keyof typeof zh, string> = {
   call110: 'Call 110 (police)',
   call113: 'Call 113 (protection hotline)',
   call1925: 'Call 1925 (support line)',
+  draftIntro:
+    'I drafted this for you; edit anything. Go opens the report form filled in, and you can check it again before sending.',
+  draftTitle: 'Subject',
+  draftDescription: 'Description (what happened, since when)',
+  draftLocation: 'Location (optional)',
+  draftLocationHint: 'e.g. in front of No. 100, Sec. 2, Heping E. Rd., Da’an',
+  draftIncomplete:
+    'Fill in both subject and description, or clear both and write them on the page.',
 };
 export const messages: Record<Locale, typeof en> = { 'zh-Hant-TW': zh, en };

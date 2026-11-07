@@ -50,8 +50,9 @@ mise exec -- pnpm dev
 
 - **水費**：第一次在確認卡輸入水號，勾選「記住」後存在這支手機（[`platform/profile.ts`](src/platform/profile.ts)），下次直接帶入；設定的「我記住的資料」可以刪除。
 - **國／社宅租金、平價住宅維護費、聯合醫院醫療費**：身分證字號每次從台北通會員資料（`userinfo` bridge）讀取，畫面遮罩顯示，不寫入儲存空間。
+- **陳情（有話要說）**：依民眾的原話整理主旨、描述與發生地點（[`skills/report-draft.ts`](src/agent/skills/report-draft.ts)，規則式、不另外推論，不編造沒說過的內容），在確認卡上可修改；前往時直接開「其他事項（自動選擇案件類別）」填寫頁並填好，送出仍由民眾按。
 
-App 端（`lib/util/tp_prefill.dart`）只在台北通站內網域、只填白名單欄位（`water_number`、`tax_id`），值限英數與連字號。用結構化欄位而不是向量式 RAG：號碼要精確、需要哪個欄位由目的地決定，也不增加手機記憶體負擔。
+App 端（`lib/util/tp_prefill.dart`）只在台北通站內網域、只填白名單欄位：號碼類（`water_number`、`tax_id`）限英數與連字號，文字類（`title`、`description`、`location`）限長度且不含控制字元；值一律以 JSON 資料嵌入，不會被當成程式執行。用結構化欄位而不是向量式 RAG：號碼要精確、需要哪個欄位由目的地決定，也不增加手機記憶體負擔。
 
 ## 壓力測試
 

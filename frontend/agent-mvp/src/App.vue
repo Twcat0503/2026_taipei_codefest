@@ -25,7 +25,8 @@ import { clearTask, getPreference, restoreTask, saveTask, setPreference } from '
 import { canReadAloud, readAloud, stopReading } from './platform/speech';
 import { getLocation, openLink } from './platform/location';
 import { serviceOrigin } from './platform/service-navigation';
-import { PREFILL_SLOTS } from './agent/prefill';
+import { PREFILL_FORM_PATH, PREFILL_SLOTS } from './agent/prefill';
+import { draftReport, type ReportDraft } from './agent/skills/report-draft';
 import {
   forgetWaterNumber,
   formatWaterNumber,
@@ -159,9 +160,19 @@ const rememberWater = ref(true);
 const editingWater = ref(false);
 const waterError = ref(false);
 const slots = computed(() => (state.navigation ? (PREFILL_SLOTS[state.navigation.id] ?? []) : []));
+const draft = reactive<ReportDraft>({ title: '', description: '', location: '' });
+const draftError = ref(false);
+// A new card (even for the same service) starts from the new request.
 watch(
-  () => state.navigation?.id,
+  () => state.navigation,
   async () => {
+    Object.assign(
+      draft,
+      slots.value.some((slot) => slot.source === 'draft')
+        ? draftReport(lastRequest.value)
+        : { title: '', description: '', location: '' },
+    );
+    draftError.value = false;
     waterInput.value = '';
     editingWater.value = false;
     waterError.value = false;
@@ -190,7 +201,22 @@ function goNavigation() {
         }
       } else if (profile.value.waterNumber && !editingWater.value)
         prefill.water_number = profile.value.waterNumber;
+    } else if (slot.source === 'draft') {
+      const value = draft[slot.field as keyof ReportDraft].trim();
+      if (value) prefill[slot.field] = value;
     } else if (typeof member.value === 'object' && member.value) prefill.tax_id = member.value.idNo;
+  }
+  const formPath = PREFILL_FORM_PATH[state.navigation.id];
+  if (formPath) {
+    // The form requires a subject and a description; an empty draft opens the category list.
+    if (Boolean(prefill.title) !== Boolean(prefill.description)) {
+      draftError.value = true;
+      return;
+    }
+    if (prefill.title) {
+      go(`${serviceOrigin}${formPath}`, prefill);
+      return;
+    }
   }
   go(state.navigation.url, prefill);
 }
@@ -713,7 +739,28 @@ onBeforeUnmount(() => {
             <dt>{{ state.navigation.url.startsWith('tel:') ? t.leaveCall : t.leaveSite }}</dt>
             <dd>{{ state.navigation.where }}</dd>
           </dl>
-          <div v-if="slots.length" class="prefill">
+          <div v-if="slots.some((slot) => slot.source === 'draft')" class="prefill">
+            <p class="field-label">{{ t.draftIntro }}</p>
+            <label class="field-label" for="draft-title">{{ t.draftTitle }}</label>
+            <input id="draft-title" v-model="draft.title" maxlength="40" autocomplete="off" />
+            <label class="field-label" for="draft-description">{{ t.draftDescription }}</label>
+            <textarea
+              id="draft-description"
+              v-model="draft.description"
+              maxlength="500"
+              rows="3"
+            ></textarea>
+            <label class="field-label" for="draft-location">{{ t.draftLocation }}</label>
+            <input
+              id="draft-location"
+              v-model="draft.location"
+              maxlength="100"
+              autocomplete="off"
+              :placeholder="t.draftLocationHint"
+            />
+            <p v-if="draftError" role="alert" class="field-error">{{ t.draftIncomplete }}</p>
+          </div>
+          <div v-else-if="slots.length" class="prefill">
             <template v-for="slot in slots" :key="slot.field">
               <template v-if="slot.field === 'water_number'">
                 <template v-if="profile.waterNumber && !editingWater">
