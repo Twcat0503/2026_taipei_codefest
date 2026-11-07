@@ -96,7 +96,7 @@ describe('Town Pass in-app services and official destinations in real mode', () 
     expect(state.billResult).toBeNull();
     expect(state.pendingBillCategory).toBe(false);
     expect(state.navigation?.id).toBe('fee');
-    expect(state.navigation?.url).toBe(townpass('/fee-payment/'));
+    expect(state.navigation?.url).toBe(townpass('/fee-payment/others/'));
   });
 
   it('lists in-app services as links without demo data', async () => {

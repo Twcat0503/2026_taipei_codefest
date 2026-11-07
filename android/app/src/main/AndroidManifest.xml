@@ -2,6 +2,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <!-- 本機 llama-server 子行程也需要 INTERNET 權限才能建立 loopback socket（與 WebView 網路存取相同）。 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <application
@@ -80,6 +81,10 @@
         <!-- If your application checks for inAppBrowserView launch mode support -->
         <intent>
             <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
+        <!-- Required by flutter_tts on Android 11+: without it the TTS engine is invisible and speech is silent -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
     </queries>
 </manifest>

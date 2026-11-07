@@ -90,7 +90,7 @@ class TPWebView extends StatelessWidget {
             initialSettings: InAppWebViewSettings(
               // flutter_inappwebview 預設會呼叫 setTextZoom(100)，把系統字級吃掉；
               // 這裡改傳系統字級，長輩放大字級時 WebView 內的網頁才會跟著放大。
-              textZoom: _systemTextZoom(context),
+              textZoom: webViewTextZoom(MediaQuery.textScalerOf(context)),
               useShouldOverrideUrlLoading: true,
             ),
             // 網頁內點擊的 intent:// 等連結在這裡攔下。
@@ -179,11 +179,17 @@ Future<void> _handOff(InAppWebViewController controller, Uri link) async {
   Get.back();
 }
 
-/// 系統字級換算成 WebView 的 textZoom（百分比整數）。
-int _systemTextZoom(BuildContext context) {
-  final double zoom = MediaQuery.textScalerOf(context).scale(100);
-  return zoom.clamp(100, 300).round();
-}
+/// 系統字級換算成 WebView 的 textZoom（百分比整數，限制在 100～300）。
+///
+/// 以 16 為基準字級（CSS 預設的 body 字級 16px）取 `scaler.scale(16) / 16`。
+/// 不能用 `scale(100)`：Android 14+ 的非線性字級表在 100sp 時固定對應 100dp，
+/// 在任何系統字級下結果都約是 100%；而 app 一旦呼叫 setTextZoom，WebView 就不會
+/// 再自己跟隨系統字級，網頁就完全不會放大。
+/// 呼叫端仍須以 `MediaQuery.textScalerOf(context)` 取得 [scaler]，系統字級改變時
+/// 才會觸發 rebuild。
+@visibleForTesting
+int webViewTextZoom(TextScaler scaler) =>
+    (scaler.scale(16) / 16 * 100).round().clamp(100, 300);
 
 /// 使用者在 app 開著時調整系統字級，也要即時同步到 WebView。
 class _TextZoomSync extends StatefulWidget {
@@ -200,7 +206,7 @@ class _TextZoomSyncState extends State<_TextZoomSync> {
 
   @override
   Widget build(BuildContext context) {
-    final int zoom = _systemTextZoom(context);
+    final int zoom = webViewTextZoom(MediaQuery.textScalerOf(context));
     if (_applied != zoom && widget.controller != null) {
       _applied = zoom;
       // build 期間不可改動原生設定，排到下一幀

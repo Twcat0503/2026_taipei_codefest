@@ -118,6 +118,13 @@ const bookRecord = (book: { id: string; book_name: string; author: string; subje
   url: httpsOnly(book.page_url),
 });
 
+/**
+ * A fee type payable only by scanning has no page of its own to open: its detail page redirects straight to
+ * the in-app scan flow, which renders blank outside the app.
+ */
+const scanOnly = (methods: { name: string }[]) => methods.length > 0 && methods.every((method) => method.name.includes("掃描"));
+const SCAN_ONLY_HINT = "只能掃描繳費單，請在台北通 App 使用「掃碼繳費」";
+
 export const AGENT_TOOLS = [
   define({
     name: "list_townpass_services",
@@ -265,8 +272,9 @@ export const AGENT_TOOLS = [
         fields: fields({
           查繳方式: f.lookup_methods.map((m) => m.name).join("、"),
           需要欄位: [...new Set(f.lookup_methods.flatMap((m) => m.fields.map((x) => x.label)))].join("、"),
+          繳費方式: scanOnly(f.lookup_methods) ? SCAN_ONLY_HINT : undefined,
         }),
-        url: httpsOnly(f.page_url),
+        url: scanOnly(f.lookup_methods) ? undefined : httpsOnly(f.page_url),
       })),
   }),
   define({

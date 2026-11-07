@@ -26,6 +26,25 @@ const COUNTERS_FIXTURE = {
     },
   ],
 };
+const FEES_FIXTURE = {
+  data: [
+    {
+      name: "規費",
+      data: [
+        {
+          id: "fee-6",
+          name: "水費",
+          is_hot: true,
+          search_type_list: [
+            { name: "輸入資料", type: "form", form_format: [{ label: "水號", required: true }] },
+            { name: "掃描", type: "scan" },
+          ],
+        },
+      ],
+    },
+    { name: "稅費", data: [{ id: "tax-1", name: "地方稅", is_hot: false, search_type_list: [{ name: "掃描", type: "scan" }] }] },
+  ],
+};
 const youbike = (sno: string, act: string, lat: number) => ({
   sno, sna: `站${sno}`, sarea: "大安區", ar: "路", act, updateTime: "2026-11-07 13:00:00", Quantity: 10,
   available_rent_bikes: 4, available_return_bikes: 6, latitude: lat, longitude: 121.5,
@@ -36,6 +55,7 @@ const ROUTES: Record<string, unknown> = {
   ],
   [`${BASE}/mock/library/library_book_list.json`]: { data: [book("b1", "神奇柑仔店"), book("b2", "底層邏輯")] },
   [`${BASE}/mock/counter_list.json`]: COUNTERS_FIXTURE,
+  [`${BASE}/mock/fee-payment/fee_payment_list.json`]: FEES_FIXTURE,
   [`${BASE}/mock/subscription_list.json`]: { data: { submit_target: {}, data: [{ id: "sub-3", name: "交通措施", is_subscribed: true, description: "交通管制訊息" }] } },
   [`${BASE}/mock/service_list.json`]: {
     data: [
@@ -112,6 +132,22 @@ describe("createAgentToolClient", () => {
     expect(office.title["zh-Hant-TW"]).toBe("萬華區戶政事務所");
     expect(office.fields.map((f: { label: { en: string } }) => f.label.en)).toEqual(["類別", "地址", "電話", "櫃檯"]);
     expect(office.fields[3].value.en).toContain("0379");
+  });
+
+  it("只能掃描的繳費項目不附詳細頁連結而提示用 App 掃碼繳費，其餘項目保留連結", async () => {
+    const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch });
+    const result = await client.callTool({ name: "search_fee_types", arguments: {} }, { signal: signal() });
+    const { records } = parse(result);
+    const labels = (record: { fields: { label: { en: string } }[] }) => record.fields.map((f) => f.label.en);
+
+    const scanOnly = records.find((r: { id: string }) => r.id === "tax-1");
+    expect(scanOnly).not.toHaveProperty("url");
+    expect(labels(scanOnly)).toEqual(["查繳方式", "繳費方式"]);
+    expect(scanOnly.fields[1].value.en).toContain("掃碼繳費");
+
+    const mixed = records.find((r: { id: string }) => r.id === "fee-6");
+    expect(mixed.url).toBe(`${BASE}/fee-payment/detail/fee-6/`);
+    expect(labels(mixed)).toEqual(["查繳方式", "需要欄位"]);
   });
 
   it("附近查詢用呼叫端的定位，拿不到時回 LOCATION_UNAVAILABLE", async () => {

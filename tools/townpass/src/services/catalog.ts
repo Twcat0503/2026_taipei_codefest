@@ -17,7 +17,7 @@ export const CATALOG: readonly CatalogEntry[] = [
   { id: "counter", title: "臨櫃叫號", path: "/counter-calling/", mode: "query", tools: ["search_service_counters"] },
   { id: "faq", title: "常見問題", path: "/qna", mode: "query", tools: ["search_faq"] },
   { id: "application", title: "申辦服務", path: "/", mode: "query", tools: ["search_application_services"], note: "只查項目，不送出申辦。" },
-  { id: "fee", title: "繳費項目", path: "/fee-payment/", mode: "query", tools: ["search_fee_types"], note: "只查項目與所需欄位，不查帳單也不付款。「其他繳費」頁列出的是同一批項目。" },
+  { id: "fee", title: "繳費項目", path: "/fee-payment/others/", mode: "query", tools: ["search_fee_types"], note: "只查項目與所需欄位，不查帳單也不付款。「其他繳費」頁列出的是同一批項目。" },
   { id: "fee_scan", title: "掃碼繳費", path: "/fee-payment/scan/", mode: "link_only", tools: [], note: `需要相機掃描帳單條碼並付款。${WRITE_NOTE}` },
   { id: "citizen_report", title: "有話要說", path: "/citizen-report/", mode: "query", tools: ["list_report_categories"], note: "只查分類，不送出陳情。" },
   { id: "disaster_report", title: "災情通報", path: "/disaster-report", mode: "query", tools: ["list_report_categories"], note: "只查分類，不送出通報。緊急情況請撥打 119 或 110。" },

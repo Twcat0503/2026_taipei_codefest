@@ -106,7 +106,7 @@ export const DESTINATIONS: readonly Destination[] = [
     path: "/qna",
   },
   // 繳費：和 App「帳務」頁的入口相同。
-  { id: "fee", title: "繳費", description: "選擇繳費項目，輸入或掃描繳費單資料。", provider: TOWNPASS, path: "/fee-payment/" },
+  { id: "fee", title: "繳費", description: "選擇繳費項目，輸入或掃描繳費單資料。", provider: TOWNPASS, path: "/fee-payment/others/" },
   { id: "fee_parking", title: "繳停車費", description: "查詢並繳納停車費。", provider: TOWNPASS, path: "/fee-payment/detail/fee-5/" },
   { id: "fee_water", title: "繳水費", description: "輸入水號查詢並繳納水費。", provider: TOWNPASS, path: "/fee-payment/detail/fee-6/" },
   { id: "fee_tax", title: "繳地方稅", description: "查詢並繳納地方稅。", provider: TOWNPASS, path: "/fee-payment/detail/tax-1/" },

@@ -2,6 +2,8 @@
 
 Vue agent、聊天介面與 Android 手機模型已整合。工具透過 `ToolClient` 直接呼叫，**App 預設只用真實資料**：YouBike 即時資料、停管處停車場資料（含身障、孕婦車位）、環保局公廁資料（含無障礙、親子廁座與照護床），以及官方服務入口。要辦的事會帶到**台北通站內的微服務**（有話要說、繳費、臨櫃叫號、圖書借閱、訂閱、報案、優惠等，和 App 服務頁開的是同一組頁面）；台北通沒有對應服務的才導到官方網站（台北服務通的身障／孕婦／長者服務、1999）。助手會顯示要去哪裡，**使用者按「前往」才離開**；站內頁面的示範資料會照實標示，不會拿來當回答。
 
+無障礙基礎層（螢幕閱讀器播報、震動回饋、App 內朗讀、系統無障礙設定）見 [無障礙文件](docs/accessibility.md)，介面設計完成後呼叫 `feedback()` 即可。
+
 ## 啟動
 
 ```sh
@@ -84,6 +86,6 @@ mise exec -- pnpm test:e2e
 
 E2E 使用獨立埠，不共用開發伺服器。手機 adapter 有橋接、授權、取消與逾時測試；CI 保留 Flutter 測試及 APK 建置。歷史 Qwen 評測 JSON 保留在 docs，僅為當時回歸紀錄，不代表新增工具的手機模型準確率。
 
-限制：個人帳務／登入／付款／真實預約未接入，改帶使用者到官方網站自行操作；停車場官方資料的剩餘車位已停更，只顯示格位總數；公廁為官方資料的日期快照（重跑 `tools/townpass/scripts/fetch-official-toilets.mjs` 更新）。Vue 尚未串接原生 TTS，App 內需使用 TalkBack；自動 axe 通過不等於完整無障礙認證，TalkBack 與持續耗電／熱測試仍待進行。
+限制：個人帳務／登入／付款／真實預約未接入，改帶使用者到官方網站自行操作；停車場官方資料的剩餘車位已停更，只顯示格位總數；公廁為官方資料的日期快照（重跑 `tools/townpass/scripts/fetch-official-toilets.mjs` 更新）。App 內朗讀已改走原生 `tts` bridge（尚待實機驗證）；自動 axe 通過不等於完整無障礙認證，TalkBack 與持續耗電／熱測試仍待進行。
 
 詳細契約見 [API 盤點](docs/api-status.md)、[帳單 skill](docs/skills/bills.md)、[UI 交接](docs/ui-ux-handoff.md)。
