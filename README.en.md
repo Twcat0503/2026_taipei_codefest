@@ -3,7 +3,7 @@
 # 用得了 · Town Pass Care Assistant
 
 Find accessible facilities and get to Taipei city services with what the app already knows, by typing one sentence or tapping a suggestion inside the Town Pass app.<br>
-Built for the 2026 Taipei Autumn Codefest, theme "用不了" (*"I can't use it"*).
+For everyone who finds city services "用不了" (*"I can't use it"*), so they can say "用得了" (*"I can use it"*).
 
 [![CI](https://github.com/Twcat0503/2026_taipei_codefest/actions/workflows/ci.yml/badge.svg)](https://github.com/Twcat0503/2026_taipei_codefest/actions/workflows/ci.yml)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
@@ -37,7 +37,7 @@ The **Care Assistant** lives inside the Town Pass app (Taipei's city app). Peopl
 - **Find places**: accessible toilets, parking with disabled or pregnancy priority spaces, and live YouBike availability, near the current location or in a chosen district; every lookup shows its data source and time.
 - **Get things done**: Town Pass services such as bill payment, city reports, police reports and counter queue numbers. Leaving the assistant always asks for confirmation; known fields are filled in, and a city report is drafted from the person's own words as an editable draft that never adds details they did not say.
 - **Emergency help**: emergencies skip the model and show call buttons for 119, 110, 113 and 1925 straight away.
-- **On-device AI**: the LFM3 1.7B language model runs on Android as a native child process, with optional whisper.cpp speech recognition and BlueMagpie speech synthesis. All three listen on loopback only, and no model ships with the app.
+- **On-device AI**: the LFM3-VL-2B multimodal language model runs on Android as a native child process, with optional whisper.cpp speech recognition and BlueMagpie speech synthesis. All three listen on loopback only, and no model ships with the app.
 - **Privacy**: location is only used to compute distances and never sent to the model; national ID numbers are read from the member profile each time, shown masked, and never stored.
 
 ## Architecture
@@ -65,7 +65,7 @@ flowchart LR
 | App | Town Pass Flutter app, `TPWebView`, JS bridge (read-aloud, haptics, accessibility state, form prefill), TalkBack and system font size fixes | `lib/`, `android/` |
 | Care Assistant | Vue 3 web app: routing and skills, tap-to-answer choices, city report drafts, emergency calls, accessibility layer | `frontend/agent-mvp/` |
 | Tools | Wraps Town Pass services and open data as read-only tools, with timeouts, caching and validation in the data layer | `tools/townpass/` |
-| On-device AI | Build and model tooling for LFM3 1.7B (llama.cpp), whisper.cpp ASR and BlueMagpie TTS | `tools/llm-android/`, `tools/asr-android/`, `tools/tts-android/` |
+| On-device AI | Build and model tooling for LFM3-VL-2B (llama.cpp), whisper.cpp ASR and BlueMagpie TTS | `tools/llm-android/`, `tools/asr-android/`, `tools/tts-android/` |
 | Service template | Snapshot of TownPass-Services, kept for reference | `frontend/` |
 
 ## Tech stack
@@ -75,7 +75,7 @@ flowchart LR
 | App | Flutter 3.47.6 (FVM), GetX, flutter_inappwebview, flutter_tts |
 | Web | Vue 3, Vite, TypeScript |
 | Tools | TypeScript read-only tools (direct function calls), zod |
-| On-device AI | llama.cpp (LFM3 1.7B), whisper.cpp, BlueMagpie-TTS, all as Android native child processes |
+| On-device AI | llama.cpp (LFM3-VL-2B), whisper.cpp, BlueMagpie-TTS, all as Android native child processes |
 | Quality | ESLint, Prettier, Vitest, Playwright with axe (WCAG 2.1 AA scans), `dart format`, `flutter analyze`, `flutter test`, GitHub Actions |
 
 ## Getting started
@@ -112,9 +112,9 @@ The Care Assistant entry on the app's home screen opens the assistant. The on-de
 
 | Scope | Commands | Status |
 | --- | --- | --- |
-| Flutter | `fvm flutter analyze`, `fvm flutter test` | no issues; 190 tests pass |
-| Care Assistant | `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm test:e2e` | 425 unit tests and 35 end-to-end tests (with axe scans) pass |
-| Tools | `pnpm typecheck`, `pnpm test` (in `tools/townpass`) | 34 tests pass |
+| Flutter | `fvm flutter analyze`, `fvm flutter test` | no issues; 204 tests pass |
+| Care Assistant | `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm test:e2e` | 541 unit tests and 47 end-to-end tests (with axe scans) pass |
+| Tools | `pnpm typecheck`, `pnpm test` (in `tools/townpass`) | 114 tests pass |
 
 CI only checks the parts affected by a change; see [CONTRIBUTING.md](CONTRIBUTING.md) (in Chinese).
 
@@ -164,7 +164,6 @@ This project is licensed under the [GNU Affero General Public License v3.0](LICE
 ## Acknowledgements
 
 - The **Department of Information Technology, Taipei City Government**, for open-sourcing [Town Pass](https://github.com/taipei-doit/TownPass) and [TownPass-Services](https://github.com/taipei-doit/TownPass-Services) and providing the [Town Pass developer guide](https://tpe-guideline.web.app) and design resources.
-- The organizers of the **2026 Taipei Autumn Codefest**, for the chance to build something for people who "can't use it".
 - **Open data providers**: the Department of Transportation, its Parking Management and Development Office, the Department of Environmental Protection, and the [Taipei Open Data platform](https://data.taipei).
 - **Open models and projects**: [Liquid AI](https://huggingface.co/LiquidAI) (LFM3), [OpenFormosa](https://huggingface.co/OpenFormosa) (BlueMagpie-TTS), [adi-gov-tw](https://huggingface.co/adi-gov-tw) (Taiwan-Tongues-ASR-CE), [ggml-org](https://github.com/ggml-org) (llama.cpp, whisper.cpp, ggml), [codec.cpp](https://github.com/mybigday/codec.cpp), and the Flutter, Vue, Vite, Playwright and axe-core communities.
 

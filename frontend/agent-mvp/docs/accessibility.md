@@ -56,12 +56,12 @@ Flutter 端與前端的約定，視為固定。App 與 web 必須是對應的版
 
 前端 1.5 秒內沒收到回覆就視為失敗。每個欄位各自檢查型別（`textScale` 必須是大於 0 的有限數字）；欄位無效、缺少，或整個請求失敗時，改用瀏覽器 fallback 的值：`reduceMotion`、`highContrast` 來自 media query，其餘欄位是預設值（見下方「瀏覽器 fallback 與限制」）。
 
-| `a11yState` 欄位                            | 套用到 `<html>`             | `src/a11y.css` 的效果                                                            |
-| ------------------------------------------- | --------------------------- | -------------------------------------------------------------------------------- |
-| `reduceMotion`                              | `data-a11y-motion="reduce"` | 動畫與 transition 縮到 0.01ms、關閉平滑捲動                                      |
-| `boldText`                                  | `data-a11y-bold`            | `body` 字重 600                                                                  |
-| `highContrast`                              | `data-a11y-contrast`        | 覆寫 `tokens.css` 的 `--muted`、`--border`、`--teal`、`--amber-ink` 為更深的顏色 |
-| `invertColors`、`textScale`、`screenReader` | 無                          | 只放在 `a11yState`，需要時由 component 自行讀取                                  |
+| `a11yState` 欄位                            | 套用到 `<html>`             | `src/a11y.css` 的效果                                                                                                                                                            |
+| ------------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reduceMotion`                              | `data-a11y-motion="reduce"` | 動畫與 transition 縮到 0.01ms、關閉平滑捲動                                                                                                                                      |
+| `boldText`                                  | `data-a11y-bold`            | `body` 字重 600                                                                                                                                                                  |
+| `highContrast`                              | `data-a11y-contrast`        | 覆寫 `tokens.css` 的 `--muted`、`--border`、`--teal`、`--amber-ink` 為更深的顏色，`--primary`、`--surface`、`--bubble`、`--user-bubble` 為更淺的底色，並替對話泡泡與清單加上邊框 |
+| `invertColors`、`textScale`、`screenReader` | 無                          | 只放在 `a11yState`，需要時由 component 自行讀取                                                                                                                                  |
 
 ## 怎麼用
 

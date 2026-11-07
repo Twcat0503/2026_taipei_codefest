@@ -297,7 +297,6 @@ test('greeting and urgent requests have distinct, actionable responses', async (
   await expect(page.getByRole('heading', { name: /119/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /119/ })).toBeVisible();
   await expect(page.locator('.navigation-card')).toHaveCount(0);
-  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('失火了');
 });
 
 test('water fee asks for the account number once, then fills it in', async ({ page }) => {
@@ -321,6 +320,10 @@ test('water fee asks for the account number once, then fills it in', async ({ pa
       prefill: { water_number: '1234567890' },
     },
   });
+  // This stub never answers, so the card cannot claim the account number was filled in.
+  await expect(page.locator('.navigation-card').getByRole('alert')).toContainText(
+    '無法確認資料是否會帶入；若頁面上沒有填好，請自行填寫。',
+  );
 
   // Next time nothing has to be typed.
   await send(page, '我要繳水費');

@@ -91,6 +91,9 @@ function structuredRequest(input: Parameters<ModelAdapter['complete']>[0], ollam
       ['附近有 YouBike 嗎', 'places'],
       ['大安區的無障礙廁所', 'places'],
       ['中山區停車場', 'places'],
+      ['他剛剛倒下去，怎麼叫都叫不醒', 'emergency'],
+      ['我不想活了', 'emergency'],
+      ['叫救護車要怎麼收費', 'services'],
       ['請幫我寫一首詩', 'unsupported'],
     ].flatMap(([request, domain]) => [
       { role: 'user' as const, content: JSON.stringify({ original_request: request }) },
@@ -285,10 +288,10 @@ function demoArguments(
     return {
       ...(/附近|最近|nearby|nearest/.test(text) || !area ? { near_me: true } : {}),
       ...(area ? { area } : {}),
-      ...(/無障礙|身障|孕婦|輪椅/.test(text) && name !== 'find_nearby_youbike'
+      ...(/無障礙|身障|孕婦|輪椅|愛心/.test(text) && name !== 'find_nearby_youbike'
         ? { accessible: true }
         : {}),
-      ...(name === 'find_nearby_parking' && /身障|輪椅|身心障礙/.test(text)
+      ...(name === 'find_nearby_parking' && /身障|輪椅|身心障礙|愛心/.test(text)
         ? { parking_space: 'disabled' }
         : name === 'find_nearby_parking' && /孕婦|懷孕/.test(text)
           ? { parking_space: 'pregnancy' }

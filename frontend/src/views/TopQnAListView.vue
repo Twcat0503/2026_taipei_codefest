@@ -25,7 +25,7 @@ const onPanelExpandClick = (id: string) => {
 
 <template>
   <div class="p-5 qna-wrapper">
-    <h5 class="text-primary-500 mb-10 text-[32px] font-bold title">Q & A • 常見問題</h5>
+    <h5 class="text-primary-500 mb-10 text-[2rem] font-bold title">Q & A • 常見問題</h5>
     <div class="w-full flex flex-col overflow-y-auto">
       <ul class="mb-6">
         <li

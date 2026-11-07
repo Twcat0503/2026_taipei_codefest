@@ -15,22 +15,31 @@ import java.security.SecureRandom
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.CancellationException
 
+/** 一個需要下載並驗證的模型檔。[sizeBytes] 與 [sha256] 取自 Hugging Face 的 LFS 中繼資料。 */
+data class ModelFile(
+    val fileName: String,
+    val url: String,
+    val sizeBytes: Long,
+    val sha256: String,
+)
+
 /**
- * 本地 LLM 服務設定。模型不隨 APK 發佈，第一次啟動時從 [modelUrl] 下載並驗證大小與 SHA-256。
- * 預設值對應 LiquidAI/LFM3-1.7B-GGUF 的 LFM3-1.7B-QAD-Q4_0.gguf（已於 2026-11-07 用 HF 的 LFS 雜湊核對）。
+ * 本地 LLM 服務設定。模型不隨 APK 發佈，第一次啟動時從 Hugging Face 下載並驗證大小與 SHA-256。
+ * 預設為多模態的 LiquidAI/LFM3-VL-2B-GGUF：語言模型 LFM3-VL-2B-QAD-Q4_0.gguf，
+ * 加上視覺投影檔 mmproj-LFM3-VL-2B-Q8_0.gguf（已於 2026-11-08 用 HF 的 LFS 雜湊核對）。
+ * [mmproj] 設為 null 時不載入視覺部分，只做文字推論。
  *
- * 調校預設（2026-11-07 於 x86_64 模擬器量測，只用於相對比較，手機需實測）：
+ * 調校預設（2026-11-07 於 x86_64 模擬器以 LFM3-1.7B 量測，只用於相對比較，手機需實測）：
  * - KV cache 用 q8_0：4096 上下文 KV 為 25.5 MiB（f16 為 48 MiB）；深度 2048 的解碼也較快。
  * - flash attention 開啟：V 量化需要它，prefill 也較快。非 f16 的 KV 會強制開啟。
  * - contextSize 預設 4096，上限 16384（q8_0 時 KV 約 102 MiB）。解碼速度隨深度下降。
  * - threads 為 null 時依大核數自動決定（見 [CpuTopology]）。
  */
 data class LlmConfig(
-    val modelFileName: String = "LFM3-1.7B-QAD-Q4_0.gguf",
-    val modelUrl: String = "https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF/resolve/main/LFM3-1.7B-QAD-Q4_0.gguf",
-    val modelSizeBytes: Long = 1_049_615_680L,
-    val modelSha256: String = "43a7d09a0e9cba91b63eb7052488b9564569bddfd65754d2e426465e572a7452",
-    val modelAlias: String = "lfm3-1.7b-q4_0",
+    val model: ModelFile = DEFAULT_MODEL,
+    /** 視覺投影檔（mmproj）；null 表示只做文字推論。 */
+    val mmproj: ModelFile? = DEFAULT_MMPROJ,
+    val modelAlias: String = "lfm3-vl-2b-q4_0",
     val contextSize: Int = 4096,
     /** 執行緒數；null 表示依大核數自動決定。 */
     val threads: Int? = null,
@@ -50,6 +59,22 @@ data class LlmConfig(
         const val MAX_CONTEXT = 16_384
         const val MAX_THREADS = 16
         val SUPPORTED_KV_TYPES = setOf("f16", "q8_0")
+
+        private const val HF_REPO = "https://huggingface.co/LiquidAI/LFM3-VL-2B-GGUF/resolve/main"
+
+        val DEFAULT_MODEL = ModelFile(
+            fileName = "LFM3-VL-2B-QAD-Q4_0.gguf",
+            url = "$HF_REPO/LFM3-VL-2B-QAD-Q4_0.gguf",
+            sizeBytes = 1_049_615_648L,
+            sha256 = "621c455376cb96a20891697deb9975c6fb47dd5ea98ed3ad1f3b7e8f24f0b1e6",
+        )
+
+        val DEFAULT_MMPROJ = ModelFile(
+            fileName = "mmproj-LFM3-VL-2B-Q8_0.gguf",
+            url = "$HF_REPO/mmproj-LFM3-VL-2B-Q8_0.gguf",
+            sizeBytes = 203_031_872L,
+            sha256 = "c5c5b58d544a18da919172d2d0368090ea1a4a351b6feb7f8a326a264a5918ab",
+        )
     }
 }
 
@@ -157,10 +182,12 @@ object LlmServer {
             config.validate()
             killLeftover(context)
             phase = LlmPhase.DOWNLOADING
-            val model = ensureModel(context, config, ticket)
+            pruneStaleModels(context, listOfNotNull(config.model, config.mmproj))
+            val model = ensureModel(context, config.model, ticket)
+            val mmproj = config.mmproj?.let { ensureModel(context, it, ticket) }
             checkActive(ticket)
             phase = LlmPhase.STARTING
-            launch(context, config, model, ticket)
+            launch(context, config, model, mmproj, ticket)
             checkActive(ticket)
             phase = LlmPhase.RUNNING
         } catch (e: Exception) {
@@ -202,7 +229,7 @@ object LlmServer {
         )
     }
 
-    private fun launch(context: Context, config: LlmConfig, model: File, ticket: Long) {
+    private fun launch(context: Context, config: LlmConfig, model: File, mmproj: File?, ticket: Long) {
         val bin = File(context.applicationInfo.nativeLibraryDir, "libllama_server.so")
         if (!bin.exists()) {
             throw IOException("缺少 libllama_server.so，請先執行 tools/llm-android/build_llama_server.sh")
@@ -214,9 +241,10 @@ object LlmServer {
         val key = newApiKey()
         appendLog(
             context,
-            "[launch] threads=$threads ctx=${config.contextSize} kv=${config.kvCacheType} fa=${if (flashAttn) "on" else "off"}",
+            "[launch] model=${model.name} mmproj=${mmproj?.name ?: "none"} threads=$threads " +
+                "ctx=${config.contextSize} kv=${config.kvCacheType} fa=${if (flashAttn) "on" else "off"}",
         )
-        val child = ProcessBuilder(
+        val args = mutableListOf(
             bin.absolutePath,
             "-m", model.absolutePath,
             "--host", "127.0.0.1",
@@ -232,7 +260,10 @@ object LlmServer {
             "--reasoning", "off",
             "--no-webui",
             "--api-key", key,
-        ).apply {
+        )
+        // 視覺投影檔：載入後 /v1/chat/completions 接受 OpenAI 格式的 image_url（data URI）內容。
+        if (mmproj != null) args += listOf("--mmproj", mmproj.absolutePath)
+        val child = ProcessBuilder(args).apply {
             environment()["LD_LIBRARY_PATH"] = context.applicationInfo.nativeLibraryDir
             redirectErrorStream(true)
         }.start()
@@ -307,18 +338,29 @@ object LlmServer {
         pidFile.delete()
     }
 
-    private fun ensureModel(context: Context, config: LlmConfig, ticket: Long): File {
-        val dir = File(context.filesDir, "llm/models").apply { mkdirs() }
-        val target = File(dir, config.modelFileName)
-        if (target.exists() && target.length() == config.modelSizeBytes) return target
+    /**
+     * 刪掉 llm/models 內不屬於目前設定的檔案（例如換模型後留下的舊 GGUF 與其 .part），
+     * 避免舊模型長期佔用約 1 GB 的空間。
+     */
+    private fun pruneStaleModels(context: Context, keep: List<ModelFile>) {
+        val names = keep.flatMap { listOf(it.fileName, it.fileName + ".part") }.toSet()
+        File(context.filesDir, "llm/models").listFiles()?.forEach { file ->
+            if (file.isFile && file.name !in names) file.delete()
+        }
+    }
 
-        val part = File(dir, config.modelFileName + ".part")
-        if (part.length() > config.modelSizeBytes) part.delete()
-        if (part.length() != config.modelSizeBytes) download(config.modelUrl, part, ticket)
+    private fun ensureModel(context: Context, file: ModelFile, ticket: Long): File {
+        val dir = File(context.filesDir, "llm/models").apply { mkdirs() }
+        val target = File(dir, file.fileName)
+        if (target.exists() && target.length() == file.sizeBytes) return target
+
+        val part = File(dir, file.fileName + ".part")
+        if (part.length() > file.sizeBytes) part.delete()
+        if (part.length() != file.sizeBytes) download(file.url, part, ticket)
         val actual = sha256(part, ticket)
-        if (part.length() != config.modelSizeBytes || !actual.equals(config.modelSha256, ignoreCase = true)) {
+        if (part.length() != file.sizeBytes || !actual.equals(file.sha256, ignoreCase = true)) {
             part.delete()
-            throw IOException("模型檔驗證失敗（大小或 SHA-256 不符）")
+            throw IOException("模型檔驗證失敗（${file.fileName} 大小或 SHA-256 不符）")
         }
         if (target.exists()) target.delete()
         if (!part.renameTo(target)) throw IOException("無法寫入模型檔：${target.absolutePath}")

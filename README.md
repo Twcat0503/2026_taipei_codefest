@@ -3,7 +3,7 @@
 # 用得了：城市通安心助手
 
 在城市通（Town Pass）裡，打一句話或點一下，就能找到無障礙設施，帶著已知的資料前往台北通服務。<br>
-2026 臺北秋季程式設計節作品，回應競賽主題「用不了」。
+讓覺得城市服務「用不了」的人，也能用得了。
 
 [![CI](https://github.com/Twcat0503/2026_taipei_codefest/actions/workflows/ci.yml/badge.svg)](https://github.com/Twcat0503/2026_taipei_codefest/actions/workflows/ci.yml)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
@@ -37,7 +37,7 @@
 - **找地點**：依目前位置或行政區，查無障礙廁所、身障與孕婦優先車位、YouBike 即時車輛；每次查詢都標示資料來源與時間。
 - **帶你去辦事**：繳費、陳情、報案、臨櫃叫號等台北通站內服務。前往前一律再確認一次；已知欄位自動帶入，陳情內容依使用者原話整理成可修改的草稿，不編造沒說過的內容。
 - **緊急求助**：偵測到緊急狀況時不經模型，直接顯示 119、110、113、1925 的撥號按鈕。
-- **本機 AI**：在 Android 上以 native 子行程執行 LFM3 1.7B 語言模型，另有選用的 whisper.cpp 語音辨識與 BlueMagpie 語音合成；三者都只綁 loopback，模型不隨 App 發布。
+- **本機 AI**：在 Android 上以 native 子行程執行 LFM3-VL-2B 多模態語言模型，另有選用的 whisper.cpp 語音辨識與 BlueMagpie 語音合成；三者都只綁 loopback，模型不隨 App 發布。
 - **隱私**：位置只用來計算距離、不送進模型；身分證字號每次從會員資料讀取、只遮罩顯示，不寫入儲存空間。
 
 ## 架構
@@ -65,7 +65,7 @@ flowchart LR
 | App | Town Pass Flutter app、`TPWebView`、JS bridge（朗讀、震動、無障礙狀態、表單帶入）、TalkBack 與系統字級修正 | `lib/`、`android/` |
 | 安心助手 | Vue 3 Web App：路由與各 skill、補資料的選擇題、陳情草稿、緊急撥號、無障礙層 | `frontend/agent-mvp/` |
 | 工具 | 把台北通服務與開放資料包裝成唯讀工具，經資料讀取層處理逾時、快取與格式驗證 | `tools/townpass/` |
-| 本機 AI | LFM3 1.7B（llama.cpp）、whisper.cpp ASR、BlueMagpie TTS 的建置與模型工具 | `tools/llm-android/`、`tools/asr-android/`、`tools/tts-android/` |
+| 本機 AI | LFM3-VL-2B（llama.cpp）、whisper.cpp ASR、BlueMagpie TTS 的建置與模型工具 | `tools/llm-android/`、`tools/asr-android/`、`tools/tts-android/` |
 | 服務範本 | TownPass-Services 快照，保留作參考 | `frontend/` |
 
 ## 技術棧
@@ -75,7 +75,7 @@ flowchart LR
 | App | Flutter 3.47.6（FVM）、GetX、flutter_inappwebview、flutter_tts |
 | Web | Vue 3、Vite、TypeScript |
 | 工具 | TypeScript 唯讀工具（直接函式呼叫）、zod |
-| 本機 AI | llama.cpp（LFM3 1.7B）、whisper.cpp、BlueMagpie-TTS，皆為 Android native 子行程 |
+| 本機 AI | llama.cpp（LFM3-VL-2B）、whisper.cpp、BlueMagpie-TTS，皆為 Android native 子行程 |
 | 品質 | ESLint、Prettier、Vitest、Playwright 與 axe（WCAG 2.1 AA 掃描）、`dart format`、`flutter analyze`、`flutter test`、GitHub Actions |
 
 ## 快速開始
@@ -112,9 +112,9 @@ App 首頁的「安心助手」入口會開啟助手。手機本機模型需要�
 
 | 範圍 | 指令 | 現況 |
 | --- | --- | --- |
-| Flutter | `fvm flutter analyze`、`fvm flutter test` | 無 issue；190 個測試通過 |
-| 安心助手 | `pnpm lint`、`pnpm test`、`pnpm build`、`pnpm test:e2e` | 425 個單元測試、35 個 e2e 測試（含 axe 掃描）通過 |
-| 工具 | `pnpm typecheck`、`pnpm test`（`tools/townpass`） | 34 個測試通過 |
+| Flutter | `fvm flutter analyze`、`fvm flutter test` | 無 issue；204 個測試通過 |
+| 安心助手 | `pnpm lint`、`pnpm test`、`pnpm build`、`pnpm test:e2e` | 541 個單元測試、47 個 e2e 測試（含 axe 掃描）通過 |
+| 工具 | `pnpm typecheck`、`pnpm test`（`tools/townpass`） | 114 個測試通過 |
 
 CI 會依改動的路徑只檢查受影響的部分，見 [CONTRIBUTING.md](CONTRIBUTING.md#pr-規範)。
 
@@ -164,7 +164,6 @@ App 預設只用下列真實資料與官方服務，不拿模擬資料回答使�
 ## 致謝
 
 - **臺北市政府資訊局**開源 [Town Pass](https://github.com/taipei-doit/TownPass) 與 [TownPass-Services](https://github.com/taipei-doit/TownPass-Services)，並提供[城市通開發文件](https://tpe-guideline.web.app)與設計資源。
-- **2026 臺北秋季程式設計節**的主辦與承辦單位，讓我們有機會為「用不了」的人做點事。
 - **開放資料提供機關**：臺北市政府交通局、交通局停車管理工程處、環境保護局，以及[臺北市資料大平臺](https://data.taipei)。
 - **開源模型與專案**：[Liquid AI](https://huggingface.co/LiquidAI)（LFM3）、[OpenFormosa](https://huggingface.co/OpenFormosa)（BlueMagpie-TTS）、[adi-gov-tw](https://huggingface.co/adi-gov-tw)（Taiwan-Tongues-ASR-CE）、[ggml-org](https://github.com/ggml-org)（llama.cpp、whisper.cpp、ggml）、[codec.cpp](https://github.com/mybigday/codec.cpp)，以及 Flutter、Vue、Vite、Playwright、axe-core 等社群。
 

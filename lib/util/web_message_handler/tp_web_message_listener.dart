@@ -29,6 +29,9 @@ abstract class TPWebMessageListener {
     TtsStartMessageHandler(),
     TtsStopMessageHandler(),
     TtsStatusMessageHandler(),
+    SpeechStartMessageHandler(),
+    SpeechStopMessageHandler(),
+    SpeechCancelMessageHandler(),
   ];
 
   static List<TPWebMessageHandler> get messageHandler => _cachedMessageHandlers;
@@ -53,8 +56,10 @@ abstract class TPWebMessageListener {
                 handler is TtsStartMessageHandler ||
                 handler is TtsStopMessageHandler ||
                 handler is TtsStatusMessageHandler;
+            // 語音輸入的辨識文字也走安全通道，而且會陸續送出多則，不能等 handle 結束。
+            final isSpeech = handler is SpeechStartMessageHandler;
             final useSafeReply =
-                isTts &&
+                (isTts || isSpeech) &&
                 isTtsRequestAllowed(
                   sourceOrigin: sourceOrigin,
                   isMainFrame: isMainFrame,
@@ -72,7 +77,11 @@ abstract class TPWebMessageListener {
               sourceOrigin: sourceOrigin,
               isMainFrame: isMainFrame,
               onReply: (reply) {
-                if (useSafeReply) {
+                if (useSafeReply && isSpeech) {
+                  onTtsReply!(reply, targetOrigin!).catchError((_) {
+                    // WebView 已 dispose 時安全丟棄。
+                  });
+                } else if (useSafeReply) {
                   ttsReply = reply;
                 } else {
                   return replyProxy.postMessage(reply);

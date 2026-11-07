@@ -16,6 +16,8 @@ import com.example.townpass.localserver.sha256Of
 import com.example.townpass.localserver.waitExit
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.CancellationException
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * 本機 ASR 服務設定。模型不隨 APK 發佈，須先放到 [AsrServer.modelDir]（做法見 tools/asr-android/README.md）。
@@ -64,6 +66,9 @@ data class AsrStatus(
  *
  * 執行檔是 jniLibs 內的 libwhisper_server.so（由 tools/asr-android/build_whisper_server.sh 產生），
  * 位於 nativeLibraryDir。與 [com.example.townpass.llm.LlmServer] 相同：start / stop 串行化，失敗不拋例外。
+ *
+ * 啟動中（驗證模型、等模型載入，最久約兩分鐘）呼叫 [stop] 會先以 [cancelPendingStart] 讓啟動提早結束，
+ * 不必等啟動完成才停止。
  */
 object AsrServer {
     private const val MODEL_DIR = "asr/models"
@@ -76,6 +81,21 @@ object AsrServer {
     private const val DEFAULT_LANGUAGE = "auto"
 
     private val opLock = Any()
+
+    // 每次 stop 都換一代；啟動流程發現代數變了就放棄，讓 stop 不必等完整的啟動。
+    private val generation = AtomicLong(0)
+
+    /** 取得目前的啟動代數；在排入背景執行緒前取得，之後的 stop 才能取消這次啟動。 */
+    fun startTicket(): Long = generation.get()
+
+    /** 讓進行中或排隊中的 start 盡快結束。 */
+    fun cancelPendingStart() {
+        generation.incrementAndGet()
+    }
+
+    private fun checkActive(ticket: Long) {
+        if (generation.get() != ticket) throw CancellationException("ASR_START_CANCELLED")
+    }
     @Volatile private var phase = AsrPhase.IDLE
     @Volatile private var lastError: String? = null
     @Volatile private var process: Process? = null
@@ -91,7 +111,8 @@ object AsrServer {
     fun status(): AsrStatus = snapshot(includeKey = false)
 
     /** 啟動服務。已在執行則直接回傳目前狀態（含 key）。失敗時 phase 為 ERROR，不拋例外。 */
-    fun start(context: Context, config: AsrConfig): AsrStatus = synchronized(opLock) {
+    fun start(context: Context, config: AsrConfig, ticket: Long = startTicket()): AsrStatus = synchronized(opLock) {
+        if (generation.get() != ticket) return@synchronized snapshot(includeKey = false)
         val current = process
         if (phase == AsrPhase.RUNNING && current != null && isAlive(current) && proxy?.isRunning == true) {
             return@synchronized snapshot(includeKey = true)
@@ -107,22 +128,31 @@ object AsrServer {
             }
             phase = AsrPhase.STARTING
             val model = resolveModel(context, config)
-            launch(context, config, model)
+            checkActive(ticket)
+            launch(context, config, model, ticket)
+            checkActive(ticket)
             phase = AsrPhase.RUNNING
         } catch (e: Exception) {
-            lastError = e.message ?: e.javaClass.simpleName
-            phase = AsrPhase.ERROR
+            val cancelled = generation.get() != ticket
+            lastError = if (cancelled) null else (e.message ?: e.javaClass.simpleName)
+            phase = if (cancelled) AsrPhase.IDLE else AsrPhase.ERROR
             terminate(context)
         }
         snapshot(includeKey = true)
     }
 
-    /** 停止服務並釋放記憶體。未在執行時也安全。 */
-    fun stop(context: Context): AsrStatus = synchronized(opLock) {
-        terminate(context)
-        phase = AsrPhase.IDLE
-        lastError = null
-        snapshot(includeKey = false)
+    /**
+     * 停止服務並釋放記憶體（含麥克風錄音後送來、正在辨識的請求）。未在執行時也安全。
+     * 啟動中呼叫時會先取消啟動，再等它收尾。
+     */
+    fun stop(context: Context): AsrStatus {
+        cancelPendingStart()
+        return synchronized(opLock) {
+            terminate(context)
+            phase = AsrPhase.IDLE
+            lastError = null
+            snapshot(includeKey = false)
+        }
     }
 
     private fun snapshot(includeKey: Boolean): AsrStatus {
@@ -138,7 +168,7 @@ object AsrServer {
         )
     }
 
-    private fun launch(context: Context, config: AsrConfig, model: File) {
+    private fun launch(context: Context, config: AsrConfig, model: File, ticket: Long) {
         val bin = File(context.applicationInfo.nativeLibraryDir, "libwhisper_server.so")
         if (!bin.exists()) {
             throw IOException("缺少 libwhisper_server.so，請先執行 tools/asr-android/build_whisper_server.sh")
@@ -165,7 +195,7 @@ object AsrServer {
         pumpOutputTo(child, File(context.filesDir, LOG_FILE).apply { parentFile?.mkdirs() })
         process = child
         pidOf(child)?.let { File(context.filesDir, PID_FILE).writeText(it.toString()) }
-        waitReady(child, socket)
+        waitReady(child, socket, ticket)
 
         val key = newApiKey()
         proxy = AsrProxy(socket.absolutePath, key, config.modelAlias)
@@ -175,9 +205,10 @@ object AsrServer {
     }
 
     /** 等 whisper-server 的 unix socket 能完成一次 HTTP 往返，代表模型已載入並開始接受連線。 */
-    private fun waitReady(child: Process, socket: File) {
+    private fun waitReady(child: Process, socket: File, ticket: Long) {
         val deadline = System.currentTimeMillis() + READY_TIMEOUT_MS
         while (System.currentTimeMillis() < deadline) {
+            checkActive(ticket)
             if (!isAlive(child)) {
                 throw IOException("whisper-server 已結束（exit=${child.exitValue()}），請查看 asr/whisper-server.log")
             }

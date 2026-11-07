@@ -5,12 +5,13 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
-import 'package:town_pass/gen/assets.gen.dart';
+import 'package:town_pass/service/asr_service.dart';
 import 'package:town_pass/util/tp_app_bar.dart';
 import 'package:town_pass/util/tp_colors.dart';
 import 'package:town_pass/util/tp_external_link.dart';
 import 'package:town_pass/util/tp_prefill.dart';
 import 'package:town_pass/util/web_message_handler/tp_web_message_listener.dart';
+import 'package:town_pass/util/web_message_handler/local_ai_origin.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class WebViewArgument {
@@ -54,23 +55,49 @@ class TPWebView extends StatelessWidget {
 
   final RxBool canGoBack = RxBool(false);
 
+  /// 帶入失敗時以 SnackBar 提示（TalkBack 會朗讀），沒有失敗的欄位就不顯示。
+  void _showPrefillFailure(BuildContext context, Iterable<String> fields) {
+    final String? message = prefillFailureMessage(fields);
+    if (message == null) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 10)),
+    );
+  }
+
+  /// 網頁內還有上一頁就回上一頁，否則離開這個網頁。左上返回鍵與系統返回手勢共用。
+  Future<void> _goBack() async {
+    final InAppWebViewController? controller = webViewController.value;
+    if (controller != null && await controller.canGoBack()) {
+      await controller.goBack();
+    } else {
+      Get.back();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    return Obx(
+      () => PopScope(
+        canPop: !canGoBack.value,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _goBack();
+        },
+        child: _scaffold(context),
+      ),
+    );
+  }
+
+  Widget _scaffold(BuildContext context) {
     return Scaffold(
       appBar: TPAppBar(
         backgroundColor: TPColors.primary500,
         foregroundColor: TPColors.white,
-        leading: Obx(
-          () => switch (canGoBack.value) {
-            true => IconButton(
-              icon: Assets.svg.expand.svg(),
-              onPressed: () async => await webViewController.value?.goBack(),
-              style: const ButtonStyle(
-                iconSize: WidgetStatePropertyAll<double>(24),
-              ),
-            ),
-            false => const SizedBox.shrink(),
-          },
+        leading: BackButton(
+          color: TPColors.white,
+          onPressed: _goBack,
+          style: const ButtonStyle(
+            iconSize: WidgetStatePropertyAll<double>(24),
+          ),
         ),
         actions: [
           CloseButton(
@@ -123,13 +150,27 @@ class TPWebView extends StatelessWidget {
             },
             onLoadStop: (controller, page) async {
               final Map<String, String>? values = prefill;
-              if (values == null || _prefilled.value || !canPrefill(page)) {
+              if (values == null || _prefilled.value) return;
+              _prefilled.value = true;
+              // 不是台北通站內頁面就不填，並告訴民眾要自己填，不能讓他以為已帶入。
+              if (!canPrefill(page)) {
+                _showPrefillFailure(context, values.keys);
                 return;
               }
-              _prefilled.value = true;
-              await controller.evaluateJavascript(
-                source: prefillScript(values),
-              );
+              List<String> missing;
+              try {
+                final CallAsyncJavaScriptResult? result = await controller
+                    .callAsyncJavaScript(functionBody: prefillScript(values));
+                missing = result == null || result.error != null
+                    ? values.keys.toList()
+                    : [
+                        ...(result.value as List? ?? const [])
+                            .whereType<String>(),
+                      ];
+              } catch (_) {
+                missing = values.keys.toList();
+              }
+              if (context.mounted) _showPrefillFailure(context, missing);
             },
             onUpdateVisitedHistory: (_, _, _) async {
               canGoBack.value =
@@ -149,12 +190,60 @@ class TPWebView extends StatelessWidget {
                 retain: true,
               );
             },
+            onPermissionRequest: (controller, request) async {
+              var granted = false;
+              try {
+                if (canRequestAssistantMicrophone(
+                  request,
+                  await controller.getUrl(),
+                )) {
+                  granted = await AsrService.requestMicrophonePermission();
+                  if (granted) {
+                    granted = canRequestAssistantMicrophone(
+                      request,
+                      await controller.getUrl(),
+                    );
+                  }
+                }
+              } catch (_) {
+                // 頁面已關閉或換頁時，不沿用先前的麥克風授權。
+                granted = false;
+              }
+              return PermissionResponse(
+                resources: request.resources,
+                action: granted
+                    ? PermissionResponseAction.GRANT
+                    : PermissionResponseAction.DENY,
+              );
+            },
             onCloseWindow: (_) => Get.back(),
           ),
           Obx(() => _TextZoomSync(controller: webViewController.value)),
         ],
       ),
     );
+  }
+}
+
+/// 只允許核准的助手頁面要求麥克風；不在這裡開放攝影機權限。
+@visibleForTesting
+bool canRequestAssistantMicrophone(
+  PermissionRequest request,
+  WebUri? mainPage,
+) {
+  if (mainPage == null ||
+      request.resources.isEmpty ||
+      request.resources.any(
+        (resource) => resource != PermissionResourceType.MICROPHONE,
+      ) ||
+      request.frame?.isMainFrame == false) {
+    return false;
+  }
+  try {
+    return isLocalAiOriginAllowed(request.origin.origin) &&
+        request.origin.origin == mainPage.origin;
+  } on FormatException {
+    return false;
   }
 }
 
