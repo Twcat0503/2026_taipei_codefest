@@ -10,7 +10,7 @@
 # 環境變數（皆可省略）：
 #   ANDROID_NDK_HOME  NDK 路徑；未設定時使用 $ANDROID_HOME/ndk/$NDK_VERSION
 #   NDK_VERSION       預設 30.0.16248370
-#   LLAMA_TAG         預設 v0.9.0（LFM3 需要 b11960 / v0.8.0 以上）
+#   LLAMA_TAG         預設 v0.9.0（LFM3-VL 需要 v0.8.0 以上）
 #   LLAMA_SRC         既有的 llama.cpp 原始碼目錄；未設定時 clone 到快取目錄
 #   ANDROID_API       預設 28（Android 9）；更舊的裝置無法執行
 #   LLM_CACHE_DIR     快取與建置目錄，預設 ~/.cache/townpass-llm

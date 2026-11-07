@@ -20,7 +20,7 @@ void main() {
         'running': true,
         'baseUrl': 'http://127.0.0.1:9000/v1',
         'apiKey': 'k1',
-        'model': 'lfm3-1.7b-q4_0',
+        'model': 'lfm3-vl-2b-q4_0',
         'error': null,
         'threads': 3,
         'contextSize': 2048,
