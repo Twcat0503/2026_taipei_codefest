@@ -15,6 +15,7 @@ import 'package:town_pass/service/geo_locator_service.dart';
 import 'package:town_pass/service/llm_service.dart';
 import 'package:town_pass/service/notification_service.dart';
 import 'package:town_pass/service/shared_preferences_service.dart';
+import 'package:town_pass/service/speech_input_service.dart';
 import 'package:town_pass/service/subscription_service.dart';
 import 'package:town_pass/service/tts_service.dart';
 import 'package:town_pass/util/tp_button.dart';
@@ -1001,5 +1002,90 @@ class TtsStatusMessageHandler extends TPWebMessageHandler {
     onReply?.call(
       replyWebMessage(data: _withRequestId(message, status.toJson())),
     );
+  }
+}
+
+/// 安心助手的語音輸入：以系統語音辨識收一句話。只接受白名單來源的主 frame，
+/// 事件經安全回覆通道（綁定原請求 origin 的 window message）陸續送回，
+/// 每則都是 `{requestId, type, text?, error?}`，type 見 [SpeechInputService]。
+class SpeechStartMessageHandler extends TPWebMessageHandler {
+  @override
+  String get name => 'speech_start';
+
+  static const _languages = {'zh-TW', 'en-US'};
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
+    void send(Map<String, Object?> event) =>
+        onReply?.call(replyWebMessage(data: _withRequestId(message, event)));
+    if (!isTtsRequestAllowed(
+      sourceOrigin: sourceOrigin,
+      isMainFrame: isMainFrame,
+    )) {
+      send({'type': 'error', 'error': 'origin_not_allowed'});
+      return;
+    }
+    final Object? requested = message is Map ? message['language'] : null;
+    final String language = _languages.contains(requested)
+        ? requested as String
+        : 'zh-TW';
+    final started = await SpeechInputService.start(
+      language: language,
+      onEvent: (event) => send({
+        'type': event['type'],
+        if (event['text'] is String) 'text': event['text'],
+        if (event['error'] is String) 'error': event['error'],
+      }),
+    );
+    if (!started) send({'type': 'error', 'error': 'unavailable'});
+  }
+}
+
+/// 說完了：停止收音，最終文字由 speech_start 的回覆通道送出。
+class SpeechStopMessageHandler extends TPWebMessageHandler {
+  @override
+  String get name => 'speech_stop';
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
+    if (!isTtsRequestAllowed(
+      sourceOrigin: sourceOrigin,
+      isMainFrame: isMainFrame,
+    )) {
+      return;
+    }
+    await SpeechInputService.stop();
+  }
+}
+
+/// 放棄這一次語音輸入，不再回傳事件。
+class SpeechCancelMessageHandler extends TPWebMessageHandler {
+  @override
+  String get name => 'speech_cancel';
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
+    if (!isTtsRequestAllowed(
+      sourceOrigin: sourceOrigin,
+      isMainFrame: isMainFrame,
+    )) {
+      return;
+    }
+    await SpeechInputService.cancel();
   }
 }

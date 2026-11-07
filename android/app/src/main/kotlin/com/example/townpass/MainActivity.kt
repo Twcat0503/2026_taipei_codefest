@@ -10,6 +10,7 @@ import com.example.townpass.asr.AsrConfig
 import com.example.townpass.asr.AsrServer
 import com.example.townpass.llm.LlmConfig
 import com.example.townpass.llm.LlmServer
+import com.example.townpass.speech.SpeechInput
 import com.example.townpass.tts.TtsConfig
 import com.example.townpass.tts.TtsOperations
 import com.example.townpass.tts.TtsPhase
@@ -26,6 +27,7 @@ class MainActivity : FlutterActivity() {
     private val worker: ExecutorService = Executors.newCachedThreadPool()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var ttsOwner: TtsOperations.Owner? = null
+    private var speechInput: SpeechInput? = null
 
     // 暫時的 workaround，對應 flutter_inappwebview issue #1694：
     // https://github.com/pichillilorenzo/flutter_inappwebview/issues/1694
@@ -65,6 +67,7 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         configureAsrChannel(flutterEngine)
+        configureSpeechChannel(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "town_pass/llm").setMethodCallHandler { call, result ->
             when (call.method) {
                 "status" -> result.success(LlmServer.status().toMap())
@@ -145,7 +148,42 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    // 安心助手的語音輸入：系統語音辨識，事件以 "event" 回呼送回 Dart。
+    private fun configureSpeechChannel(flutterEngine: FlutterEngine) {
+        val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "town_pass/speech")
+        val input = SpeechInput(this) { event -> channel.invokeMethod("event", event) }
+        speechInput = input
+        channel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "start" -> {
+                    input.start(call.argument<String>("language") ?: "zh-TW")
+                    result.success(null)
+                }
+                "stop" -> {
+                    input.stop()
+                    result.success(null)
+                }
+                "cancel" -> {
+                    input.cancel()
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        speechInput?.onPermissionResult(requestCode, grantResults)
+    }
+
     override fun onDestroy() {
+        speechInput?.cancel()
+        speechInput = null
         val observer = window.decorView.viewTreeObserver
         if (observer.isAlive) {
             observer.removeOnGlobalLayoutListener(pullToRefreshFocusFix)

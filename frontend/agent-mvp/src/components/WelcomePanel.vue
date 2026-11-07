@@ -131,9 +131,9 @@ const suggestions = computed(() => [
         },
       ]
     : []),
-  { title: t.value.rehabRequest, hint: t.value.rehabHint, action: 'request' as const },
-  { title: t.value.benefitsRequest, hint: t.value.benefitsHint, action: 'request' as const },
-  { title: t.value.accessibleRequest, hint: t.value.accessibleHint, action: 'request' as const },
+  // 範例只放查得到真實資料的需求：開放資料的無障礙廁所，與臺北市官方身障服務頁。
+  { title: t.value.toiletSuggestion, hint: t.value.toiletHint, action: 'request' as const },
+  { title: t.value.disabledSuggestion, hint: t.value.disabledHint, action: 'request' as const },
 ]);
 const visibleSuggestions = computed(() => suggestions.value.slice(0, visibleCount.value));
 </script>
@@ -227,7 +227,7 @@ const visibleSuggestions = computed(() => suggestions.value.slice(0, visibleCoun
     </button>
     <p v-if="modelNeedsStart" class="model-hint" role="status">{{ modelStatus }}</p>
     <button
-      v-else-if="!native || resumePrimary"
+      v-else
       ref="voiceButton"
       class="voice-launch"
       :disabled="!resumePrimary && disabled"

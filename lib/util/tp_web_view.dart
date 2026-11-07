@@ -5,7 +5,6 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
-import 'package:town_pass/gen/assets.gen.dart';
 import 'package:town_pass/util/tp_app_bar.dart';
 import 'package:town_pass/util/tp_colors.dart';
 import 'package:town_pass/util/tp_external_link.dart';
@@ -54,23 +53,40 @@ class TPWebView extends StatelessWidget {
 
   final RxBool canGoBack = RxBool(false);
 
+  /// 網頁內還有上一頁就回上一頁，否則離開這個網頁。左上返回鍵與系統返回手勢共用。
+  Future<void> _goBack() async {
+    final InAppWebViewController? controller = webViewController.value;
+    if (controller != null && await controller.canGoBack()) {
+      await controller.goBack();
+    } else {
+      Get.back();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    return Obx(
+      () => PopScope(
+        canPop: !canGoBack.value,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _goBack();
+        },
+        child: _scaffold(context),
+      ),
+    );
+  }
+
+  Widget _scaffold(BuildContext context) {
     return Scaffold(
       appBar: TPAppBar(
         backgroundColor: TPColors.primary500,
         foregroundColor: TPColors.white,
-        leading: Obx(
-          () => switch (canGoBack.value) {
-            true => IconButton(
-              icon: Assets.svg.expand.svg(),
-              onPressed: () async => await webViewController.value?.goBack(),
-              style: const ButtonStyle(
-                iconSize: WidgetStatePropertyAll<double>(24),
-              ),
-            ),
-            false => const SizedBox.shrink(),
-          },
+        leading: BackButton(
+          color: TPColors.white,
+          onPressed: _goBack,
+          style: const ButtonStyle(
+            iconSize: WidgetStatePropertyAll<double>(24),
+          ),
         ),
         actions: [
           CloseButton(
