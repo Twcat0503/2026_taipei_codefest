@@ -3,10 +3,12 @@ import AxeBuilder from '@axe-core/playwright';
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
+  await page.getByText('設定', { exact: true }).click();
   await page.getByText('開發者檢視與接點設定', { exact: true }).click();
   await page.getByLabel('模型來源').selectOption('demo');
   await page.getByRole('button', { name: '套用接點', exact: true }).click();
   await page.getByText('開發者檢視與接點設定', { exact: true }).click();
+  await page.getByText('設定', { exact: true }).click();
 });
 
 test('book search, editable confirmation, reload, receipt and reset', async ({ page }) => {
@@ -33,6 +35,7 @@ test('accessible initial page and enlarged bilingual layouts', async ({ page }) 
     .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
     .analyze();
   expect(audit.violations).toEqual([]);
+  await page.getByText('設定', { exact: true }).click();
   await page.getByLabel('字級', { exact: true }).selectOption('1.5');
   await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
@@ -44,6 +47,7 @@ test('accessible initial page and enlarged bilingual layouts', async ({ page }) 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
+  await page.getByText('Settings', { exact: true }).click();
   await page.getByRole('button', { name: 'Find sample books', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Walking Together', exact: true })).toBeVisible();
 });

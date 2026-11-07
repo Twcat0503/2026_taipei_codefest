@@ -3,7 +3,13 @@ import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import UiIcon from './components/UiIcon.vue';
 import { messages } from './i18n';
 import { branches } from './agent/catalog';
-import { initialState, type Locale, type ModelAdapter } from './agent/types';
+import {
+  initialState,
+  type Locale,
+  type Localized,
+  type ModelAdapter,
+  type TaskState,
+} from './agent/types';
 import { AgentRunner } from './agent/runner';
 import { createAgentToolClient } from '../../../tools/townpass/src/agent-client';
 import { DemoModel, LocalModel } from './agent/model';
@@ -59,11 +65,41 @@ const activeBook = computed(() =>
 const activeBranch = computed(() =>
   branches.find((branch) => branch.id === state.receipt?.branchId),
 );
-const step = computed(() =>
-  state.draft || state.receipt ? 3 : state.domain && state.notice !== 'welcome' ? 2 : 1,
-);
 const reply = computed(() => t.value[state.notice]);
 const inputDisabled = computed(() => busy.value || !!state.draft);
+const showSuggestions = computed(
+  () =>
+    !busy.value &&
+    !state.draft &&
+    !state.receipt &&
+    ['welcome', 'unsupported', 'empty', 'error', 'cancelled'].includes(state.notice),
+);
+
+// 對話紀錄只留在記憶體，不寫入 localStorage。
+type Turn = {
+  id: number;
+  request: string;
+  notice: TaskState['notice'];
+  books: TaskState['bookResults'];
+  services: TaskState['serviceResults'];
+  reference?: string;
+  receiptBook?: Localized;
+};
+const turns = ref<Turn[]>([]);
+let nextTurnId = 0;
+function archiveTurn() {
+  if (!lastRequest.value && state.notice === 'welcome') return;
+  const finished = !!state.receipt;
+  turns.value.push({
+    id: nextTurnId++,
+    request: lastRequest.value,
+    notice: state.notice,
+    books: finished ? [] : state.bookResults,
+    services: state.serviceResults,
+    reference: state.receipt?.reference,
+    receiptBook: finished ? activeBook.value?.title : undefined,
+  });
+}
 
 watch(
   [locale, fontSize],
@@ -87,15 +123,18 @@ watch(
 async function focusResult() {
   await nextTick();
   resultHeading.value?.focus({ preventScroll: true });
+  resultHeading.value?.scrollIntoView({ block: 'start' });
 }
 async function submit(text = input.value) {
   if (inputDisabled.value || !text.trim()) return;
   stopReading();
   speaking.value = false;
+  archiveTurn();
   lastRequest.value = text.trim();
   input.value = '';
   resumed.value = false;
   busy.value = true;
+  await focusResult();
   try {
     await runner.run(text.trim(), (value) => (stage.value = value));
   } catch {
@@ -105,6 +144,12 @@ async function submit(text = input.value) {
     saveTask(state);
     await focusResult();
   }
+}
+function onEnter(event: KeyboardEvent) {
+  // 中文輸入法選字時的 Enter 不算送出。
+  if (event.isComposing) return;
+  event.preventDefault();
+  void submit();
 }
 function prepare(bookId: string) {
   prepareReservation(state, bookId, branches[0]!.id);
@@ -125,6 +170,7 @@ function reset() {
   speaking.value = false;
   clearTask();
   Object.assign(state, initialState());
+  turns.value = [];
   resumed.value = false;
   lastRequest.value = '';
   input.value = '';
@@ -184,260 +230,224 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <a class="skip-link" href="#main">{{ t.skip }}</a>
-  <header class="site-header">
-    <a class="brand" href="#main"
-      ><span class="brand-mark"><UiIcon /></span
-      ><span
-        >{{ t.brand }}<span class="brand-divider"> / </span><strong>{{ t.product }}</strong></span
-      ></a
-    >
-    <div class="preferences" role="group" :aria-label="t.accessibility">
-      <label
-        ><span>{{ t.font }}</span
-        ><select v-model="fontSize" :aria-label="t.font">
-          <option value="1">{{ t.normal }}</option>
-          <option value="1.25">{{ t.large }}</option>
-          <option value="1.5">{{ t.largest }}</option>
-        </select></label
+  <a class="skip-link" href="#request">{{ t.skip }}</a>
+  <header class="chat-header">
+    <h1>{{ t.product }}</h1>
+    <div class="header-actions">
+      <button
+        class="icon-button"
+        :disabled="busy"
+        :aria-label="t.newTask"
+        :title="t.newTask"
+        @click="reset"
       >
-      <label
-        ><span class="sr-only">{{ t.language }}</span
-        ><select v-model="locale" :aria-label="t.language">
-          <option value="zh-Hant-TW">繁體中文</option>
-          <option value="en">English</option>
-        </select></label
-      >
+        <UiIcon name="plus" />
+      </button>
+      <details class="settings">
+        <summary>{{ t.settings }}</summary>
+        <div class="settings-panel">
+          <label
+            >{{ t.font
+            }}<select v-model="fontSize" :aria-label="t.font">
+              <option value="1">{{ t.normal }}</option>
+              <option value="1.25">{{ t.large }}</option>
+              <option value="1.5">{{ t.largest }}</option>
+            </select></label
+          >
+          <label
+            >{{ t.language
+            }}<select v-model="locale" :aria-label="t.language">
+              <option value="zh-Hant-TW">繁體中文</option>
+              <option value="en">English</option>
+            </select></label
+          >
+          <label v-if="speechSupported"
+            >{{ t.rate
+            }}<select v-model="rate" :aria-label="t.rate">
+              <option value="0.7">{{ t.slow }}</option>
+              <option value="0.9">{{ t.standardRate }}</option>
+            </select></label
+          >
+          <p v-else class="small-note">{{ t.speechUnavailable }}</p>
+
+          <details class="developer-panel">
+            <summary>{{ t.developer }}</summary>
+            <p>{{ mode === 'local' ? t.local : t.fixture }}</p>
+            <p class="small-note">{{ t.connectionHint }}</p>
+            <form class="settings-form" @submit.prevent="applyConfig">
+              <label
+                >{{ t.mode
+                }}<select v-model="selectedMode" :disabled="busy">
+                  <option value="demo">{{ t.demoMode }}</option>
+                  <option value="local">{{ t.localMode }}</option>
+                </select></label
+              ><template v-if="selectedMode === 'local'"
+                ><label
+                  >{{ t.endpoint
+                  }}<input v-model="endpoint" type="url" required :disabled="busy" /></label
+                ><label
+                  >{{ t.model
+                  }}<input v-model="modelName" required :disabled="busy" /></label></template
+              ><button class="outline-button" :disabled="busy">{{ t.apply }}</button>
+              <p v-if="configStatus" role="status">{{ t[configStatus] }}</p>
+            </form>
+            <h2>{{ t.trace }}</h2>
+            <p v-if="!state.traces.length">{{ t.noTrace }}</p>
+            <ol v-else class="trace" lang="en">
+              <li v-for="event in state.traces" :key="event.id">
+                <code>{{ event.actor }} / {{ event.event }}</code
+                ><span>{{ event.detail }}</span
+                ><small>{{ event.elapsedMs }} ms</small>
+              </li>
+            </ol>
+            <p class="small-note">{{ t.boundary }}</p>
+          </details>
+        </div>
+      </details>
     </div>
   </header>
 
-  <main id="main" class="page-shell">
-    <section class="hero" aria-labelledby="hero-title">
-      <div class="eyebrow"><span class="status-dot"></span>{{ t.eyebrow }}</div>
-      <h1 id="hero-title">{{ t.heading }}</h1>
-      <p class="hero-intro">{{ t.intro }}</p>
-      <div class="mode-note">
-        <span class="badge">{{ t.badge }}</span
-        ><span>{{ t.demo }}</span>
+  <main id="main" class="messages">
+    <template v-for="turn in turns" :key="turn.id">
+      <div v-if="turn.request" class="user-message">
+        <span class="sr-only">{{ t.you }}</span>
+        <p>{{ turn.request }}</p>
       </div>
-    </section>
-
-    <div class="workspace">
-      <div class="conversation">
-        <section class="suggestions" :aria-label="t.quick">
-          <h2>{{ t.quick }}</h2>
-          <div class="quick-grid">
-            <button :disabled="inputDisabled" @click="submit(t.browseBooks)">
-              <UiIcon name="book" />{{ t.browseBooks }}<UiIcon class="end-arrow" name="arrow" />
-            </button>
-            <button :disabled="inputDisabled" @click="submit(t.browseServices)">
-              <UiIcon name="grid" />{{ t.browseServices }}<UiIcon class="end-arrow" name="arrow" />
-            </button>
-          </div>
-          <div class="quick-chips">
-            <button :disabled="inputDisabled" @click="submit(t.sampleBook)">
-              {{ t.sampleBook }}</button
-            ><button :disabled="inputDisabled" @click="submit(t.counter)">{{ t.counter }}</button>
-          </div>
-        </section>
-
-        <p v-if="resumed" class="resume-note" role="status">{{ t.resumed }}</p>
-        <div v-if="lastRequest" class="user-message">
-          <span>{{ t.you }}</span>
-          <p>{{ lastRequest }}</p>
-        </div>
-
-        <section class="assistant-card" aria-labelledby="result-title" :aria-busy="busy">
-          <div class="assistant-top">
-            <span class="assistant-avatar"><UiIcon /></span>
-            <h2 id="result-title" ref="resultHeading" tabindex="-1">{{ t.assistant }}</h2>
-            <span class="mini-label">{{ t.badge }}</span>
-          </div>
-          <p class="reply-text" role="status" aria-live="polite">{{ busy ? t[stage] : reply }}</p>
-          <div v-if="busy" class="working">
-            <span class="working-dots" aria-hidden="true">•••</span
-            ><button class="text-button" @click="runner.cancel()">{{ t.stop }}</button>
-          </div>
-
-          <template v-if="!busy">
-            <ul v-if="shownBooks.length && !state.draft && !state.receipt" class="result-list">
-              <li v-for="(book, index) in shownBooks" :key="book.id" class="book-card">
-                <div class="book-cover" :class="`cover-${index % 3}`" aria-hidden="true">
-                  <UiIcon name="book" /><span>0{{ index + 1 }}</span>
-                </div>
-                <div class="book-info">
-                  <span class="category">{{ book.category[locale] }}</span>
-                  <h3>{{ book.title[locale] }}</h3>
-                  <p>{{ book.author[locale] }}</p>
-                  <button class="outline-button" @click="prepare(book.id)">
-                    {{ t.reserve }}<UiIcon name="arrow" />
-                  </button>
-                </div>
-              </li>
-            </ul>
-            <ul v-if="shownServices.length" class="result-list service-results">
-              <li v-for="service in shownServices" :key="service.id">
-                <UiIcon :name="service.id === 'library' ? 'book' : 'grid'" />
-                <div>
-                  <h3>{{ service.title[locale] }}</h3>
-                  <p>{{ service.description[locale] }}</p>
-                  <button
-                    v-if="service.id === 'library'"
-                    class="outline-button"
-                    @click="submit(t.browseBooks)"
-                  >
-                    {{ t.explore }}<UiIcon name="arrow" /></button
-                  ><span v-else class="category">{{ t.infoOnly }}</span>
-                </div>
-              </li>
-            </ul>
-
-            <section v-if="state.draft" class="review-panel" aria-labelledby="review-title">
-              <span class="section-number">{{ t.reviewEyebrow }}</span>
-              <h3 id="review-title">{{ t.reviewTitle }}</h3>
-              <dl>
-                <dt>{{ t.book }}</dt>
-                <dd>{{ activeBook?.title[locale] }}</dd>
-              </dl>
-              <label class="field-label" for="branch">{{ t.branch }}</label
-              ><select id="branch" :value="state.draft.branchId" @change="updateBranch">
-                <option v-for="branch in branches" :key="branch.id" :value="branch.id">
-                  {{ branch.name[locale] }}
-                </option>
-              </select>
-              <p class="notice-box">{{ t.simulated }}</p>
-              <div class="action-row">
-                <button class="primary-button" @click="confirm">
-                  <UiIcon name="check" />{{ t.confirm }}</button
-                ><button class="text-button" @click="cancelDraft(state)">{{ t.cancel }}</button>
-              </div>
-            </section>
-            <section v-if="state.receipt" class="receipt-panel" aria-labelledby="receipt-title">
-              <span class="receipt-check"><UiIcon name="check" /></span>
-              <h3 id="receipt-title">{{ t.receiptTitle }}</h3>
-              <dl>
-                <dt>{{ t.book }}</dt>
-                <dd>{{ activeBook?.title[locale] }}</dd>
-                <dt>{{ t.branch }}</dt>
-                <dd>{{ activeBranch?.name[locale] }}</dd>
-                <dt>{{ t.reference }}</dt>
-                <dd class="receipt-reference">{{ state.receipt.reference }}</dd>
-              </dl>
-              <p>{{ t.saved }}</p>
-            </section>
-
-            <div class="speech-controls" v-if="speechSupported">
-              <button class="text-button" @click="speak">
-                <UiIcon name="sound" />{{ speaking ? t.stopRead : t.read }}</button
-              ><label
-                ><span class="sr-only">{{ t.rate }}</span
-                ><select v-model="rate">
-                  <option value="0.7">{{ t.slow }}</option>
-                  <option value="0.9">{{ t.standardRate }}</option>
-                </select></label
-              >
-            </div>
-            <p v-else class="small-note">{{ t.speechUnavailable }}</p>
-            <p v-if="speechFailed" role="alert" class="small-note">{{ t.speechError }}</p>
-          </template>
-        </section>
-
-        <form class="composer" @submit.prevent="submit()">
-          <label for="request">{{ t.questionLabel }}</label
-          ><textarea
-            id="request"
-            v-model="input"
-            :placeholder="t.placeholder"
-            maxlength="600"
-            rows="2"
-            :disabled="inputDisabled"
-            aria-describedby="input-help"
-          ></textarea>
-          <div class="composer-bottom">
-            <span>{{ input.length }} / 600 {{ t.count }}</span
-            ><button
-              type="submit"
-              class="primary-button"
-              :disabled="inputDisabled || !input.trim()"
-            >
-              {{ t.send }}<UiIcon name="arrow" />
-            </button>
-          </div>
-          <p id="input-help">{{ t.inputHint }}</p>
-        </form>
+      <div class="assistant-message">
+        <span class="sr-only">{{ t.assistant }}</span>
+        <p>{{ t[turn.notice] }}</p>
+        <ul v-if="turn.books.length" class="plain-list">
+          <li v-for="book in turn.books" :key="book.id">
+            <strong>{{ book.title[locale] }}</strong>
+            <span>{{ book.author[locale] }}</span>
+          </li>
+        </ul>
+        <ul v-if="turn.services.length" class="plain-list">
+          <li v-for="service in turn.services" :key="service.id">
+            <strong>{{ service.title[locale] }}</strong>
+            <span v-if="service.description[locale]">{{ service.description[locale] }}</span>
+          </li>
+        </ul>
+        <p v-if="turn.reference" class="small-note">
+          {{ turn.receiptBook?.[locale] }}・{{ t.reference }} {{ turn.reference }}
+        </p>
       </div>
+    </template>
 
-      <aside class="side-panel" :aria-label="t.progressTitle">
-        <div class="progress-card">
-          <span class="section-number">{{ t.journeyEyebrow }}</span>
-          <h2>{{ t.progressTitle }}</h2>
-          <ol>
-            <li
-              v-for="n in 3"
-              :key="n"
-              :class="{ current: step === n, completed: step > n || !!state.receipt }"
-              :aria-current="step === n ? 'step' : undefined"
-            >
-              <span class="step-number"
-                ><UiIcon v-if="step > n || state.receipt" name="check" /><template v-else
-                  >0{{ n }}</template
-                ></span
-              >
-              <div>
-                <strong>{{ t[`step${n}` as 'step1'] }}</strong>
-                <p>{{ t[`step${n}Detail` as 'step1Detail'] }}</p>
-              </div>
-            </li>
-          </ol>
-          <button :disabled="busy" class="reset-button" :title="t.newTaskHint" @click="reset">
-            {{ t.newTask }}<UiIcon name="arrow" />
-          </button>
-        </div>
-        <div class="privacy-note">
-          <UiIcon name="shield" />
-          <h3>{{ t.privacyTitle }}</h3>
-          <p>{{ t.privacy }}</p>
-        </div>
-      </aside>
+    <p v-if="resumed" class="small-note" role="status">{{ t.resumed }}</p>
+    <div v-if="lastRequest" class="user-message">
+      <span class="sr-only">{{ t.you }}</span>
+      <p>{{ lastRequest }}</p>
     </div>
 
-    <details class="developer-panel">
-      <summary>{{ t.developer }}</summary>
-      <div class="developer-content">
-        <p>{{ mode === 'local' ? t.local : t.fixture }}</p>
-        <p class="small-note">{{ t.connectionHint }}</p>
-        <form class="settings-form" @submit.prevent="applyConfig">
-          <label
-            >{{ t.mode
-            }}<select v-model="selectedMode" :disabled="busy">
-              <option value="demo">{{ t.demoMode }}</option>
-              <option value="local">{{ t.localMode }}</option>
-            </select></label
-          ><template v-if="selectedMode === 'local'"
-            ><label
-              >{{ t.endpoint
-              }}<input v-model="endpoint" type="url" required :disabled="busy" /></label
-            ><label
-              >{{ t.model
-              }}<input v-model="modelName" required :disabled="busy" /></label></template
-          ><button class="outline-button" :disabled="busy">{{ t.apply }}</button>
-          <p v-if="configStatus" role="status">{{ t[configStatus] }}</p>
-        </form>
-        <h3>{{ t.trace }}</h3>
-        <p v-if="!state.traces.length">{{ t.noTrace }}</p>
-        <ol v-else class="trace" lang="en">
-          <li v-for="event in state.traces" :key="event.id">
-            <code>{{ event.actor }} / {{ event.event }}</code
-            ><span>{{ event.detail }}</span
-            ><small>{{ event.elapsedMs }} ms</small>
-          </li>
-        </ol>
-        <p class="small-note">{{ t.boundary }}</p>
+    <section
+      ref="resultHeading"
+      class="assistant-message"
+      tabindex="-1"
+      :aria-label="t.assistant"
+      :aria-busy="busy"
+    >
+      <p role="status" aria-live="polite">{{ busy ? t[stage] : reply }}</p>
+      <div v-if="busy" class="working">
+        <span class="working-dots" aria-hidden="true">•••</span
+        ><button class="text-button" @click="runner.cancel()">{{ t.stop }}</button>
       </div>
-    </details>
-    <footer>
-      <p>{{ t.source }}</p>
-      <span>{{ t.footer }}</span>
-    </footer>
+
+      <template v-if="!busy">
+        <ul v-if="shownBooks.length && !state.draft && !state.receipt" class="result-list">
+          <li v-for="book in shownBooks" :key="book.id" class="result-card">
+            <span v-if="book.category[locale]" class="category">{{ book.category[locale] }}</span>
+            <h2>{{ book.title[locale] }}</h2>
+            <p>{{ book.author[locale] }}</p>
+            <button class="outline-button" @click="prepare(book.id)">{{ t.reserve }}</button>
+          </li>
+        </ul>
+        <ul v-if="shownServices.length" class="result-list">
+          <li v-for="service in shownServices" :key="service.id" class="result-card">
+            <h2>{{ service.title[locale] }}</h2>
+            <p v-if="service.description[locale]">{{ service.description[locale] }}</p>
+            <button
+              v-if="service.id === 'library'"
+              class="outline-button"
+              @click="submit(t.browseBooks)"
+            >
+              {{ t.explore }}
+            </button>
+          </li>
+        </ul>
+
+        <section v-if="state.draft" class="result-card" aria-labelledby="review-title">
+          <h2 id="review-title">{{ t.reviewTitle }}</h2>
+          <dl>
+            <dt>{{ t.book }}</dt>
+            <dd>{{ activeBook?.title[locale] }}</dd>
+          </dl>
+          <label class="field-label" for="branch">{{ t.branch }}</label
+          ><select id="branch" :value="state.draft.branchId" @change="updateBranch">
+            <option v-for="branch in branches" :key="branch.id" :value="branch.id">
+              {{ branch.name[locale] }}
+            </option>
+          </select>
+          <p class="small-note">{{ t.simulated }}</p>
+          <div class="action-row">
+            <button class="primary-button" @click="confirm">{{ t.confirm }}</button
+            ><button class="text-button" @click="cancelDraft(state)">{{ t.cancel }}</button>
+          </div>
+        </section>
+        <section v-if="state.receipt" class="result-card" aria-labelledby="receipt-title">
+          <h2 id="receipt-title">{{ t.receiptTitle }}</h2>
+          <dl>
+            <dt>{{ t.book }}</dt>
+            <dd>{{ activeBook?.title[locale] }}</dd>
+            <dt>{{ t.branch }}</dt>
+            <dd>{{ activeBranch?.name[locale] }}</dd>
+            <dt>{{ t.reference }}</dt>
+            <dd class="receipt-reference">{{ state.receipt.reference }}</dd>
+          </dl>
+          <p class="small-note">{{ t.saved }}</p>
+        </section>
+
+        <div v-if="showSuggestions" class="suggestions" role="group" :aria-label="t.quick">
+          <button @click="submit(t.browseBooks)">{{ t.browseBooks }}</button>
+          <button @click="submit(t.browseServices)">{{ t.browseServices }}</button>
+          <button @click="submit(t.counter)">{{ t.counter }}</button>
+        </div>
+
+        <button
+          v-if="speechSupported && state.notice !== 'welcome'"
+          class="text-button read-button"
+          @click="speak"
+        >
+          <UiIcon name="sound" />{{ speaking ? t.stopRead : t.read }}
+        </button>
+        <p v-if="speechFailed" role="alert" class="small-note">{{ t.speechError }}</p>
+      </template>
+    </section>
   </main>
+
+  <form class="composer" @submit.prevent="submit()">
+    <label class="sr-only" for="request">{{ t.questionLabel }}</label>
+    <div class="composer-box">
+      <textarea
+        id="request"
+        v-model="input"
+        :placeholder="t.placeholder"
+        maxlength="600"
+        rows="1"
+        :disabled="inputDisabled"
+        aria-describedby="input-help"
+        @keydown.enter.exact="onEnter"
+      ></textarea>
+      <button
+        type="submit"
+        class="send-button"
+        :aria-label="t.send"
+        :title="t.send"
+        :disabled="inputDisabled || !input.trim()"
+      >
+        <UiIcon name="send" />
+      </button>
+    </div>
+    <p id="input-help">{{ t.composerNote }}</p>
+  </form>
 </template>
