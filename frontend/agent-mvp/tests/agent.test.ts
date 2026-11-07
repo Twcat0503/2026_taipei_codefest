@@ -93,6 +93,39 @@ describe('bounded agent orchestration', () => {
     expect(model.complete).toHaveBeenCalledTimes(4);
     expect(state.bookIds).toEqual([]);
   });
+  it('keeps verified results when the model replies in plain text after the tool', async () => {
+    const model: ModelAdapter = {
+      mode: 'local',
+      complete: vi
+        .fn()
+        .mockResolvedValueOnce({
+          calls: [{ id: '1', name: 'select_agent', arguments: { domain: 'library' } }],
+        })
+        .mockResolvedValueOnce({
+          calls: [{ id: '2', name: 'search_books', arguments: { query: '' } }],
+        })
+        .mockResolvedValueOnce({ calls: [], content: '已幫你預約成功' }),
+    };
+    const state = initialState();
+    await new AgentRunner(model, state).run('找圖書');
+    expect(state.notice).toBe('books');
+    expect(state.bookIds).toHaveLength(3);
+    expect(state.receipt).toBeNull();
+  });
+  it('rejects a plain text answer that never used a tool', async () => {
+    const model: ModelAdapter = {
+      mode: 'local',
+      complete: vi
+        .fn()
+        .mockResolvedValueOnce({
+          calls: [{ id: '1', name: 'select_agent', arguments: { domain: 'library' } }],
+        })
+        .mockResolvedValue({ calls: [], content: '這本書在三樓' }),
+    };
+    const state = initialState();
+    await expect(new AgentRunner(model, state).run('找圖書')).rejects.toThrow('NO_TOOL_RESULT');
+    expect(state.bookIds).toEqual([]);
+  });
   it('rejects invalid arguments and MCP errors', async () => {
     const signal = new AbortController().signal;
     const state = initialState();
@@ -213,7 +246,11 @@ describe('local model adapter', () => {
       parseCompletion(result({ content: '{"name":"search_books","arguments":{"query":""}}' }))
         .calls[0]?.name,
     ).toBe('search_books');
-    expect(() => parseCompletion(result({ content: '預約成功' }))).toThrow();
+    expect(parseCompletion(result({ content: '預約成功' }))).toEqual({
+      calls: [],
+      content: '預約成功',
+    });
+    expect(parseCompletion(result({ content: null }))).toEqual({ calls: [] });
     expect(() =>
       parseCompletion({ choices: [{ finish_reason: 'length', message: { content: '{}' } }] }),
     ).toThrow('TRUNCATED_RESPONSE');

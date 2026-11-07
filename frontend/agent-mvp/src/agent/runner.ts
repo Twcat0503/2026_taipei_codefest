@@ -92,8 +92,8 @@ export class AgentRunner {
         const response = await this.model.complete({ messages, tools: allowedTools, signal });
         ensureActive();
         if (!response.calls.length) {
-          if (!executed || (response.content !== '{"status":"done"}' && !isDone(response.content)))
-            throw new Error('NO_TOOL_RESULT');
+          // 畫面只呈現驗證過的工具結果，所以工具成功後，模型回什麼文字都視為完成。
+          if (!executed) throw new Error('NO_TOOL_RESULT');
           trace(domain, 'completed', 'Render verified tool records in the selected UI language.');
           return;
         }
@@ -129,13 +129,5 @@ export class AgentRunner {
     } finally {
       this.controller = null;
     }
-  }
-}
-
-function isDone(content?: string) {
-  try {
-    return JSON.parse(content ?? '').status === 'done';
-  } catch {
-    return false;
   }
 }

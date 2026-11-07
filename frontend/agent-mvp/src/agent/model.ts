@@ -194,13 +194,18 @@ export function parseCompletion(body: unknown): { calls: ToolCall[]; content?: s
     if (!record(args)) throw new Error('INVALID_ARGUMENTS');
     return { calls: [{ id: call.id, name: call.function.name, arguments: args }] };
   }
+  // OpenAI 協定的模型沒呼叫工具時會回一般文字。文字不當工具呼叫，也不會顯示給使用者，由 runner 判斷是否算完成。
+  if (message.content === null || message.content === undefined) return { calls: [] };
   if (typeof message.content !== 'string') throw new Error('INVALID_RESPONSE');
-  const content: unknown = JSON.parse(message.content);
-  if (!record(content)) throw new Error('INVALID_RESPONSE');
-  if (content.status === 'done') return { calls: [], content: message.content };
-  if (typeof content.name === 'string' && record(content.arguments))
+  let content: unknown;
+  try {
+    content = JSON.parse(message.content);
+  } catch {
+    return { calls: [], content: message.content };
+  }
+  if (record(content) && typeof content.name === 'string' && record(content.arguments))
     return { calls: [{ id: 'json-tool-call', name: content.name, arguments: content.arguments }] };
-  throw new Error('INVALID_RESPONSE');
+  return { calls: [], content: message.content };
 }
 
 /** OpenAI Chat Completions wire format. Only on-device loopback is allowed. */
