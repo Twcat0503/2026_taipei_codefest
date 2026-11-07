@@ -105,6 +105,7 @@ export type TaskState = {
     | 'billAuth'
     | 'billUnavailable'
     | 'welcome'
+    | 'greeting'
     | 'books'
     | 'results'
     | 'needLocation'

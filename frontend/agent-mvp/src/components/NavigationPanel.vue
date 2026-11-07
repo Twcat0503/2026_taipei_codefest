@@ -294,12 +294,13 @@ function goNavigation() {
 
     <form v-if="isReport" class="report-form" @submit.prevent="goNavigation">
       <p class="field-label">{{ t.draftIntro }}</p>
-      <div class="report-photo">
+      <div v-if="canSeePhotos" class="report-photo">
         <input
           id="report-photo-input"
           ref="photoInput"
           class="sr-only"
           type="file"
+          :aria-label="t.photoAdd"
           accept="image/*"
           capture="environment"
           :disabled="photoBusy"
@@ -329,6 +330,7 @@ function goNavigation() {
           {{ t[photoMessageKey] }}
         </p>
       </div>
+      <p v-else class="small-note">{{ demoMode ? t.photoSimulated : t.photoNotReady }}</p>
       <dl v-if="draft.category" class="draft-category">
         <dt>{{ t.draftCategory }}</dt>
         <dd>{{ draft.category.main[locale] }} ・ {{ draft.category.sub }}</dd>

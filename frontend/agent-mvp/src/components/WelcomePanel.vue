@@ -11,8 +11,12 @@ const props = defineProps<{
   disabled: boolean;
   hasTask: boolean;
   pendingDraft: boolean;
+  native: boolean;
+  modelNeedsStart: boolean;
+  modelStarting: boolean;
+  modelStatus: string;
 }>();
-defineEmits<{ request: [text: string]; voice: []; resume: []; settings: [] }>();
+defineEmits<{ request: [text: string]; voice: []; resume: []; settings: []; startModel: [] }>();
 const t = computed(() => messages[props.locale]);
 const panel = ref<HTMLElement>();
 const suggestionStage = ref<HTMLElement>();
@@ -25,7 +29,11 @@ const resumePrimary = computed(
   () => props.hasTask && (props.pendingDraft || visibleCount.value === 0),
 );
 const primaryLabel = computed(() =>
-  resumePrimary.value ? t.value.resumeAction : t.value.voiceButton,
+  props.modelNeedsStart
+    ? t.value.phoneStart
+    : resumePrimary.value
+      ? t.value.resumeAction
+      : t.value.voiceButton,
 );
 let observer: ResizeObserver | undefined;
 let frame = 0;
@@ -179,6 +187,21 @@ const visibleSuggestions = computed(() => suggestions.value.slice(0, visibleCoun
       </div>
     </div>
     <button
+      v-if="modelNeedsStart"
+      ref="voiceButton"
+      class="voice-launch model-launch"
+      :disabled="modelStarting"
+      :aria-label="t.phoneStart"
+      @click="$emit('startModel')"
+    >
+      <UiIcon class="voice-resume-icon" name="settings" />
+      <span class="voice-label" :style="{ fontSize: `${voiceFontSize}px` }">{{
+        t.phoneStart
+      }}</span>
+    </button>
+    <p v-if="modelNeedsStart" class="model-hint" role="status">{{ modelStatus }}</p>
+    <button
+      v-else-if="!native || resumePrimary"
       ref="voiceButton"
       class="voice-launch"
       :disabled="!resumePrimary && disabled"

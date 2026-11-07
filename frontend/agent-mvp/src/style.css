@@ -784,6 +784,12 @@ dd {
 .settings-content .phone-model-panel {
   margin: 0;
 }
+.model-hint {
+  flex-shrink: 0;
+  color: var(--teal);
+  font-size: 0.875rem;
+  text-align: center;
+}
 
 /* Composer stays above the keyboard and never covers the scrolling content. */
 .composer-dock {
@@ -791,63 +797,11 @@ dd {
   padding: 0.5rem 1.375rem max(0.5rem, env(safe-area-inset-bottom));
   background: var(--paper);
 }
-.attachments {
-  max-height: min(22dvh, 10rem);
-  overflow-y: auto;
-  margin-bottom: 0.5rem;
-}
-.attachments ul {
-  padding: 0;
-  margin: 0;
-  list-style: none;
-}
-.attachments li {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-.attachments li span {
-  overflow-wrap: anywhere;
-}
-.attachments li button {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-}
-.attachments li svg {
-  width: 1.25rem;
-  height: 1.25rem;
-}
-.attachments p {
-  margin: 0;
-}
 .composer {
   --composer-control: clamp(48px, 3.75rem, 96px);
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-.add-button {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: var(--composer-control);
-  height: var(--composer-control);
-  min-width: 48px;
-  min-height: 48px;
-  padding: 0;
-  border: 2px solid var(--primary);
-  border-radius: 50%;
-  color: white;
-  background: var(--deep);
-}
-.add-button svg {
-  width: 2rem;
-  height: 2rem;
 }
 .composer-box {
   position: relative;
@@ -1123,60 +1077,6 @@ dd {
   height: var(--bar-ratio);
 }
 
-.disaster-demo,
-.disaster-step {
-  display: grid;
-  gap: 1.25rem;
-}
-.disaster-step:focus {
-  outline: none;
-}
-.demo-disclosure {
-  color: var(--teal);
-  font-size: 0.75rem;
-}
-.disaster-step .user-message {
-  justify-self: end;
-}
-.disaster-choices {
-  display: grid;
-  gap: 0.75rem;
-}
-.disaster-choices button {
-  font-size: 1.125rem;
-}
-.disaster-choices.choice-row {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-.location-preview-form {
-  display: grid;
-  gap: 0.75rem;
-}
-.disaster-photo {
-  width: 100%;
-  height: auto;
-  aspect-ratio: 362 / 283;
-  object-fit: cover;
-  border-radius: 1.75rem 1.75rem 4px 1.75rem;
-}
-.disaster-exit {
-  justify-self: start;
-}
-.photo-options {
-  display: grid;
-  gap: 0.75rem;
-}
-.photo-options summary {
-  min-height: 48px;
-  padding-block: 0.75rem;
-  color: var(--teal);
-  cursor: pointer;
-}
-.photo-options input {
-  max-width: 100%;
-  font-size: 0.875rem;
-}
-
 /* 前往確認卡：報案表單（有話要說）、會員資料帶入、水號 */
 .navigation-card {
   border-color: var(--teal);
@@ -1355,13 +1255,11 @@ button:active:not(:disabled) {
 }
 @supports (interpolate-size: allow-keywords) {
   .developer-panel,
-  .decision,
-  .photo-options {
+  .decision {
     interpolate-size: allow-keywords;
   }
   .developer-panel::details-content,
-  .decision::details-content,
-  .photo-options::details-content {
+  .decision::details-content {
     block-size: 0;
     opacity: 0;
     overflow: hidden;
@@ -1371,8 +1269,7 @@ button:active:not(:disabled) {
       content-visibility 180ms allow-discrete;
   }
   .developer-panel[open]::details-content,
-  .decision[open]::details-content,
-  .photo-options[open]::details-content {
+  .decision[open]::details-content {
     block-size: auto;
     opacity: 1;
   }
@@ -1456,10 +1353,7 @@ button:active:not(:disabled) {
   .result-list {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   }
-  .reply-bubble,
-  .disaster-choices,
-  .disaster-photo,
-  .location-preview-form {
+  .reply-bubble {
     max-width: 48rem;
   }
   .voice-dock {

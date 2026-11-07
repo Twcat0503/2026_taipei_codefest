@@ -16,6 +16,7 @@ const longBars = [
         '--bar-height': `${height / 16}rem`,
         '--bar-ratio': `${(height / 72) * 100}%`,
         '--bar-delay': `${index * -0.09}s`,
+        '--bar-duration': `${0.5 + (index % 4) * 0.12}s`,
       }"
     ></span>
   </span>

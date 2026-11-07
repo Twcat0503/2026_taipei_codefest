@@ -20,7 +20,6 @@ import {
 } from './platform/profile';
 import { readMember, type Member } from './platform/member';
 import WelcomePanel from './components/WelcomePanel.vue';
-import DisasterDemo from './components/DisasterDemo.vue';
 import VoiceWave from './components/VoiceWave.vue';
 import { messages } from './i18n';
 import { branches } from './agent/catalog';
@@ -69,13 +68,8 @@ const resultHeading = ref<HTMLElement>();
 const requestInput = ref<HTMLTextAreaElement>();
 const assistantBody = ref<HTMLElement>();
 const keyboardViewportHeight = ref<number | null>(null);
-const attachmentInput = ref<HTMLInputElement>();
-const attachments = ref<File[]>([]);
-// 圖片附件不留在附件列：交給報案表單做影像描述（見 selectAttachments）。
-const pendingPhoto = ref<File | null>(null);
 const preferencesDialog = ref<HTMLDialogElement>();
 const home = ref(!resumed.value);
-const disasterDemo = ref(false);
 const native = !!window.flutterObject;
 const voiceOpen = ref(false);
 const voiceStatus = ref<VoiceStatus>('idle');
@@ -174,7 +168,9 @@ function goRecord(url: string) {
   confirmingLink.value = null;
 }
 // 示範（規則模擬）模式沒有真正的視覺模型；本機與手機模型才送照片。
-const canSeePhotos = computed(() => mode.value !== 'demo');
+const canSeePhotos = computed(
+  () => mode.value === 'local' || (mode.value === 'phone' && phoneState.value.ready),
+);
 const speechSupported = ref(canReadAloud());
 const speaking = ref(false);
 const speechFailed = ref(false);
@@ -218,9 +214,15 @@ const showSuggestions = computed(
     !busy.value &&
     !state.draft &&
     !state.receipt &&
-    ['welcome', 'unsupported', 'empty', 'error', 'cancelled', 'navigationDeclined'].includes(
-      state.notice,
-    ),
+    [
+      'welcome',
+      'greeting',
+      'unsupported',
+      'empty',
+      'error',
+      'cancelled',
+      'navigationDeclined',
+    ].includes(state.notice),
 );
 const hasConversation = computed(() => state.notice !== 'welcome' || turns.value.length > 0);
 
@@ -343,7 +345,6 @@ function onViewEntered() {
     !home.value &&
     hasConversation.value &&
     !voiceOpen.value &&
-    !disasterDemo.value &&
     document.activeElement !== requestInput.value
   )
     void focusResult();
@@ -372,17 +373,6 @@ function goHome() {
   if (busy.value) return;
   cancelVoice();
   home.value = true;
-  disasterDemo.value = false;
-}
-function startDisasterDemo() {
-  if (busy.value || state.draft) return;
-  closeSettings();
-  cancelVoice();
-  stopReading();
-  speaking.value = false;
-  home.value = false;
-  input.value = '';
-  disasterDemo.value = true;
 }
 function startVoice() {
   if (inputDisabled.value) return;
@@ -403,18 +393,21 @@ function typeInstead() {
   voiceOpen.value = false;
   void focusInput();
 }
-async function submit(text = input.value, withPhoto = false) {
-  if (inputDisabled.value || (attachments.value.length && !withPhoto) || !text.trim()) return;
-  if (
-    /^(?:我想要|我要|我想)?通報災情[。！!？?]?$|^(?:i want to )?report a disaster[.!?]?$/iu.test(
-      text.trim(),
-    )
-  ) {
-    startDisasterDemo();
+async function submit(text = input.value) {
+  if (inputDisabled.value || !text.trim()) return;
+  if (/^(?:你好|您好|嗨|哈囉|hello|hi)[!！。,.，\s]*$/iu.test(text.trim())) {
+    archiveTurn();
+    lastRequest.value = text.trim();
+    input.value = '';
+    home.value = false;
+    resumed.value = false;
+    Object.assign(state, initialState(), { notice: 'greeting' });
+    saveTask(state);
+    persistConversation();
+    await focusResult();
     return;
   }
   profile.value = loadProfile();
-  disasterDemo.value = false;
   confirmingLink.value = null;
   leftFor.value = false;
   stopReading();
@@ -500,43 +493,17 @@ function reset() {
   resumed.value = false;
   lastRequest.value = '';
   input.value = '';
-  attachments.value = [];
-  pendingPhoto.value = null;
   runner.cancelVision();
   cancelVoice();
   input.value = '';
   home.value = true;
   closeSettings();
-  disasterDemo.value = false;
 }
 function stay() {
   if (state.navigation) {
     state.navigation = null;
     state.notice = 'navigationDeclined';
   }
-}
-async function selectAttachments(event: Event) {
-  const target = event.target as HTMLInputElement;
-  if (inputDisabled.value) return;
-  const files = Array.from(target.files ?? []);
-  target.value = '';
-  // 圖片＝拍照報案：助手看照片幫忙描述，填進「有話要說」的報案表單；其他檔案仍無法讀取。
-  const images = files.filter((file) => file.type.startsWith('image/'));
-  attachments.value = [...attachments.value, ...files.filter((file) => !images.includes(file))];
-  if (attachments.value.length) home.value = false;
-  const [image] = images;
-  if (!image) return;
-  home.value = false;
-  disasterDemo.value = false;
-  pendingPhoto.value = image;
-  // 報案表單還沒開的話，先開「有話要說」，照片再交給表單。
-  if (state.navigation?.id !== 'townpass_report') await submit(t.value.reportRequest, true);
-  await nextTick();
-  // 沒有開出報案表單（例如被擋下或出錯）就不要把照片留到下一張卡。
-  pendingPhoto.value = null;
-}
-function removeAttachment(index: number) {
-  attachments.value.splice(index, 1);
 }
 async function applyConfig() {
   if (busy.value) return;
@@ -665,7 +632,7 @@ onBeforeUnmount(() => {
     </header>
 
     <main id="main" ref="assistantBody" class="assistant-body">
-      <button v-if="mode === 'phone'" class="phone-status-button" @click="openSettings">
+      <button v-if="mode === 'phone' && !home" class="phone-status-button" @click="openSettings">
         {{ phoneState.ready ? t.phoneConnected : t.phoneStart }}
       </button>
       <Transition name="view-fade" mode="out-in" @after-enter="onViewEntered">
@@ -675,28 +642,31 @@ onBeforeUnmount(() => {
           :disabled="inputDisabled"
           :has-task="hasConversation"
           :pending-draft="!!state.draft"
+          :native="native || mode === 'phone'"
+          :model-needs-start="mode === 'phone' && !phoneState.ready"
+          :model-starting="phoneStarting"
+          :model-status="
+            phoneState.error ? t[`phoneError_${phoneState.error}`] : t[`phone_${phoneState.phase}`]
+          "
           @request="submit"
           @voice="startVoice"
+          @start-model="startPhone"
           @resume="home = false"
           @settings="openSettings"
         />
 
         <div v-else class="conversation">
-          <div
-            class="conversation-heading"
-            :class="{ 'has-request': hasConversation || disasterDemo }"
-          >
-            <h1>{{ disasterDemo ? t.disasterRequest : lastRequest || t.today }}</h1>
+          <div class="conversation-heading" :class="{ 'has-request': hasConversation }">
+            <h1>{{ lastRequest || t.today }}</h1>
             <button class="icon-button" :aria-label="t.settings" @click="openSettings">
               <UiIcon name="settings" />
             </button>
           </div>
-          <DisasterDemo v-if="disasterDemo" :locale="locale" @exit="goHome" />
-          <div v-if="!hasConversation && !voiceOpen && !disasterDemo" class="conversation-empty">
+          <div v-if="!hasConversation && !voiceOpen" class="conversation-empty">
             <p>{{ t.welcome }}</p>
             <p class="small-note">{{ t.historyHint }}</p>
           </div>
-          <div v-if="!disasterDemo" class="messages">
+          <div class="messages">
             <template v-for="turn in turns" :key="turn.id">
               <div v-if="turn.request" class="user-message">
                 <span class="sr-only">{{ t.you }}</span>
@@ -856,8 +826,7 @@ onBeforeUnmount(() => {
                   :demo-mode="mode === 'demo'"
                   :describe="(image: string) => runner.describePhoto(image, locale)"
                   :cancel-describe="() => runner.cancelVision()"
-                  :photo-file="pendingPhoto"
-                  @photo-consumed="pendingPhoto = null"
+                  :photo-file="null"
                   @stay="stay"
                 />
                 <p v-if="state.failure?.hint" class="notice-box">{{ state.failure.hint }}</p>
@@ -1009,12 +978,7 @@ onBeforeUnmount(() => {
       </div>
     </section>
     <footer v-else class="composer-dock">
-      <div
-        v-if="!home && !state.draft && !disasterDemo"
-        class="quick-chips"
-        role="group"
-        :aria-label="t.quick"
-      >
+      <div v-if="!home && !state.draft" class="quick-chips" role="group" :aria-label="t.quick">
         <button
           :disabled="inputDisabled"
           :aria-label="t.browseBills"
@@ -1030,42 +994,7 @@ onBeforeUnmount(() => {
         </button>
       </div>
       <p v-if="state.draft && !home" class="draft-hint">{{ t.draftHint }}</p>
-      <div v-if="attachments.length" class="attachments" role="region" :aria-label="t.attachments">
-        <ul>
-          <li v-for="(file, index) in attachments" :key="index">
-            <span>{{ file.name }}</span>
-            <button
-              type="button"
-              :aria-label="t.removeAttachment.replace('{name}', file.name)"
-              @click="removeAttachment(index)"
-            >
-              <UiIcon name="close" />
-            </button>
-          </li>
-        </ul>
-        <p role="status">{{ t.attachmentUnavailable }}</p>
-      </div>
       <form class="composer" @submit.prevent="submit()">
-        <input
-          ref="attachmentInput"
-          class="sr-only"
-          type="file"
-          :aria-label="t.attachmentPicker"
-          :disabled="inputDisabled"
-          accept="image/*,.pdf,.txt,text/plain,application/pdf"
-          multiple
-          tabindex="-1"
-          @change="selectAttachments"
-        />
-        <button
-          type="button"
-          class="add-button"
-          :aria-label="t.addAttachment"
-          :disabled="inputDisabled"
-          @click="attachmentInput?.click()"
-        >
-          <UiIcon name="plus" />
-        </button>
         <label class="sr-only" for="request">{{ t.questionLabel }}</label>
         <div class="composer-box">
           <textarea
@@ -1085,17 +1014,15 @@ onBeforeUnmount(() => {
             class="send-button"
             :class="{ 'is-empty': !input.trim() }"
             :aria-label="t.send"
-            :disabled="inputDisabled || !!attachments.length || !input.trim()"
+            :disabled="inputDisabled || !input.trim()"
           >
             <UiIcon name="send" />
           </button>
         </div>
       </form>
       <p id="input-help" class="composer-note">
-        <span>{{ disasterDemo ? t.demoBadge : mode === 'demo' ? t.ruleBadge : t.modelBadge }}</span
-        ><span class="scope-copy">
-          · {{ disasterDemo || !toolClient ? t.demoBadge : t.readOnlyBadge }}</span
-        >
+        <span>{{ mode === 'demo' ? t.ruleBadge : t.modelBadge }}</span
+        ><span class="scope-copy"> · {{ !toolClient ? t.demoBadge : t.readOnlyBadge }}</span>
       </p>
       <p v-if="conversationSaveFailed" role="status">{{ t.conversationSaveFailed }}</p>
     </footer>
@@ -1181,7 +1108,7 @@ onBeforeUnmount(() => {
             />{{ t.fieldAccessible }}</label
           >
         </section>
-        <section class="settings-section">
+        <section v-if="!native && mode !== 'phone'" class="settings-section">
           <button
             class="outline-button"
             :disabled="inputDisabled"

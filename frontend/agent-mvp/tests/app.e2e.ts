@@ -68,6 +68,20 @@ test('unknown requests and cancelled drafts never produce receipts', async ({ pa
   await expect(page.getByText(/^DEMO-/)).toHaveCount(0);
 });
 
+test('a greeting receives a helpful answer without a model or tool lookup', async ({ page }) => {
+  const calls: string[] = [];
+  page.on('request', (request) => {
+    if (['fetch', 'xhr'].includes(request.resourceType())) calls.push(request.url());
+  });
+  await chooseService(page, '你好');
+  await expect(page.locator('section.assistant-message')).toContainText(
+    '你好！你可以直接說想找什麼服務',
+  );
+  await expect(page.getByRole('button', { name: '幫我找圖書', exact: true })).toBeVisible();
+  expect(calls).toEqual([]);
+  await expect(page.getByText(/^DEMO-/)).toHaveCount(0);
+});
+
 test('bill clarification, statuses, browser navigation and no persistent account data', async ({
   page,
 }) => {
@@ -212,7 +226,8 @@ test('phone model startup, authenticated structured calls, and stop', async ({ p
     page.getByRole('button', { name: '送出需求', exact: true, includeHidden: true }),
   ).toBeDisabled();
   await page.getByRole('button', { name: '啟動手機模型', exact: true }).click();
-  await page.getByRole('dialog').getByRole('button', { name: '啟動手機模型', exact: true }).click();
+  await expect(page.getByRole('button', { name: '開始語音輸入', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: '設定', exact: true }).click();
   await expect(
     page.getByRole('dialog').getByText('已連接手機模型，可以提出需求。', { exact: true }),
   ).toBeVisible();
@@ -371,10 +386,7 @@ test('welcome, settings and composer reflow at 200% in both orientations', async
             ),
         )
         .toBe(true);
-      const plus = await page.locator('.add-button').boundingBox();
-      const composer = await page.locator('.composer-box').boundingBox();
-      expect(Math.abs(plus!.height - composer!.height)).toBeLessThanOrEqual(1);
-      expect(Math.abs(plus!.y - composer!.y)).toBeLessThanOrEqual(1);
+      expect(await page.locator('.composer-box').isVisible()).toBe(true);
       expect(
         await page
           .locator('.voice-label')
@@ -436,77 +448,6 @@ test('the app fills the viewport and only conversation content scrolls', async (
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
 });
 
-test('disaster preview follows the design without location access, image inference or submission', async ({
-  page,
-}) => {
-  await page.evaluate(() => {
-    Object.defineProperty(navigator, 'geolocation', {
-      configurable: true,
-      value: {
-        getCurrentPosition: () => {
-          throw new Error('Demo must not access location');
-        },
-      },
-    });
-  });
-  const requests: string[] = [];
-  page.on('request', (request) => {
-    if (['fetch', 'xhr'].includes(request.resourceType())) requests.push(request.url());
-  });
-  await chooseService(page, '我想要通報災情');
-  await expect(
-    page.getByText('前端示範 · 不會定位、判讀照片或送出通報', { exact: true }),
-  ).toBeVisible();
-  await page.getByRole('button', { name: '是', exact: true }).click();
-  await page.getByRole('button', { name: '完全阻塞，無法通行', exact: true }).click();
-  await expect(page.getByRole('img', { name: /^設計稿示範照片/ })).toBeVisible();
-  await expect(page.getByText(/^已選擇「完全阻塞/)).toBeVisible();
-  expect(
-    (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
-      .violations,
-  ).toEqual([]);
-  await page.getByRole('button', { name: '重新選擇道路狀況', exact: true }).click();
-  await page.getByRole('button', { name: '沒有影響通行', exact: true }).click();
-  await expect(page.getByText(/^已選擇「沒有影響通行/)).toBeVisible();
-  expect(requests).toEqual([]);
-  await page.getByRole('button', { name: '結束示範', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '歡迎使用', exact: true })).toBeVisible();
-  await expect(page.getByText(/^DEMO-/)).toHaveCount(0);
-});
-
-test('custom demo location and uploaded preview remain local and disappear on reload', async ({
-  page,
-}) => {
-  await page.getByLabel('你想要做什麼？', { exact: true }).fill('我想要通報災情');
-  await page.getByRole('button', { name: '送出需求', exact: true }).click();
-  await page.getByRole('button', { name: '否', exact: true }).click();
-  await page.getByLabel('輸入示範地點', { exact: true }).fill('測試路口 A');
-  await page.getByRole('button', { name: '繼續示範', exact: true }).click();
-  await page.getByRole('button', { name: '不確定', exact: true }).click();
-  await page.getByText('更換預覽照片', { exact: true }).first().click();
-  await page.getByLabel('更換預覽照片', { exact: true }).setInputFiles({
-    name: 'invalid.txt',
-    mimeType: 'text/plain',
-    buffer: Buffer.from('not an image'),
-  });
-  await expect(page.getByRole('alert')).toContainText('無法預覽這張照片');
-  await page.getByLabel('更換預覽照片', { exact: true }).setInputFiles({
-    name: 'preview.png',
-    mimeType: 'image/png',
-    buffer: Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==',
-      'base64',
-    ),
-  });
-  await expect(page.getByRole('img', { name: /^你選擇的照片/ })).toHaveAttribute('src', /^blob:/);
-  const stored = await page.evaluate(() => JSON.stringify(localStorage));
-  expect(stored).not.toContain('測試路口 A');
-  expect(stored).not.toContain('blob:');
-  await page.reload();
-  await expect(page.getByRole('heading', { name: '歡迎使用', exact: true })).toBeVisible();
-  await expect(page.getByRole('img', { name: /^你選擇的照片/ })).toHaveCount(0);
-});
-
 test('an existing session uses the same home layout at small and large text sizes', async ({
   page,
 }) => {
@@ -540,9 +481,7 @@ test('an existing session uses the same home layout at small and large text size
             ),
         )
         .toBe(true);
-      const plus = await page.locator('.add-button').boundingBox();
-      const input = await page.locator('.composer-box').boundingBox();
-      expect(Math.abs(plus!.height - input!.height)).toBeLessThanOrEqual(1);
+      expect(await page.locator('.composer-box').isVisible()).toBe(true);
     }
   }
   await page.getByRole('button', { name: '繼續確認目前需求', exact: true }).click();
@@ -567,37 +506,13 @@ test('native model setup stays in settings and does not push the home off screen
         .evaluate((element) => element.scrollHeight <= element.clientHeight + 1),
     )
     .toBe(true);
-  await page.getByRole('button', { name: '啟動手機模型', exact: true }).click();
+  await expect(page.getByRole('button', { name: '啟動手機模型', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '開始語音輸入', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: '設定', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(
     page.getByRole('dialog').getByRole('button', { name: '啟動手機模型', exact: true }),
   ).toBeEnabled();
   await page.getByRole('button', { name: '關閉設定', exact: true }).click();
   await expect(page.getByRole('heading', { name: '歡迎使用', exact: true })).toBeVisible();
-});
-
-test('attachment selection stays local, blocks unsupported submission and can be removed', async ({
-  page,
-}) => {
-  const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: '加入圖片、PDF 或文字檔', exact: true }).click();
-  await (
-    await chooser
-  ).setFiles({
-    name: 'local-preview.txt',
-    mimeType: 'text/plain',
-    buffer: Buffer.from('A local preview, not an upload.'),
-  });
-  await expect(page.getByRole('region', { name: '已選附件' })).toContainText('local-preview.txt');
-  await expect(
-    page.getByText('目前尚無法讀取或傳送附件。請移除附件後再送出文字。', { exact: true }),
-  ).toBeVisible();
-  await page.getByLabel('你想要做什麼？', { exact: true }).fill('幫我找圖書');
-  await expect(page.getByRole('button', { name: '送出需求', exact: true })).toBeDisabled();
-  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain(
-    'local-preview.txt',
-  );
-  await page.getByRole('button', { name: '移除附件 local-preview.txt', exact: true }).click();
-  await page.getByRole('button', { name: '送出需求', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toBeVisible();
 });
