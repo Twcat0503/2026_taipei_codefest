@@ -1,0 +1,85 @@
+--- a/src/llama-vocab.h
++++ b/src/llama-vocab.h
+@@ -66,6 +66,7 @@
+     LLAMA_VOCAB_PRE_TYPE_MELLUM2           = 55,
+     LLAMA_VOCAB_PRE_TYPE_SOPRANO           = 56,
+     LLAMA_VOCAB_PRE_TYPE_CHATTERBOX        = 57,
++    LLAMA_VOCAB_PRE_TYPE_BLUEMAGPIE        = 58,
+ };
+ 
+ struct LLM_KV;
+--- a/src/llama-vocab.cpp
++++ b/src/llama-vocab.cpp
+@@ -403,6 +403,9 @@
+                     " ?[^(\\s|.,!?…。，、।۔،)]+",
+                     "\\p{N}",
+                 };
++                break;
++            case LLAMA_VOCAB_PRE_TYPE_BLUEMAGPIE:
++                regex_exprs = { "bluemagpie" };
+                 break;
+             case LLAMA_VOCAB_PRE_TYPE_TEKKEN:
+                 // original regex from tokenizer.json
+@@ -2286,6 +2289,12 @@
+                 tokenizer_pre == "jais") {
+                 pre_type = LLAMA_VOCAB_PRE_TYPE_JAIS;
+             } else if (
++                tokenizer_pre == "bluemagpie") {
++                pre_type = LLAMA_VOCAB_PRE_TYPE_BLUEMAGPIE;
++                clean_spaces = false;
++                ignore_merges = false;
++                add_bos = false;
++            } else if (
+                 tokenizer_pre == "tekken") {
+                 pre_type = LLAMA_VOCAB_PRE_TYPE_TEKKEN;
+                 clean_spaces = false;
+--- a/src/unicode.cpp
++++ b/src/unicode.cpp
+@@ -1,5 +1,6 @@
+ #include "unicode.h"
+ #include "unicode-data.h"
++#include "bluemagpie-unicode-data.h"
+ 
+ #include <algorithm>
+ #include <cassert>
+@@ -1047,7 +1048,40 @@
+     return bpe_offsets;
+ }
+ 
++// BlueMagpie 的官方 Sequence：精確 Unicode Split，再逐片套用 ByteLevel regex。
++// 使用同一 HF regex 引擎產生的分類表，避免將 Lu/Ll/Lt 近似為 ASCII 大小寫。
++static std::vector<size_t> unicode_regex_split_bluemagpie(const std::string & text, const std::vector<size_t> & offsets) {
++    const auto cpts = unicode_cpts_from_utf8(text);
++    std::string first(cpts.size(), '?');
++    std::string second(cpts.size(), '?');
++    const auto * begin = bluemagpie_unicode_ranges;
++    const auto * end = begin + sizeof(bluemagpie_unicode_ranges) / sizeof(*begin);
++    for (size_t i = 0; i < cpts.size(); ++i) {
++        const auto cp = cpts[i];
++        const auto * range = std::upper_bound(begin, end, cp,
++            [](uint32_t value, const bluemagpie_unicode_range & item) { return value < item.start; });
++        const char category = (range - 1)->category;
++        first[i] = category;
++        if (cp < 128) {
++            second[i] = static_cast<char>(cp);
++        } else if (category == 'U' || category == 'T' || category == 'l' || category == 'm' || category == 'o') {
++            second[i] = '\x01';
++        } else if (category == '0') {
++            second[i] = '\x02';
++        } else if (category == '\v') {
++            second[i] = '\v';
++        }
++    }
++    const std::string split = R"([^\r\nUTlmo0]?[UTmoM]*[lmoM]+|[^\r\nUTlmo0]?[UTmoM]+[lmoM]*|0| ?[^\sUTlmo0]+[\r\n/]*|\s*[\r\n]+|\s+(?!\S)|\s+)";
++    const auto isolated = unicode_regex_split_stl(first, split, offsets);
++    const std::string bytelevel = R"('s|'t|'re|'ve|'m|'ll|'d| ?[A-Za-z\x01]+| ?[0-9\x02]+| ?[^\sA-Za-z0-9\x01\x02]+|\s+(?!\S)|\s+)";
++    return unicode_regex_split_stl(second, bytelevel, isolated);
++}
++
+ static std::vector<size_t> unicode_regex_split_custom(const std::string & text, const std::string & regex_expr, const std::vector<size_t> & offsets) {
++    if (regex_expr == "bluemagpie") {
++        return unicode_regex_split_bluemagpie(text, offsets);
++    }
+     std::vector<size_t> bpe_offsets;
+ 
+     if (regex_expr == "'s|'t|'re|'ve|'m|'ll|'d| ?\\p{L}+| ?\\p{N}+| ?[^\\s\\p{L}\\p{N}]+|\\s+(?!\\S)") {
