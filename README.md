@@ -76,12 +76,19 @@ fvm flutter run -d <device-id>
 
 ## 資料來源
 
-| 資料 | 提供單位 | 連結 | 用途 |
-| --- | --- | --- | --- |
-| TownPass-Services `public/mock/*.json` | taipei-doit | <https://github.com/taipei-doit/TownPass-Services> | 台北通服務的示範資料與靜態快照 |
-| YouBike 公開資料 | 待補 | 待補 | 即時資料 |
+App 預設只用下列真實資料與官方服務，不拿模擬資料回答使用者。
 
-開放資料依《政府資料開放授權條款－第1版》顯名，完整清單同步列在前端的 `/about`。
+| 資料 | 提供機關 | 連結 | 用途 |
+| --- | --- | --- | --- |
+| YouBike2.0臺北市公共自行車即時資訊 | 臺北市政府交通局 | <https://data.taipei/dataset/detail?id=c6bc8aed-557d-41d5-bfb1-8da24f78f2fb> | 附近站點的即時可借、可還數（每分鐘更新） |
+| 臺北市停車場資訊 | 臺北市政府交通局停車管理工程處 | <https://data.taipei/dataset/detail?id=d5c0656b-5250-4179-a491-c94daa56ef2c> | 停車場位置、費率、身障與孕婦車位數（剩餘車位已停更，不使用） |
+| 臺北市公廁點位資訊 | 臺北市政府環境保護局 | <https://data.taipei/dataset/detail?id=ca205b54-a06f-4d84-894c-d6ab5079ce79> | 無障礙廁座、親子廁座、照護床（打包官方日期快照） |
+
+開放資料依《政府資料開放授權條款－第1版》（<https://data.gov.tw/license>）顯名，畫面上每次查詢都標示提供機關、資料集與資料時間，完整清單同步列在前端的 `/about`。
+
+官方服務入口（使用者確認後才前往，助手不代為送出）：[臺北市立圖書館館藏查詢](https://book.tpml.edu.tw/)、[台北服務通](https://service.taipei/)（身障者、孕婦、長者分類）、[臺北市陳情系統](https://1999.gov.taipei/)、1999 市民當家熱線、[臺北市政府智慧支付平台](https://pay.taipei/)。
+
+開發用的 [TownPass-Services](https://github.com/taipei-doit/TownPass-Services) `public/mock/*.json` 示範資料只在 `VITE_TOOL_SOURCE=townpass-demo` 時使用。
 
 ## 授權與致謝
 
