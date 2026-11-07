@@ -1046,8 +1046,8 @@ dd {
 .settings-section h3 {
   color: var(--teal);
 }
-.settings-section label,
-.settings-form label {
+.settings-section label:not(.check),
+.settings-form label:not(.check) {
   display: grid;
   gap: 0.375rem;
 }
