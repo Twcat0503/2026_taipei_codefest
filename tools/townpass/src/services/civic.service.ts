@@ -89,7 +89,7 @@ export class CivicService {
           })),
         })),
     );
-    return listResult(results, limit, DEMO, this.page("/fee-payment/"));
+    return listResult(results, limit, DEMO, this.page("/fee-payment/others/"));
   }
 
   async reportCategories(kind: "citizen" | "disaster", limit: number) {
