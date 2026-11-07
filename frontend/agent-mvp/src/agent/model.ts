@@ -405,6 +405,20 @@ export function visionContent(body: unknown): string {
   return message.content;
 }
 
+/**
+ * Error wording that local OpenAI-compatible servers use when the loaded model is text-only:
+ * llama.cpp `llama-server` without `--mmproj` ("image input is not supported ... mmproj"),
+ * Ollama ("missing data required for image input", "does not support images"), vLLM
+ * ("is not a multimodal model") and LM Studio ("does not support vision").
+ */
+const VISION_UNSUPPORTED =
+  /image input is not supported|mmproj|missing data required for image input|does not support (?:images?|image input|vision)|not a multimodal model|vision is not supported/i;
+
+/** True when an error body says the model cannot take images (vs. any other failure). */
+export function visionUnsupported(errorBody: string): boolean {
+  return VISION_UNSUPPORTED.test(errorBody.slice(0, 4000));
+}
+
 /** OpenAI Chat Completions wire format. Only on-device loopback is allowed. */
 export class LocalModel implements ModelAdapter {
   mode = 'local' as const;
@@ -506,7 +520,12 @@ export class LocalModel implements ModelAdapter {
         }),
         signal: controller.signal,
       });
-      if (!response.ok) throw new Error(`MODEL_HTTP_${response.status}`);
+      if (!response.ok) {
+        // 401 stays as-is so the phone adapter can drop its credentials.
+        if (response.status !== 401 && visionUnsupported(await response.text().catch(() => '')))
+          throw new Error('VISION_UNAVAILABLE');
+        throw new Error(`MODEL_HTTP_${response.status}`);
+      }
       const text = await response.text();
       if (text.length > 100000) throw new Error('RESPONSE_TOO_LARGE');
       const body: unknown = JSON.parse(text);

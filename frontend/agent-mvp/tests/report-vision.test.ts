@@ -5,6 +5,7 @@ import {
   visionInstruction,
   visionSystemPrompt,
 } from '../src/agent/skills/report-vision';
+import { LocalModel } from '../src/agent/model';
 import { AgentRunner } from '../src/agent/runner';
 import { initialState, type ModelAdapter, type VisionRequest } from '../src/agent/types';
 
@@ -123,5 +124,52 @@ describe('AgentRunner.describePhoto', () => {
     const pending = runner.describePhoto(IMAGE, 'zh-Hant-TW');
     runner.cancelVision();
     await expect(pending).rejects.toThrow();
+  });
+});
+
+describe('LocalModel.vision on a text-only model', () => {
+  const endpoint = 'http://127.0.0.1:8080/v1/chat/completions';
+  const request = () => ({
+    image: IMAGE,
+    system: 's',
+    instruction: 'i',
+    signal: new AbortController().signal,
+  });
+  const reply = (status: number, message: string) =>
+    vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ error: { code: status, message } }), { status }),
+      );
+
+  it.each([
+    [
+      500,
+      'image input is not supported - hint: if this is unexpected, you may need to provide the mmproj',
+    ],
+    [500, 'this model is missing data required for image input'],
+    [400, 'model "qwen3:1.7b" does not support images'],
+    [400, 'Qwen3 is not a multimodal model'],
+  ])('maps HTTP %i "%s" to VISION_UNAVAILABLE', async (status, message) => {
+    vi.stubGlobal('fetch', reply(status, message));
+    await expect(new LocalModel(endpoint, 'm').vision(request())).rejects.toThrow(
+      'VISION_UNAVAILABLE',
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps other failures and 401 as HTTP errors', async () => {
+    vi.stubGlobal('fetch', reply(500, 'out of memory'));
+    await expect(new LocalModel(endpoint, 'm').vision(request())).rejects.toThrow('MODEL_HTTP_500');
+    vi.stubGlobal('fetch', reply(401, 'image input is not supported'));
+    await expect(new LocalModel(endpoint, 'm').vision(request())).rejects.toThrow('MODEL_HTTP_401');
+    vi.unstubAllGlobals();
+  });
+
+  it('reaches the person as VISION_UNAVAILABLE through the runner', async () => {
+    vi.stubGlobal('fetch', reply(500, 'image input is not supported'));
+    const runner = new AgentRunner(new LocalModel(endpoint, 'm'), initialState());
+    await expect(runner.describePhoto(IMAGE, 'zh-Hant-TW')).rejects.toThrow('VISION_UNAVAILABLE');
+    vi.unstubAllGlobals();
   });
 });
