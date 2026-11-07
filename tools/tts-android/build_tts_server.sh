@@ -38,7 +38,7 @@ cmake -S "$TOOLS" -B "$BUILD" -G Ninja \
   -DGGML_SSE42=OFF -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_AVX512=OFF \
   -DGGML_FMA=OFF -DGGML_F16C=OFF -DGGML_BMI2=OFF \
   -DGGML_CUDA=OFF -DGGML_VULKAN=OFF -DGGML_OPENCL=OFF \
-  "${PYTHON_ARGS[@]}"
+  ${PYTHON_ARGS[@]+"${PYTHON_ARGS[@]}"}  # bash 3.2 (macOS) treats an empty "${a[@]}" as unbound under set -u
 cmake --build "$BUILD" --target townpass-tts-server --parallel "${JOBS:-4}"
 READELF="$NDK/toolchains/llvm/prebuilt/$HOST_TAG/bin/llvm-readelf$EXE"
 STDLIB="$NDK/toolchains/llvm/prebuilt/$HOST_TAG/sysroot/usr/lib/$TRIPLE/libc++_shared.so"

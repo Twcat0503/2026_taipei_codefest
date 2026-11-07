@@ -2,13 +2,15 @@
 
 No Android device is contacted. Host shell tests do not establish Android toybox,
 run-as, exec-in, or USB behaviour; those require separate device verification.
-Run with Python -I -B -X utf8.
+Run with Python -I -B -X utf8. Linux, Git Bash and macOS hosts are supported; on
+hosts whose mv lacks -T (BSD/macOS) the emitted scripts see a small stand-in.
 """
 import contextlib
 import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import shlex
 import shutil
@@ -29,6 +31,48 @@ REAL_RUN = subprocess.run
 SHELL = shutil.which('sh')
 NAMES = ('barbet-q8_0-tokenizer.gguf', 'codec-q8_0-lmq8.gguf')
 PACKAGE = 'com.example.townpass'
+HOST_MV = shutil.which('mv')
+
+
+def host_mv_supports_target_flag():
+    if HOST_MV is None:
+        return False
+    with tempfile.TemporaryDirectory() as directory:
+        (Path(directory) / 'a').mkdir()
+        result = REAL_RUN([HOST_MV, '-nT', 'a', 'b'], cwd=directory,
+                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        return result.returncode == 0 and (Path(directory) / 'b').is_dir()
+
+
+def host_shell_env(bin_dir):
+    """Environment for emitted scripts, adding host stand-ins only where tools differ.
+
+    Android toybox and GNU mv accept `mv -nT SRC DST`; BSD/macOS mv has no -T. The
+    stand-in keeps the same contract (never replace or nest into an existing DST;
+    the installer's own post-move check reports that) and passes other forms
+    through. Older macOS without sha256sum gets `shasum -a 256`, same output format.
+    """
+    shims = {}
+    if HOST_MV is not None and not host_mv_supports_target_flag():
+        mv = shlex.quote(HOST_MV)
+        shims['mv'] = (
+            'if [ "$#" -eq 3 ] && [ "$1" = -nT ]; then\n'
+            '  if [ -e "$3" ] || [ -L "$3" ]; then exit 0; fi\n'
+            f'  exec {mv} -n -- "$2" "$3"\n'
+            'fi\n'
+            f'exec {mv} "$@"\n'
+        )
+    if shutil.which('sha256sum') is None and shutil.which('shasum') is not None:
+        shims['sha256sum'] = f'exec {shlex.quote(shutil.which("shasum"))} -a 256 "$@"\n'
+    env = dict(os.environ)
+    if shims:
+        bin_dir.mkdir()
+        for name, body in shims.items():
+            path = bin_dir / name
+            path.write_text('#!/bin/sh\n' + body, encoding='utf-8')
+            path.chmod(0o755)
+        env['PATH'] = str(bin_dir) + os.pathsep + env.get('PATH', '')
+    return env
 
 
 class LocalAdb:
@@ -39,6 +83,7 @@ class LocalAdb:
     """
     def __init__(self, root):
         self.root = root
+        self.env = host_shell_env(root.parent / 'host-bin')
         self.calls = []
         self.running_on_check = None
         self.pid_checks = 0
@@ -125,7 +170,7 @@ class LocalAdb:
             # The completion wait is the only point where a deferred remote write may finish.
             self.flush_pending()
         result = REAL_RUN(
-            [SHELL, '-c', remote_command], cwd=self.root,
+            [SHELL, '-c', remote_command], cwd=self.root, env=self.env,
             stdin=kwargs.get('stdin', subprocess.DEVNULL),
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             timeout=kwargs['timeout'], check=False,
@@ -137,7 +182,7 @@ class LocalAdb:
     def flush_pending(self):
         for remote_command, source_path in self.pending_transfers:
             with source_path.open('rb') as source:
-                REAL_RUN([SHELL, '-c', remote_command], cwd=self.root, stdin=source,
+                REAL_RUN([SHELL, '-c', remote_command], cwd=self.root, env=self.env, stdin=source,
                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30, check=False)
         self.pending_transfers.clear()
 

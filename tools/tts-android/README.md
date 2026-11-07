@@ -333,9 +333,10 @@ async function speakOnce(text) {
 ```bash
 # 來源／量化工具：10 tests；含真 PyTorch weights-only 載入測試，需離線轉換環境的 torch。
 "$PY" -I -B -X utf8 "$REPO/tools/tts-android/test_model_tools.py"
-# 安裝工具：26 tests；需 host sh／coreutils（Windows 從 Git Bash 跑）。
+# 安裝工具：26 tests；需 host sh／coreutils（Windows 從 Git Bash 跑）。macOS 用內建工具即可：
+# BSD mv 沒有 -T，測試會自動放一個只給產生的 shell 指令用的 `mv -nT` 替代品，不需裝 GNU coreutils。
 "$PY" -I -B -X utf8 "$REPO/tools/tts-android/test_install_models.py"
-# Android 發布保護：1 test；使用假的 cmake／readelf，需 Git Bash，不接觸 NDK。
+# Android 發布保護：1 test；使用假的 cmake／readelf，需 bash（Git Bash 或 macOS 內建的 bash 3.2），不接觸 NDK。
 "$PY" -I -B -X utf8 "$REPO/tools/tts-android/test_build_publish.py"
 ```
 
