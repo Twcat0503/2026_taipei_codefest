@@ -38,7 +38,6 @@ const zh = {
   history: '這次的對話',
   historyEmpty: '還沒有對話，從下方輸入需求就可以開始。',
   historyHint: '對話摘要保存在這個裝置；自由輸入及查詢結果不會保存。',
-  savedRequestUnavailable: '這則自由輸入未保存',
   savedSummaryNote: '這是已保存的摘要，查詢結果未保存。',
   conversationSaveFailed: '無法在此裝置保存對話摘要，請檢查瀏覽器儲存空間。',
   continueTask: '繼續目前的需求',
@@ -255,6 +254,8 @@ const zh = {
   emergencyPolice: '你的安全最重要，請立刻撥打 110 報警。',
   emergencyMental:
     '聽起來你現在很辛苦，你不是一個人。可以撥 1925 安心專線，24 小時都有人聽你說；如果有立即危險，請撥 119。',
+  emergencyGeneral:
+    '聽起來可能有危險。需要救護或有火災請撥 119，有人身危險請撥 110，想找人說說話請撥 1925。',
   emergencyNote: '按下按鈕會打開撥號畫面，由你按下撥出。',
   call119: '撥打 119（火災、救護車）',
   call110: '撥打 110（報警）',
@@ -348,7 +349,6 @@ const en: Record<keyof typeof zh, string> = {
   historyEmpty: 'No conversation yet. Type a request below to get started.',
   historyHint:
     'Conversation summaries are saved on this device; free text and results are not saved.',
-  savedRequestUnavailable: 'This free-text message was not saved',
   savedSummaryNote: 'This is a saved summary; search results were not saved.',
   conversationSaveFailed: 'Could not save the conversation summary. Check browser storage.',
   continueTask: 'Continue your current task',
@@ -585,6 +585,8 @@ const en: Record<keyof typeof zh, string> = {
   emergencyPolice: 'Your safety comes first. Call 110 for the police now.',
   emergencyMental:
     'It sounds like things are very hard right now, and you are not alone. Call 1925, a 24-hour support line; if you are in immediate danger, call 119.',
+  emergencyGeneral:
+    'This may be dangerous. Call 119 for an ambulance or fire, 110 if someone is in danger, or 1925 to talk to someone.',
   emergencyNote: 'The button opens the dialer; you press call.',
   call119: 'Call 119 (fire, ambulance)',
   call110: 'Call 110 (police)',

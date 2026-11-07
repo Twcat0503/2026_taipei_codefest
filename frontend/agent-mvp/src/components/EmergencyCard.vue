@@ -14,6 +14,7 @@ const TEXT = {
   violence: 'emergencyViolence',
   police: 'emergencyPolice',
   mental: 'emergencyMental',
+  general: 'emergencyGeneral',
 } as const;
 const CALL_LABEL = {
   '119': 'call119',

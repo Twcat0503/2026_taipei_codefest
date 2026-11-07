@@ -9,8 +9,28 @@ import {
   routingTool,
 } from './tools';
 import { CATALOG_TOOL, catalogKeyword, destinationFor } from './skills/navigation';
-import { EMERGENCY_NUMBERS, detectEmergency } from './skills/emergency';
+import { EMERGENCY_NUMBERS, JOKE, detectEmergency } from './skills/emergency';
+
+/** Words that make an exaggeration real again: 救命、快叫救護車. */
+const NOW_DANGER = /救命|快叫|救護車|報警|help/i;
 import { normalizeRequest } from './skills/normalize';
+import { landmarkDistrict } from './skills/landmarks';
+import { sanitizeRequest } from './skills/form-guard';
+
+const TAIPEI_DISTRICTS = [
+  '中正區',
+  '大同區',
+  '中山區',
+  '松山區',
+  '大安區',
+  '萬華區',
+  '信義區',
+  '士林區',
+  '北投區',
+  '內湖區',
+  '南港區',
+  '文山區',
+];
 import {
   billIntentTool,
   billSkill,
@@ -30,12 +50,85 @@ const ACCESSIBLE_PLACE =
   /無障礙|身障|身心障礙|輪椅|孕婦|懷孕|愛心|accessible|wheelchair|disab|pregnan/i;
 /** Wording that makes a short request an explicit place lookup. */
 const PLACE_WORDS =
-  /YouBike|Ubike|停車場|停車位|車位|公廁|廁所|洗手間|toilets?|restrooms?|parking lot/i;
+  /YouBike|Ubike|微笑單車|單車|腳踏車|自行車|停車場|停車位|車位|公廁|廁所|洗手間|化妝室|toilets?|restrooms?|parking lot|bike/i;
+const PLACE_TOOLS = ['find_nearby_youbike', 'find_nearby_parking', 'find_nearby_toilets'];
+/** A short reply pointing back at what was just offered: 帶我去那個、打開它、就那個. */
+const POINTS_BACK =
+  /^(?:好|好的|對|嗯|那|那就)?[，,\s]*(?:幫我|請|就)?(?:帶我去|打開|開|去|前往|進去)?(?:那個|這個|它|那裡|那邊)(?:頁面|網頁|服務)?[。！!]?$|^(?:ok|okay|yes)?[,\s]*(?:open|take me to) (?:it|that)/i;
+/** Words for each destination that the destination rules recognise again. */
+const DESTINATION_TITLE: Record<string, string> = {
+  townpass_report: '有話要說',
+  townpass_disaster: '災情通報',
+  townpass_apply: '申辦服務',
+  townpass_counter: '臨櫃叫號',
+  townpass_library: '圖書館',
+  townpass_subscription: '市政訊息訂閱',
+  townpass_police: '警政服務報案',
+  townpass_coupon: '優惠',
+  townpass_ticket_wallet: '票券錢包',
+  townpass_places: '找地點地圖',
+  townpass_faq: '常見問題',
+  fee: '繳費',
+  fee_parking: '停車費',
+  fee_water: '水費',
+  fee_tax: '地方稅',
+  fee_tuition: '學雜費',
+  fee_housing: '社宅租金',
+  fee_medical: '醫療費',
+  fee_maintenance: '維護費',
+  fee_course: '公訓課程費',
+  fee_scan: '掃碼繳費',
+  fee_history: '繳費紀錄',
+  services_disabled: '身障者服務',
+  services_maternity: '孕婦服務',
+  services_elderly: '長者服務',
+  call_1999: '撥打1999',
+};
+const PLACE_WORD: Record<string, string> = {
+  find_nearby_toilets: '廁所',
+  find_nearby_parking: '停車場',
+  find_nearby_youbike: 'YouBike 站',
+};
+/** A short reply that leans on the last turn: 那…、換成…、改成…、要有…、…呢、what about. */
+const FOLLOW_UP =
+  /^(?:那|那麼|換成|換到|改成|改到|換|改|還有|也要|要有|只要|那我|what about|how about|and|then)|呢[？?。]?$|\bthere\b|那邊/i;
+
+/**
+ * Rewrite a follow-up into a full place request from the last lookup, changing only what the
+ * person changed: the kind (那廁所呢), the district or landmark (換成大安區), accessibility
+ * (要有無障礙的) or "here" (那我現在這邊呢). Anything longer or unrelated is left alone.
+ */
+export function followUpPlace(
+  text: string,
+  last: NonNullable<TaskState['lastPlace']>,
+): string | null {
+  const said = text.trim();
+  // English takes more characters for the same short follow-up.
+  if (said.length > (/[a-z]{3}/i.test(said) ? 40 : 24) || !FOLLOW_UP.test(said)) return null;
+  const tool = PLACE_TOOL.find(([pattern]) => pattern.test(said))?.[1] ?? last.tool;
+  const district = said.match(
+    /(?:松山|信義|大安|中山|中正|大同|萬華|文山|南港|內湖|士林|北投)區/,
+  )?.[0];
+  const landmark = district ? '' : landmarkDistrict(said);
+  const here = /這邊|這裡|我現在|我這|附近|\bhere\b|near me|my location/i.test(said);
+  const area = district || landmark || (here ? '' : (last.area ?? ''));
+  const near = !area && (here || !!last.nearMe);
+  const accessible =
+    ACCESSIBLE_PLACE.test(said) || (!!last.accessible && !/不用|不需要|不要|no need/i.test(said));
+  const where = area ? `${area}的` : near ? '附近的' : '';
+  return `${where}${accessible ? '無障礙' : ''}${PLACE_WORD[tool] ?? '廁所'}`;
+}
+
+/** "Around me": search from the phone's position. */
+const NEAR_ME = /附近|最近|這裡|這邊|我在的|我現在的位置|nearby|nearest|near me|around here/i;
+/** A place the person named (a station, road, park, landmark), so not "around me" by default. */
+const NAMED_PLACE =
+  /[一-鿿]{1,8}(?:站|路|街|大道|公園|夜市|醫院|大學|學校|廣場|商圈|市場|百貨|中心|館|寺|宮|山|橋|河濱)|101|\b(?:station|road|street|park|market|hospital)\b/i;
 /** When the request names the kind of place, that kind wins over the model's pick. */
 const PLACE_TOOL: [RegExp, string][] = [
-  [/廁所|洗手間|toilets?|restrooms?/i, 'find_nearby_toilets'],
+  [/廁所|洗手間|化妝室|toilets?|restrooms?/i, 'find_nearby_toilets'],
   [/停車|車位|parking/i, 'find_nearby_parking'],
-  [/youbike|ubike|單車|腳踏車/i, 'find_nearby_youbike'],
+  [/youbike|ubike|單車|腳踏車|自行車|\bbikes?\b/i, 'find_nearby_youbike'],
 ];
 /** Taipei districts: the Chinese short name, then its English spelling as people type it. */
 const DISTRICTS: readonly (readonly [zh: string, en: RegExp])[] = [
@@ -156,7 +249,19 @@ export class AgentRunner {
     // A short district reply fills the pending location slot; unrelated requests start fresh.
     if (pending && fillsPendingLocation(this.state, request)) {
       request = `${pending.request.replace(/附近|最近的?|nearby|nearest/gi, '')} ${request.trim()}`;
+    } else if (this.state.lastDestination && POINTS_BACK.test(normalizeRequest(request).trim())) {
+      // 「好，帶我去那個頁面」「那幫我打開那個」: the page offered last time.
+      request = `打開${DESTINATION_TITLE[this.state.lastDestination] ?? this.state.lastDestination}`;
+    } else if (this.state.lastPlace) {
+      // 「那廁所呢」「換成大安區」「要有無障礙的」 after a place lookup: complete it from the last one.
+      const followed = followUpPlace(normalizeRequest(request), this.state.lastPlace);
+      if (followed) request = followed;
     }
+    // Sentences that try to instruct the assistant (忽略規則、管理員指令…) are dropped before any
+    // rule or model sees the request; the rest is the person's actual task.
+    const { text, removed } = sanitizeRequest(request);
+    if (removed && text) request = text;
+    else if (removed) request = 'unsupported request';
     return this.execute(request, onProgress);
   }
 
@@ -326,18 +431,35 @@ export class AgentRunner {
           call?.name !== 'select_agent' ||
           Object.keys(call.arguments).length !== 1 ||
           typeof call.arguments.domain !== 'string' ||
-          !['library', 'services', 'perks', 'places', 'bills', 'unsupported'].includes(
+          !['library', 'services', 'perks', 'places', 'bills', 'emergency', 'unsupported'].includes(
             call.arguments.domain,
           )
         )
           throw new Error('INVALID_ROUTE');
-        domain = call.arguments.domain as Domain;
+        // The rules missed it but the router hears danger: offer the call buttons, nothing else.
+        // A request that plainly names a city service (路燈壞了、樹倒了、繳費) is handled as that
+        // service; the rules above already caught fires, collapses and violence.
+        // Exaggeration (熱死了、嚇死我了) is not danger either.
+        if (
+          call.arguments.domain === 'emergency' &&
+          !destinationFor(ruleText) &&
+          !(JOKE.test(ruleText) && !NOW_DANGER.test(ruleText))
+        ) {
+          this.state.emergency = 'general';
+          this.state.notice = 'emergency';
+          trace('safety', 'emergency', `router: offer ${EMERGENCY_NUMBERS.general.join(', ')}`);
+          return;
+        }
+        domain = (
+          call.arguments.domain === 'emergency' ? 'services' : call.arguments.domain
+        ) as Domain;
         // Small on-device models can confuse explicit place lookups with book search.
         // Keep book/report/application requests with the router; only correct short place lookups.
         const explicitPlace =
           ruleText.length <= 80 &&
           PLACE_WORDS.test(ruleText) &&
-          !/書|book|圖書|通報|陳情|報修|修繕|故障|申請|申辦|補助|report|application|[「『“"]/i.test(
+          // How to register, use or pay is a question about the service, not a place search.
+          !/書|book|圖書|通報|陳情|報修|修繕|故障|申請|申辦|補助|怎麼|如何|註冊|會員|收費|繳|偷|搶|報案|遺失|report|application|how (do|to|can)|register|stolen|[「『“"]/i.test(
             ruleText,
           );
         if (explicitPlace && domain !== 'places') {
@@ -356,6 +478,15 @@ export class AgentRunner {
         ) {
           trace('router', 'corrected', 'Quoted titles without place words are book lookups.');
           domain = 'library';
+        }
+        // Bus and MRT times are not served; without a place kind they are not a place lookup.
+        if (
+          domain === 'places' &&
+          !PLACE_TOOL.some(([pattern]) => pattern.test(ruleText)) &&
+          /捷運|公車|末班|班次|到站|幾點|\b(bus|mrt|metro|train)\b/i.test(ruleText)
+        ) {
+          trace('router', 'corrected', 'Transit schedules are not a place lookup.');
+          domain = 'unsupported';
         }
         // Opening Town Pass's own map is an in-app service, not another place lookup.
         if (domain !== 'services' && destinationFor(ruleText) === 'townpass_places') {
@@ -549,7 +680,9 @@ export class AgentRunner {
         const districts = DISTRICTS.map(([zh]) => `${zh}區`).filter((name) =>
           ruleText.includes(name),
         );
-        const nearby = /附近|最近|nearby|nearest|near me/i.test(ruleText);
+        const nearby = NEAR_ME.test(ruleText);
+        // 「Daan District」「大安」: a district said by its short or English name.
+        const spoken = !districts.length && saidDistrict(ruleText, call.arguments.area);
         if (districts.length === 1) {
           call.arguments.area = districts[0]!;
           if (!nearby) delete call.arguments.near_me;
@@ -563,12 +696,45 @@ export class AgentRunner {
             if (nearby) call.arguments.near_me = true;
           }
         }
+        // No place named at all (「我要找無障礙廁所」): search around the phone (GPS). A district
+        // the model guessed without the person naming any place is dropped, so a guess never
+        // replaces their real location. Without a location the runner asks for a district.
+        // A well-known place (士林夜市、台大醫院) searches its district, not the phone's position.
+        const landmark = districts.length || spoken ? '' : landmarkDistrict(ruleText);
+        if (landmark) {
+          call.arguments.area = landmark;
+          delete call.arguments.near_me;
+        }
+        // area only takes a Taipei district; a landmark name or a guess (台北車站、士林) is fixed or dropped.
+        if (typeof call.arguments.area === 'string' && !districts.length && !landmark && !spoken) {
+          const area = call.arguments.area;
+          const district = TAIPEI_DISTRICTS.find(
+            (name) => area === name || area === name.slice(0, 2),
+          );
+          if (district && ruleText.includes(district.slice(0, 2))) call.arguments.area = district;
+          else delete call.arguments.area;
+        }
+        // Any district mention counts as a place, also 「信義的」 or 「Xinyi」 without 區.
+        const mentionsDistrict = DISTRICTS.some(
+          ([zh, en]) => ruleText.includes(zh) || en.test(ruleText),
+        );
+        const namesPlace =
+          districts.length > 0 ||
+          spoken ||
+          mentionsDistrict ||
+          !!landmark ||
+          NAMED_PLACE.test(ruleText);
+        if (!namesPlace && typeof call.arguments.area === 'string') delete call.arguments.area;
+        if ((NEAR_ME.test(ruleText) && !landmark) || (!namesPlace && !call.arguments.area))
+          call.arguments.near_me = true;
         // Accessibility is a structured filter, not free text: names rarely contain it.
         if (call.name !== 'find_nearby_youbike') {
           const keyword = typeof call.arguments.keyword === 'string' ? call.arguments.keyword : '';
           if (ACCESSIBLE_PLACE.test(keyword)) delete call.arguments.keyword;
+          // Only when they asked (or set it in their profile); never a model guess.
           if (ACCESSIBLE_PLACE.test(ruleText) || this.preferences.accessible)
             call.arguments.accessible = true;
+          else delete call.arguments.accessible;
         }
         if (call.name === 'find_nearby_parking') {
           if (/身障|身心障礙|輪椅|disabled|wheelchair/i.test(ruleText))
@@ -578,6 +744,13 @@ export class AgentRunner {
         }
       }
       trace(domain, 'tool_requested', `${call.name} ${JSON.stringify(call.arguments)}`);
+      if (PLACE_TOOLS.includes(call.name))
+        this.state.lastPlace = {
+          tool: call.name,
+          area: typeof call.arguments.area === 'string' ? call.arguments.area : undefined,
+          nearMe: call.arguments.near_me === true,
+          accessible: call.arguments.accessible === true,
+        };
       // Only the bounded transport can finish the lookup; no final LLM completion pass.
       const client: ToolClient = {
         listTools: (options) => this.tools.listTools(options),
@@ -590,6 +763,9 @@ export class AgentRunner {
       };
       const result = await executeReadTool(client, domain, call, this.state, signal);
       trace('executor', 'completed', `${call.name}: ${result.total} ${result.source} records`);
+      // The tool sets navigation on the shared state; TypeScript still sees the reset above.
+      const offered = (this.state as TaskState).navigation;
+      if (offered) this.state.lastDestination = offered.id;
     } catch (error) {
       this.state.records = [];
       this.state.source = null;

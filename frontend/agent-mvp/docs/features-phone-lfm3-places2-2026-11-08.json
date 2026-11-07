@@ -1,0 +1,2281 @@
+{
+  "generatedAt": "2026-11-07T19:45:15.942Z",
+  "set": "places2",
+  "model": "lfm3-1.7b-q4_0",
+  "host": "Pixel 10 Pro XL (phone)",
+  "summary": [
+    {
+      "condition": "model",
+      "cases": 30,
+      "correct": 86.7,
+      "medianMs": 12488,
+      "tool": 90,
+      "area": 100,
+      "near_me": 93.3,
+      "accessible": 96.7
+    },
+    {
+      "condition": "runner",
+      "cases": 30,
+      "correct": 86.7,
+      "medianMs": 12488,
+      "tool": 90,
+      "area": 100,
+      "near_me": 93.3,
+      "accessible": 96.7
+    }
+  ],
+  "rows": [
+    {
+      "condition": "model",
+      "request": "龍山寺附進有沒有廁所",
+      "tag": "disfluent",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": ["萬華區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "萬華區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 28957
+    },
+    {
+      "condition": "runner",
+      "request": "龍山寺附進有沒有廁所",
+      "tag": "disfluent",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": ["萬華區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "萬華區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 28957
+    },
+    {
+      "condition": "model",
+      "request": "我在象山站，哪裡有化妝室",
+      "tag": "landmark",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": ["信義區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "信義區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 10857
+    },
+    {
+      "condition": "runner",
+      "request": "我在象山站，哪裡有化妝室",
+      "tag": "landmark",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": ["信義區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "信義區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 10857
+    },
+    {
+      "condition": "model",
+      "request": "內湖區有沒有無障礙廁所",
+      "tag": "accessible",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": ["內湖區"],
+        "near_me": false,
+        "accessible": true
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "內湖區",
+        "near_me": false,
+        "accessible": true
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 9763
+    },
+    {
+      "condition": "runner",
+      "request": "內湖區有沒有無障礙廁所",
+      "tag": "accessible",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": ["內湖區"],
+        "near_me": false,
+        "accessible": true
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "內湖區",
+        "near_me": false,
+        "accessible": true
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 9763
+    },
+    {
+      "condition": "model",
+      "request": "我這附近有洗手間嗎",
+      "tag": "gps",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 10103
+    },
+    {
+      "condition": "runner",
+      "request": "我這附近有洗手間嗎",
+      "tag": "gps",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 10103
+    },
+    {
+      "condition": "model",
+      "request": "我爸中風以後要坐輪椅，找無障礙廁所",
+      "tag": "condition",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": [""],
+        "near_me": true,
+        "accessible": true
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": true,
+        "accessible": true
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11181
+    },
+    {
+      "condition": "runner",
+      "request": "我爸中風以後要坐輪椅，找無障礙廁所",
+      "tag": "condition",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": [""],
+        "near_me": true,
+        "accessible": true
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": true,
+        "accessible": true
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11181
+    },
+    {
+      "condition": "model",
+      "request": "Where can I find a restroom around here?",
+      "tag": "english",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11874
+    },
+    {
+      "condition": "runner",
+      "request": "Where can I find a restroom around here?",
+      "tag": "english",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11874
+    },
+    {
+      "condition": "model",
+      "request": "Is there a public toilet near Raohe Night Market?",
+      "tag": "english",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": ["松山區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 12642
+    },
+    {
+      "condition": "runner",
+      "request": "Is there a public toilet near Raohe Night Market?",
+      "tag": "english",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": ["松山區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 12642
+    },
+    {
+      "condition": "model",
+      "request": "呃，那個，我要找，找廁所啦，快一點",
+      "tag": "disfluent",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11776
+    },
+    {
+      "condition": "runner",
+      "request": "呃，那個，我要找，找廁所啦，快一點",
+      "tag": "disfluent",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11776
+    },
+    {
+      "condition": "model",
+      "request": "萬華區哪裡有公廁",
+      "tag": "district",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": ["萬華區"],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "萬華區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11289
+    },
+    {
+      "condition": "runner",
+      "request": "萬華區哪裡有公廁",
+      "tag": "district",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": ["萬華區"],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "萬華區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11289
+    },
+    {
+      "condition": "model",
+      "request": "我媽有糖尿病，常常頻尿，出門在外哪裡有廁所",
+      "tag": "condition",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11872
+    },
+    {
+      "condition": "runner",
+      "request": "我媽有糖尿病，常常頻尿，出門在外哪裡有廁所",
+      "tag": "condition",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11872
+    },
+    {
+      "condition": "model",
+      "request": "北投公園有輪椅可以進去的廁所嗎",
+      "tag": "accessible",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": ["北投區", ""],
+        "near_me": false,
+        "accessible": true
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": false,
+        "accessible": true
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 12848
+    },
+    {
+      "condition": "runner",
+      "request": "北投公園有輪椅可以進去的廁所嗎",
+      "tag": "accessible",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": ["北投區", ""],
+        "near_me": false,
+        "accessible": true
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": false,
+        "accessible": true
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 12848
+    },
+    {
+      "condition": "model",
+      "request": "我坐輪椅要去中山站，那邊有無障礙廁所嗎",
+      "tag": "accessible",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": ["中山區", ""],
+        "near_me": false,
+        "accessible": true
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": false,
+        "accessible": true
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 12491
+    },
+    {
+      "condition": "runner",
+      "request": "我坐輪椅要去中山站，那邊有無障礙廁所嗎",
+      "tag": "accessible",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": ["中山區", ""],
+        "near_me": false,
+        "accessible": true
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": false,
+        "accessible": true
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 12491
+    },
+    {
+      "condition": "model",
+      "request": "景美夜市有公共廁所嗎",
+      "tag": "landmark",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": ["文山區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "文山區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 19458
+    },
+    {
+      "condition": "runner",
+      "request": "景美夜市有公共廁所嗎",
+      "tag": "landmark",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": ["文山區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "文山區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 19458
+    },
+    {
+      "condition": "model",
+      "request": "我拄拐杖走不遠，幫我找最近的無障礙洗手間",
+      "tag": "accessible",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": [""],
+        "near_me": true,
+        "accessible": true
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": true,
+        "accessible": true
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 14511
+    },
+    {
+      "condition": "runner",
+      "request": "我拄拐杖走不遠，幫我找最近的無障礙洗手間",
+      "tag": "accessible",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": [""],
+        "near_me": true,
+        "accessible": true
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": true,
+        "accessible": true
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 14511
+    },
+    {
+      "condition": "model",
+      "request": "肚子不太舒服，最近的廁所在哪",
+      "tag": "indirect",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 12270
+    },
+    {
+      "condition": "runner",
+      "request": "肚子不太舒服，最近的廁所在哪",
+      "tag": "indirect",
+      "expected": {
+        "tool": "find_nearby_toilets",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 12270
+    },
+    {
+      "condition": "model",
+      "request": "西門町附近有停車場嗎",
+      "tag": "landmark",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": ["萬華區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "萬華區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 12273
+    },
+    {
+      "condition": "runner",
+      "request": "西門町附近有停車場嗎",
+      "tag": "landmark",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": ["萬華區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "萬華區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 12273
+    },
+    {
+      "condition": "model",
+      "request": "我要去榮總看病，附近有沒有愛心車位",
+      "tag": "accessible",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": ["北投區", ""],
+        "near_me": false,
+        "accessible": true
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "北投區",
+        "near_me": false,
+        "accessible": true
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 12210
+    },
+    {
+      "condition": "runner",
+      "request": "我要去榮總看病，附近有沒有愛心車位",
+      "tag": "accessible",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": ["北投區", ""],
+        "near_me": false,
+        "accessible": true
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "北投區",
+        "near_me": false,
+        "accessible": true
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 12210
+    },
+    {
+      "condition": "model",
+      "request": "中山區有孕婦停車位嗎",
+      "tag": "accessible",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": ["中山區"],
+        "near_me": false,
+        "accessible": true
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "中山區",
+        "near_me": false,
+        "accessible": true
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11588
+    },
+    {
+      "condition": "runner",
+      "request": "中山區有孕婦停車位嗎",
+      "tag": "accessible",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": ["中山區"],
+        "near_me": false,
+        "accessible": true
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "中山區",
+        "near_me": false,
+        "accessible": true
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11588
+    },
+    {
+      "condition": "model",
+      "request": "我現在的位置附近哪裡可以把車停下來",
+      "tag": "indirect",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 12488
+    },
+    {
+      "condition": "runner",
+      "request": "我現在的位置附近哪裡可以把車停下來",
+      "tag": "indirect",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 12488
+    },
+    {
+      "condition": "model",
+      "request": "我太太剛做完膝蓋手術要拄拐杖，找附近有身障車位的停車場",
+      "tag": "condition",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": [""],
+        "near_me": true,
+        "accessible": true
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "",
+        "near_me": true,
+        "accessible": true
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 12497
+    },
+    {
+      "condition": "runner",
+      "request": "我太太剛做完膝蓋手術要拄拐杖，找附近有身障車位的停車場",
+      "tag": "condition",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": [""],
+        "near_me": true,
+        "accessible": true
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "",
+        "near_me": true,
+        "accessible": true
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 12497
+    },
+    {
+      "condition": "model",
+      "request": "Where is a parking lot near Miramar Entertainment Park?",
+      "tag": "english",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": ["中山區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 17144
+    },
+    {
+      "condition": "runner",
+      "request": "Where is a parking lot near Miramar Entertainment Park?",
+      "tag": "english",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": ["中山區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 17144
+    },
+    {
+      "condition": "model",
+      "request": "Is there a parking space for pregnant women nearby?",
+      "tag": "english",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": [""],
+        "near_me": true,
+        "accessible": true
+      },
+      "got": {
+        "tool": "none",
+        "area": "",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": false,
+        "area": true,
+        "near_me": false,
+        "accessible": false
+      },
+      "correct": false,
+      "elapsedMs": 6115
+    },
+    {
+      "condition": "runner",
+      "request": "Is there a parking space for pregnant women nearby?",
+      "tag": "english",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": [""],
+        "near_me": true,
+        "accessible": true
+      },
+      "got": {
+        "tool": "none",
+        "area": "",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": false,
+        "area": true,
+        "near_me": false,
+        "accessible": false
+      },
+      "correct": false,
+      "elapsedMs": 6115
+    },
+    {
+      "condition": "model",
+      "request": "南港區有沒有停車場",
+      "tag": "district",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": ["南港區"],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "南港區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 13436
+    },
+    {
+      "condition": "runner",
+      "request": "南港區有沒有停車場",
+      "tag": "district",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": ["南港區"],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "南港區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 13436
+    },
+    {
+      "condition": "model",
+      "request": "大同區哪裡有愛心停車格",
+      "tag": "district",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": ["大同區"],
+        "near_me": false,
+        "accessible": true
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "大同區",
+        "near_me": false,
+        "accessible": true
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 15358
+    },
+    {
+      "condition": "runner",
+      "request": "大同區哪裡有愛心停車格",
+      "tag": "district",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": ["大同區"],
+        "near_me": false,
+        "accessible": true
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "大同區",
+        "near_me": false,
+        "accessible": true
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 15358
+    },
+    {
+      "condition": "model",
+      "request": "嗯我要，我要停車，那個，車子啦，哪邊可以",
+      "tag": "disfluent",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 23348
+    },
+    {
+      "condition": "runner",
+      "request": "嗯我要，我要停車，那個，車子啦，哪邊可以",
+      "tag": "disfluent",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 23348
+    },
+    {
+      "condition": "model",
+      "request": "大安森林公園附近有停車場嗎",
+      "tag": "landmark",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": ["大安區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "大安區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 14039
+    },
+    {
+      "condition": "runner",
+      "request": "大安森林公園附近有停車場嗎",
+      "tag": "landmark",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": ["大安區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "大安區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 14039
+    },
+    {
+      "condition": "model",
+      "request": "要去行天宮拜拜，附近有沒有身障車位",
+      "tag": "accessible",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": ["中山區", ""],
+        "near_me": false,
+        "accessible": true
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "中山區",
+        "near_me": false,
+        "accessible": true
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 15370
+    },
+    {
+      "condition": "runner",
+      "request": "要去行天宮拜拜，附近有沒有身障車位",
+      "tag": "accessible",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": ["中山區", ""],
+        "near_me": false,
+        "accessible": true
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "中山區",
+        "near_me": false,
+        "accessible": true
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 15370
+    },
+    {
+      "condition": "model",
+      "request": "萬芳醫院附近的停車場在哪",
+      "tag": "landmark",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": ["文山區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "文山區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 16628
+    },
+    {
+      "condition": "runner",
+      "request": "萬芳醫院附近的停車場在哪",
+      "tag": "landmark",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": ["文山區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "文山區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 16628
+    },
+    {
+      "condition": "model",
+      "request": "開車來逛街，不知道車要停哪",
+      "tag": "indirect",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": false,
+        "accessible": true
+      },
+      "correct": false,
+      "elapsedMs": 15188
+    },
+    {
+      "condition": "runner",
+      "request": "開車來逛街，不知道車要停哪",
+      "tag": "indirect",
+      "expected": {
+        "tool": "find_nearby_parking",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": false,
+        "accessible": true
+      },
+      "correct": false,
+      "elapsedMs": 15188
+    },
+    {
+      "condition": "model",
+      "request": "我想找一個可以租腳踏車的地方",
+      "tag": "indirect",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 10318
+    },
+    {
+      "condition": "runner",
+      "request": "我想找一個可以租腳踏車的地方",
+      "tag": "indirect",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 10318
+    },
+    {
+      "condition": "model",
+      "request": "中正紀念堂附近有 YouBike 嗎",
+      "tag": "landmark",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": ["中正區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "中正區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11351
+    },
+    {
+      "condition": "runner",
+      "request": "中正紀念堂附近有 YouBike 嗎",
+      "tag": "landmark",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": ["中正區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "中正區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11351
+    },
+    {
+      "condition": "model",
+      "request": "信義區的 YouBike 站在哪裡",
+      "tag": "district",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": ["信義區"],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "信義區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 14355
+    },
+    {
+      "condition": "runner",
+      "request": "信義區的 YouBike 站在哪裡",
+      "tag": "district",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": ["信義區"],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "信義區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 14355
+    },
+    {
+      "condition": "model",
+      "request": "Where can I rent a bike around here?",
+      "tag": "english",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 10626
+    },
+    {
+      "condition": "runner",
+      "request": "Where can I rent a bike around here?",
+      "tag": "english",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 10626
+    },
+    {
+      "condition": "model",
+      "request": "Is there a YouBike station near Jiantan Station?",
+      "tag": "english",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": ["士林區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11390
+    },
+    {
+      "condition": "runner",
+      "request": "Is there a YouBike station near Jiantan Station?",
+      "tag": "english",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": ["士林區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11390
+    },
+    {
+      "condition": "model",
+      "request": "松山區想騎車，哪裡有微笑單車",
+      "tag": "district",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": ["松山區"],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "松山區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 14933
+    },
+    {
+      "condition": "runner",
+      "request": "松山區想騎車，哪裡有微笑單車",
+      "tag": "district",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": ["松山區"],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "松山區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 14933
+    },
+    {
+      "condition": "model",
+      "request": "我想騎去大稻埕碼頭，碼頭附近有 YouBike 嗎",
+      "tag": "landmark",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": ["大同區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "大同區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 13500
+    },
+    {
+      "condition": "runner",
+      "request": "我想騎去大稻埕碼頭，碼頭附近有 YouBike 嗎",
+      "tag": "landmark",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": ["大同區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "大同區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 13500
+    },
+    {
+      "condition": "model",
+      "request": "嗯，那個，U-bike，ubike 站，啊不是，youbike，在哪裡",
+      "tag": "disfluent",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11843
+    },
+    {
+      "condition": "runner",
+      "request": "嗯，那個，U-bike，ubike 站，啊不是，youbike，在哪裡",
+      "tag": "disfluent",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11843
+    },
+    {
+      "condition": "model",
+      "request": "我要出門運動，這附近有沒有可以借的車",
+      "tag": "gps",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 12026
+    },
+    {
+      "condition": "runner",
+      "request": "我要出門運動，這附近有沒有可以借的車",
+      "tag": "gps",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 12026
+    },
+    {
+      "condition": "model",
+      "request": "政大附近有 YouBike 嗎",
+      "tag": "landmark",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": ["文山區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "文山區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11429
+    },
+    {
+      "condition": "runner",
+      "request": "政大附近有 YouBike 嗎",
+      "tag": "landmark",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": ["文山區", ""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "文山區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11429
+    },
+    {
+      "condition": "model",
+      "request": "我膝蓋開刀完在復健，醫生說可以騎腳踏車，附近有 YouBike 嗎",
+      "tag": "condition",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 12390
+    },
+    {
+      "condition": "runner",
+      "request": "我膝蓋開刀完在復健，醫生說可以騎腳踏車，附近有 YouBike 嗎",
+      "tag": "condition",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": [""],
+        "near_me": true,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 12390
+    },
+    {
+      "condition": "model",
+      "request": "北投區有哪些 YouBike 站",
+      "tag": "district",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": ["北投區"],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "北投區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11854
+    },
+    {
+      "condition": "runner",
+      "request": "北投區有哪些 YouBike 站",
+      "tag": "district",
+      "expected": {
+        "tool": "find_nearby_youbike",
+        "area": ["北投區"],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "北投區",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 11854
+    },
+    {
+      "condition": "model",
+      "request": "敬老卡要怎麼申請",
+      "tag": "none",
+      "expected": {
+        "tool": "none",
+        "area": [""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "none",
+        "area": "",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 6383
+    },
+    {
+      "condition": "runner",
+      "request": "敬老卡要怎麼申請",
+      "tag": "none",
+      "expected": {
+        "tool": "none",
+        "area": [""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "none",
+        "area": "",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 6383
+    },
+    {
+      "condition": "model",
+      "request": "路邊停車格的月租怎麼辦理",
+      "tag": "none",
+      "expected": {
+        "tool": "none",
+        "area": [""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "none",
+        "area": "",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 7073
+    },
+    {
+      "condition": "runner",
+      "request": "路邊停車格的月租怎麼辦理",
+      "tag": "none",
+      "expected": {
+        "tool": "none",
+        "area": [""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "none",
+        "area": "",
+        "near_me": false,
+        "accessible": false
+      },
+      "fields": {
+        "tool": true,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 7073
+    },
+    {
+      "condition": "model",
+      "request": "公廁壞掉了要跟哪裡反映",
+      "tag": "none",
+      "expected": {
+        "tool": "none",
+        "area": [""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": false,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": false,
+      "elapsedMs": 14117
+    },
+    {
+      "condition": "runner",
+      "request": "公廁壞掉了要跟哪裡反映",
+      "tag": "none",
+      "expected": {
+        "tool": "none",
+        "area": [""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": false,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": false,
+      "elapsedMs": 14117
+    },
+    {
+      "condition": "model",
+      "request": "YouBike 騎一次多少錢",
+      "tag": "none",
+      "expected": {
+        "tool": "none",
+        "area": [""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": false,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": false,
+      "elapsedMs": 14570
+    },
+    {
+      "condition": "runner",
+      "request": "YouBike 騎一次多少錢",
+      "tag": "none",
+      "expected": {
+        "tool": "none",
+        "area": [""],
+        "near_me": false,
+        "accessible": false
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "fields": {
+        "tool": false,
+        "area": true,
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": false,
+      "elapsedMs": 14570
+    }
+  ],
+  "note": "first 15 cases from the run the phone cut short, the other 30 from a second run (FEATURE_EVAL_FROM=15)"
+}

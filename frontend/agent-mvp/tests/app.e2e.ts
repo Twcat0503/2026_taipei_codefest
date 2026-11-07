@@ -23,6 +23,7 @@ test('book search, editable confirmation, reload, receipt and reset', async ({ p
   await page.getByLabel('取書館', { exact: true }).selectOption('demo-community');
   await expect(page.getByRole('heading', { name: '已完成示範預約' })).toHaveCount(0);
   await page.reload();
+  // Re-entering starts on the home screen; the pending draft is one tap away.
   await page.getByRole('button', { name: '繼續上次對話', exact: true }).click();
   await expect(page.getByLabel('取書館', { exact: true })).toHaveValue('demo-community');
   const audit = await new AxeBuilder({ page })
@@ -347,7 +348,6 @@ test('recognized voice is editable and never submits automatically', async ({ pa
   await input.fill('找「一起慢慢走」');
   await page.getByRole('button', { name: '送出需求', exact: true }).click();
   await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toBeVisible();
-  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('找「一起慢慢走」');
 });
 
 test('microphone denial stays visible and cancellation keeps the conversation usable', async ({
@@ -804,6 +804,26 @@ test('voice feedback also reads the reply to a greeting and the emergency notice
   const [, emergency, ...more] = await spoken();
   expect(more).toEqual([]);
   expect(emergency.text).toContain(await reply.innerText());
+});
+
+test('returning with a saved conversation starts on home with the voice button', async ({
+  page,
+}) => {
+  await chooseService(page, '找「一起慢慢走」，我的電話 0912345678');
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('townpass-agent-conversation-v1')))
+    .toContain('＊＊＊');
+  await page.reload();
+  await expect(page.getByRole('button', { name: '開始語音輸入', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '繼續上次對話', exact: true }).click();
+  // Free text is kept for the returning person, with the phone number masked,
+  // instead of a "not saved" placeholder.
+  await expect(page.locator('.user-message p')).toHaveText('找「一起慢慢走」，我的電話 ＊＊＊');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+    '找「一起慢慢走」，我的電話 ＊＊＊',
+  );
+  await expect(page.getByText(/自由輸入未保存/)).toHaveCount(0);
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('0912345678');
 });
 
 test('voice feedback does not read a restored conversation', async ({ page }) => {

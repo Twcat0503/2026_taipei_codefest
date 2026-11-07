@@ -1,0 +1,308 @@
+{
+  "generatedAt": "2026-11-07T20:25:23.206Z",
+  "set": "turns",
+  "model": "qwen3:1.7b",
+  "host": "Mac",
+  "summary": [
+    {
+      "condition": "runner",
+      "cases": 16,
+      "correct": 87.5,
+      "medianMs": 6488
+    }
+  ],
+  "rows": [
+    {
+      "condition": "runner",
+      "request": "台大醫院附近有停車場嗎 → 那廁所呢",
+      "tag": "kind",
+      "expected": {
+        "kind": "place",
+        "place": {
+          "tool": "find_nearby_toilets",
+          "area": ["中正區", ""],
+          "near_me": false,
+          "accessible": false
+        }
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "中正區",
+        "near_me": false,
+        "accessible": false
+      },
+      "correct": true,
+      "elapsedMs": 7397
+    },
+    {
+      "condition": "runner",
+      "request": "信義區哪裡有 YouBike → 那停車位呢",
+      "tag": "kind",
+      "expected": {
+        "kind": "place",
+        "place": {
+          "tool": "find_nearby_parking",
+          "area": ["信義區"],
+          "near_me": false,
+          "accessible": false
+        }
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "信義區",
+        "near_me": false,
+        "accessible": false
+      },
+      "correct": true,
+      "elapsedMs": 7660
+    },
+    {
+      "condition": "runner",
+      "request": "Where is a toilet in Daan District? → What about parking there?",
+      "tag": "kind",
+      "expected": {
+        "kind": "place",
+        "place": {
+          "tool": "find_nearby_parking",
+          "area": ["大安區"],
+          "near_me": false,
+          "accessible": false
+        }
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "correct": false,
+      "elapsedMs": 7518
+    },
+    {
+      "condition": "runner",
+      "request": "士林區有哪裡可以停車 → 換成大安區",
+      "tag": "district",
+      "expected": {
+        "kind": "place",
+        "place": {
+          "tool": "find_nearby_parking",
+          "area": ["大安區"],
+          "near_me": false,
+          "accessible": false
+        }
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "大安區",
+        "near_me": false,
+        "accessible": false
+      },
+      "correct": true,
+      "elapsedMs": 7334
+    },
+    {
+      "condition": "runner",
+      "request": "中山區的公共廁所在哪 → 那萬華區的呢",
+      "tag": "district",
+      "expected": {
+        "kind": "place",
+        "place": {
+          "tool": "find_nearby_toilets",
+          "area": ["萬華區"],
+          "near_me": false,
+          "accessible": false
+        }
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "萬華區",
+        "near_me": false,
+        "accessible": false
+      },
+      "correct": true,
+      "elapsedMs": 6457
+    },
+    {
+      "condition": "runner",
+      "request": "北投區有 YouBike 站嗎 → 改成內湖區好了",
+      "tag": "district",
+      "expected": {
+        "kind": "place",
+        "place": {
+          "tool": "find_nearby_youbike",
+          "area": ["內湖區"],
+          "near_me": false,
+          "accessible": false
+        }
+      },
+      "got": {
+        "tool": "find_nearby_youbike",
+        "area": "內湖區",
+        "near_me": false,
+        "accessible": false
+      },
+      "correct": true,
+      "elapsedMs": 7237
+    },
+    {
+      "condition": "runner",
+      "request": "松山區哪裡有廁所 → 要有無障礙的",
+      "tag": "accessible",
+      "expected": {
+        "kind": "place",
+        "place": {
+          "tool": "find_nearby_toilets",
+          "area": ["松山區"],
+          "near_me": false,
+          "accessible": true
+        }
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "松山區",
+        "near_me": false,
+        "accessible": true
+      },
+      "correct": true,
+      "elapsedMs": 6488
+    },
+    {
+      "condition": "runner",
+      "request": "文山區有停車場嗎 → 我坐輪椅，要有身障車位的",
+      "tag": "accessible",
+      "expected": {
+        "kind": "place",
+        "place": {
+          "tool": "find_nearby_parking",
+          "area": ["文山區"],
+          "near_me": false,
+          "accessible": true
+        }
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "",
+        "near_me": true,
+        "accessible": true
+      },
+      "correct": false,
+      "elapsedMs": 9493
+    },
+    {
+      "condition": "runner",
+      "request": "大同區有沒有廁所 → 那我現在這邊呢",
+      "tag": "here",
+      "expected": {
+        "kind": "place",
+        "place": {
+          "tool": "find_nearby_toilets",
+          "area": [""],
+          "near_me": true,
+          "accessible": false
+        }
+      },
+      "got": {
+        "tool": "find_nearby_toilets",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "correct": true,
+      "elapsedMs": 6124
+    },
+    {
+      "condition": "runner",
+      "request": "南港區哪裡有停車位 → 我現在的位置附近有嗎",
+      "tag": "here",
+      "expected": {
+        "kind": "place",
+        "place": {
+          "tool": "find_nearby_parking",
+          "area": [""],
+          "near_me": true,
+          "accessible": false
+        }
+      },
+      "got": {
+        "tool": "find_nearby_parking",
+        "area": "",
+        "near_me": true,
+        "accessible": false
+      },
+      "correct": true,
+      "elapsedMs": 8594
+    },
+    {
+      "condition": "runner",
+      "request": "停車費可以在手機上繳嗎 → 那幫我開繳費的頁面",
+      "tag": "destination",
+      "expected": {
+        "kind": "destination",
+        "ids": ["fee", "fee_parking"]
+      },
+      "got": "fee",
+      "correct": true,
+      "elapsedMs": 2084
+    },
+    {
+      "condition": "runner",
+      "request": "我家巷口的路燈壞了怎麼辦 → 那我要陳情",
+      "tag": "destination",
+      "expected": {
+        "kind": "destination",
+        "ids": ["townpass_report"]
+      },
+      "got": "townpass_report",
+      "correct": true,
+      "elapsedMs": 889
+    },
+    {
+      "condition": "runner",
+      "request": "有沒有政府的服務專線可以問事情 → 好，那打給1999",
+      "tag": "destination",
+      "expected": {
+        "kind": "destination",
+        "ids": ["call_1999"]
+      },
+      "got": "call_1999",
+      "correct": true,
+      "elapsedMs": 837
+    },
+    {
+      "condition": "runner",
+      "request": "我媽媽要申請身心障礙的補助，要去哪裡看 → 好，帶我去那個頁面",
+      "tag": "destination",
+      "expected": {
+        "kind": "destination",
+        "ids": ["services_disabled", "townpass_apply"]
+      },
+      "got": "services_disabled",
+      "correct": true,
+      "elapsedMs": 882
+    },
+    {
+      "condition": "runner",
+      "request": "我懷孕了，市府有什麼福利 → 那幫我打開那個",
+      "tag": "destination",
+      "expected": {
+        "kind": "destination",
+        "ids": ["services_maternity"]
+      },
+      "got": "services_maternity",
+      "correct": true,
+      "elapsedMs": 908
+    },
+    {
+      "condition": "runner",
+      "request": "這個月的水費單來了，怎麼繳 → 好，那我要繳水費",
+      "tag": "destination",
+      "expected": {
+        "kind": "destination",
+        "ids": ["fee_water", "fee"]
+      },
+      "got": "fee_water",
+      "correct": true,
+      "elapsedMs": 867
+    }
+  ]
+}
