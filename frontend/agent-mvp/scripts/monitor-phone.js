@@ -47,33 +47,77 @@ const shell = (command) => adb('shell', command);
 const pidOf = async (name) =>
   (await shell(`pidof ${name}`).catch(() => '')).trim().split(/\s+/)[0] || null;
 
-/** 連上安心助手頁面的除錯通道，取得 evaluate()。 */
+const EVALUATE_TIMEOUT_MS = 5000;
+
+/**
+ * 連上安心助手頁面的除錯通道，取得 evaluate()。
+ * App 重啟、頁面重載（含 HMR）都會讓連線斷掉；斷線時所有等待中的呼叫立刻失敗，
+ * evaluate 也有逾時，主迴圈據此丟掉這條連線並重連，不會卡住。
+ */
 async function connectPage() {
   const appPid = await pidOf(PACKAGE);
   if (!appPid) throw new Error(`手機上沒有在執行 ${PACKAGE}`);
   await adb('forward', `tcp:${DEVTOOLS_PORT}`, `localabstract:webview_devtools_remote_${appPid}`);
-  const pages = await (await fetch(`http://127.0.0.1:${DEVTOOLS_PORT}/json`)).json();
-  const page = pages.find((p) => p.url.includes(':5173'));
-  if (!page) throw new Error('找不到安心助手頁面：請先在 App 裡打開安心助手');
+  const pages = await (
+    await fetch(`http://127.0.0.1:${DEVTOOLS_PORT}/json`, { signal: AbortSignal.timeout(5000) })
+  ).json();
+  const page = pages.filter((p) => p.url.includes(':5173')).at(-1);
+  if (!page) throw new Error('找不到安心助手頁面（請在 App 裡打開安心助手）');
   const ws = new WebSocket(page.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => {
-    ws.onopen = resolve;
-    ws.onerror = reject;
+    const timer = setTimeout(() => reject(new Error('除錯通道連線逾時')), 5000);
+    ws.onopen = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    ws.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error('除錯通道連線失敗'));
+    };
   });
   let seq = 0;
+  let closed = false;
   const pending = new Map();
+  const failAll = (reason) => {
+    closed = true;
+    for (const entry of pending.values()) entry.reject(new Error(reason));
+    pending.clear();
+  };
+  ws.onclose = () => failAll('除錯通道已斷線');
+  ws.onerror = () => failAll('除錯通道錯誤');
   ws.onmessage = (message) => {
     const msg = JSON.parse(message.data);
     const entry = pending.get(msg.id);
     if (!entry) return;
     pending.delete(msg.id);
-    if (msg.result?.exceptionDetails) entry.reject(new Error(msg.result.exceptionDetails.text));
+    const failure = msg.result?.exceptionDetails;
+    // exceptionDetails.text 常只是「Uncaught」，實際原因在 exception.description。
+    if (failure)
+      entry.reject(
+        new Error(
+          `頁面執行失敗：${failure.exception?.description?.split('\n')[0] ?? failure.text}`,
+        ),
+      );
     else entry.resolve(msg.result?.result?.value);
   };
   const evaluate = (expression) =>
     new Promise((resolve, reject) => {
+      if (closed) return reject(new Error('除錯通道已斷線'));
       const id = ++seq;
-      pending.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        reject(new Error('evaluate 逾時'));
+      }, EVALUATE_TIMEOUT_MS);
+      pending.set(id, {
+        resolve: (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      });
       ws.send(
         JSON.stringify({
           id,
@@ -82,7 +126,7 @@ async function connectPage() {
         }),
       );
     });
-  return { appPid, evaluate, close: () => ws.close() };
+  return { appPid, evaluate, isClosed: () => closed, close: () => ws.close() };
 }
 
 /** 一次 adb shell 把三個記憶體數字都讀回來，省往返。 */
@@ -109,32 +153,49 @@ async function readMemory(appPid, modelPid) {
   };
 }
 
-const page = await connectPage();
-const ready = await page.evaluate(`!!(window.__devHud && window.__devHud.setResources)`);
-if (!ready)
-  throw new Error('安心助手頁面沒有啟用開發看板：請先用 http://127.0.0.1:5173/?hud=1 開一次');
-console.log(`開始監看（每 ${SAMPLE_MS} ms）。Ctrl-C 結束。\n`);
+console.log(`開始監看（每 ${SAMPLE_MS} ms）。App 重啟或頁面重載會自動重連。Ctrl-C 結束。\n`);
 
 let running = true;
 process.on('SIGINT', () => {
   running = false;
 });
 
+const status = (text) => process.stdout.write(`\r${text}`.padEnd(90));
+let page = null;
+let lastWait = '';
+
 while (running) {
   const started = Date.now();
-  const modelPid = await pidOf(MODEL_PROC);
-  const mem = await readMemory(page.appPid, modelPid);
-  if (mem) {
-    await page.evaluate(`window.__devHud?.setResources(${JSON.stringify(mem)})`).catch(() => {});
-    const g = (mb) => (mb === null ? '—' : (mb / 1024).toFixed(2));
-    process.stdout.write(
-      `\r我們 ${g((mem.modelRssMb ?? 0) + (mem.appRssMb ?? 0))}／總共 ${g(mem.sysTotalMb)} GB（模型 ${g(mem.modelRssMb)}、App ${g(mem.appRssMb)}）｜系統可用 ${g(mem.sysAvailMb)} GB${modelPid ? '' : '（模型未執行）'}        `,
-    );
+  try {
+    if (!page || page.isClosed()) {
+      page?.close();
+      page = null;
+      page = await connectPage();
+    }
+    const ready = await page.evaluate(`!!(window.__devHud && window.__devHud.setResources)`);
+    if (!ready) throw new Error('頁面沒有啟用開發看板（用 http://127.0.0.1:5173/?hud=1 開一次）');
+    const modelPid = await pidOf(MODEL_PROC);
+    const mem = await readMemory(page.appPid, modelPid);
+    if (mem) {
+      await page.evaluate(`window.__devHud.setResources(${JSON.stringify(mem)})`);
+      const g = (mb) => (mb === null ? '—' : (mb / 1024).toFixed(2));
+      status(
+        `我們 ${g((mem.modelRssMb ?? 0) + (mem.appRssMb ?? 0))}／總共 ${g(mem.sysTotalMb)} GB（模型 ${g(mem.modelRssMb)}、App ${g(mem.appRssMb)}）｜系統可用 ${g(mem.sysAvailMb)} GB${modelPid ? '' : '（模型未執行）'}`,
+      );
+      lastWait = '';
+    }
+  } catch (error) {
+    // 斷線、找不到頁面、看板未啟用：丟掉這條連線，下一輪重連。同樣的原因只印一次。
+    page?.close();
+    page = null;
+    const reason = error instanceof Error ? error.message : String(error);
+    if (reason !== lastWait) status(`等待中：${reason}`);
+    lastWait = reason;
   }
   await new Promise((r) => setTimeout(r, Math.max(0, SAMPLE_MS - (Date.now() - started))));
 }
 
-page.close();
+page?.close();
 await adb('forward', '--remove', `tcp:${DEVTOOLS_PORT}`).catch(() => {});
 console.log('\n已停止監看。');
 process.exit(0);
