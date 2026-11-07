@@ -106,6 +106,25 @@
 - 開發聯調：`pnpm dev --host` 後於 app 開 `http://<開發機IP>:5173`（模擬器 `10.0.2.2:5173`）；cleartext HTTP 僅開放給 debug 建置。
 - 正式部署：SPA 部署為 https 靜態站；`dist/` 不打包進 Flutter assets。
 
+## 部署（Cloudflare Pages）
+
+前端由 Cloudflare Pages 連結本 repo 自動部署（`<project>` 為 Pages 專案名稱）：
+
+| 項目 | 設定 |
+| --- | --- |
+| Production branch | `main` |
+| Root directory | `frontend` |
+| Build command | `pnpm build` |
+| Build output directory | `dist` |
+| 環境變數 | `NODE_VERSION`、`PNPM_VERSION`，值與 `frontend/mise.toml` 相同；改版本時兩邊一起改 |
+
+- 每次合併進 `main` 都會更新正式站 `https://<project>.pages.dev`。
+- 每個 PR 會自動產生預覽站，Cloudflare 會把網址留言在 PR 上；每個 branch 另有固定的別名，例如 `feat/foo` 對應 `https://feat-foo.<project>.pages.dev`。審 UI 變更時，用 Android 手機開預覽網址確認。
+- 預覽站預設公開，不要放機密或尚未公開的資料。
+- `lib/page/city_service/model/my_service_model.dart` 的 `destinationUrl` 只填正式站網址；要在 app 裡測預覽站，就在本機暫時修改，不要 commit。
+- 正式站出問題時，先到 Cloudflare dashboard 的 Deployments，把 production rollback 到上一個正常的 deployment，再開 `fix/` PR 修正。
+- SPA 路由不用另外設定：專案沒有 `404.html` 時，Pages 會把未知路徑交給 `index.html`。
+
 ## 設計規範
 
 主題、對象與必守規則摘要見 [AGENTS.md](AGENTS.md)「設計規範」；本節補充依據、各對象設計要點、實作細則與自檢方式。
