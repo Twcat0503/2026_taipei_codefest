@@ -33,6 +33,28 @@ describe('conversation storage', () => {
     clearConversation();
     expect(restoreConversation()).toEqual([]);
   });
+  it('keeps the emergency kind so the call buttons come back', () => {
+    expect(
+      saveConversation([
+        { request: '有人昏倒了', notice: 'emergency', emergency: 'medical' },
+        { request: messages['zh-Hant-TW'].benefitsRequest, notice: 'results', emergency: 'fire' },
+      ]),
+    ).toBe(true);
+    expect(restoreConversation()).toEqual([
+      { request: null, text: '有人昏倒了', notice: 'emergency', emergency: 'medical' },
+      { request: 'benefitsRequest', notice: 'results' },
+    ]);
+  });
+  it('falls back to every emergency line for older or tampered saves', () => {
+    values.set(
+      'townpass-agent-conversation-v1',
+      JSON.stringify([
+        { request: null, text: '救命', notice: 'emergency' },
+        { request: null, text: '救命', notice: 'emergency', emergency: 'nonsense' },
+      ]),
+    );
+    expect(restoreConversation().map((turn) => turn.emergency)).toEqual(['general', 'general']);
+  });
   it('masks identifiers again when restoring tampered data', () => {
     values.set(
       'townpass-agent-conversation-v1',
@@ -52,7 +74,13 @@ describe('conversation storage', () => {
       true,
     );
     expect(restoreConversation()).toEqual(
-      notices.map((notice) => ({ request: null, text: '我家門口淹水了', notice })),
+      notices.map((notice) => ({
+        request: null,
+        text: '我家門口淹水了',
+        notice,
+        // Saved without a kind: the call buttons come back with every main line.
+        ...(notice === 'emergency' ? { emergency: 'general' } : {}),
+      })),
     );
   });
 });

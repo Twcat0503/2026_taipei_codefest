@@ -37,6 +37,19 @@ void main() {
     expect(sanitizePrefill({'title': '   '}), isNull);
   });
 
+  test('accepts disaster report details with their own limits', () {
+    expect(
+      sanitizePrefill({
+        'location': '仁愛路四段',
+        'desc': '靠近敦化南路口',
+        'additional_disc': '路樹倒下擋住機車道',
+      }),
+      {'location': '仁愛路四段', 'desc': '靠近敦化南路口', 'additional_disc': '路樹倒下擋住機車道'},
+    );
+    expect(sanitizePrefill({'desc': '一' * 201}), isNull);
+    expect(sanitizePrefill({'additional_disc': '一' * 501}), isNull);
+  });
+
   test('embeds report text as JSON data, including quotes and script tags', () {
     final String script = prefillScript({
       'description': '他說"</script><script>alert(1)</script>',
@@ -85,5 +98,23 @@ void main() {
     final String script = prefillScript({'water_number': '1234567890'});
     expect(script, contains('{"water_number":"1234567890"}'));
     expect(script, contains("dispatchEvent(new Event('input'"));
+  });
+
+  test('is an async function body that reports fields it could not fill', () {
+    final String script = prefillScript({'water_number': '1234567890'});
+    expect(script.trimLeft(), startsWith('return new Promise('));
+    expect(script, contains('resolve([])'));
+    expect(script, contains('resolve(Object.keys(values).filter('));
+  });
+
+  test('names the fields that were not filled, never their values', () {
+    expect(prefillFailureMessage(const []), isNull);
+    expect(
+      prefillFailureMessage(const ['water_number', 'tax_id']),
+      '有些資料沒能自動帶入，請自行填寫：水號、身分證字號',
+    );
+    for (final String field in kPrefillFields) {
+      expect(kPrefillFieldLabels, contains(field));
+    }
   });
 }

@@ -8,6 +8,7 @@ import { PhoneModel, type PhoneState } from './agent/phone-model';
 import UiIcon from './components/UiIcon.vue';
 import NavigationPanel from './components/NavigationPanel.vue';
 import EmergencyCard from './components/EmergencyCard.vue';
+import { emergencyReadout, type EmergencyKind } from './agent/skills/emergency';
 import ProfilePanel from './components/ProfilePanel.vue';
 import { shouldReadAnswerAloud } from './agent/auto-read';
 import { followUps } from './agent/follow-ups';
@@ -36,6 +37,7 @@ import {
 import { AgentRunner, fillsPendingLocation } from './agent/runner';
 import { createAgentToolClient } from '../../../tools/townpass/src/agent-client';
 import { DemoModel, LocalModel } from './agent/model';
+import type { FormContext, FormSpec } from './agent/skills/form-fill';
 import { cancelDraft, changeBranch, confirmReservation, prepareReservation } from './agent/tools';
 import {
   clearConversation,
@@ -249,11 +251,9 @@ const choices = computed(() =>
 const suggestions = computed(() =>
   realData
     ? [
+        // 陳情、繳費、叫號會開到台北通範本頁（示範資料），不當成建議。
         t.value.toiletSuggestion,
         t.value.parkingSuggestion,
-        t.value.petitionSuggestion,
-        t.value.paySuggestion,
-        t.value.counter,
         t.value.disabledSuggestion,
       ]
     : [t.value.browseBooks, t.value.browseServices],
@@ -294,8 +294,12 @@ type Turn = {
   bills: TaskState['billResult'];
   failure: TaskState['failure'];
   traces: TaskState['traces'];
+  /** Emergency turns keep their call buttons, also after a reload. */
+  emergency: EmergencyKind | null;
   reference?: string;
   receiptBook?: Localized;
+  /** A saved parking lookup; after a reload it can be run again from the summary. */
+  parking?: ParkingSpace;
 };
 const restoredTurns = restoreConversation();
 const turns = ref<Turn[]>(
@@ -313,6 +317,13 @@ const turns = ref<Turn[]>(
     bills: null,
     failure: null,
     traces: [],
+    emergency: turn.emergency ?? null,
+    parking:
+      turn.request === 'parkingSuggestion'
+        ? ('disabled' as const)
+        : turn.request === 'pregnancyParkingSuggestion'
+          ? ('pregnancy' as const)
+          : undefined,
   })),
 );
 let nextTurnId = turns.value.length;
@@ -321,7 +332,7 @@ const conversationSaveFailed = ref(false);
 function persistConversation() {
   const current =
     lastRequest.value && state.notice !== 'welcome'
-      ? [{ request: lastRequest.value, notice: state.notice }]
+      ? [{ request: lastRequest.value, notice: state.notice, emergency: state.emergency }]
       : [];
   conversationSaveFailed.value = !saveConversation([...turns.value, ...current]);
 }
@@ -340,6 +351,7 @@ function archiveTurn() {
     bills: state.billResult,
     failure: state.failure,
     traces: state.traces,
+    emergency: state.notice === 'emergency' ? (state.emergency ?? 'general') : null,
     reference: state.receipt?.reference,
     receiptBook: finished ? activeBook.value?.title : undefined,
   });
@@ -449,6 +461,21 @@ function goHome() {
   cancelVoice();
   home.value = true;
 }
+// 離開首頁時留一筆瀏覽紀錄，App 左上的返回鍵與系統返回手勢會先回到首頁，在首頁再按才離開助手。
+const conversationEntry = 'agent-conversation';
+watch(home, (isHome) => {
+  const inConversation = history.state?.view === conversationEntry;
+  if (!isHome && !inConversation) history.pushState({ view: conversationEntry }, '');
+  else if (isHome && inConversation) history.back();
+});
+function onHistoryBack() {
+  if (home.value || history.state?.view === conversationEntry) return;
+  goHome();
+  // 忙碌中留在對話畫面時，補回紀錄讓下一次返回仍回到首頁。
+  if (!home.value) history.pushState({ view: conversationEntry }, '');
+}
+onMounted(() => window.addEventListener('popstate', onHistoryBack));
+onBeforeUnmount(() => window.removeEventListener('popstate', onHistoryBack));
 function startVoice() {
   if (busy.value || (!home.value && !!state.draft)) return;
   beginHomeTask();
@@ -458,6 +485,16 @@ function startVoice() {
   voiceOriginal.value = input.value;
   voiceOpen.value = true;
   voice.start(locale.value);
+}
+function startSystemVoice() {
+  if (busy.value || (!home.value && !!state.draft)) return;
+  beginHomeTask();
+  stopReading();
+  speaking.value = false;
+  home.value = false;
+  voiceOriginal.value = input.value;
+  voiceOpen.value = true;
+  voice.startSystem(locale.value);
 }
 function cancelVoice() {
   voice.cancel();
@@ -586,6 +623,10 @@ async function submit(text = input.value) {
   } catch {
     /* Runner exposes a localized, non-sensitive error state. */
   } finally {
+    // A typed parking request gets the same options (switch space type, widen, by district).
+    const place = state.lastPlace;
+    if (state.lastTool === 'find_nearby_parking' && place?.parkingSpace)
+      parkingSearch.value = { space: place.parkingSpace, radius: 1000, area: place.area ?? null };
     busy.value = false;
     feedbackForAnswer();
     saveTask(state);
@@ -779,26 +820,29 @@ function startReading() {
   stopReading();
   speechFailed.value = false;
   speaking.value = true;
-  const extra = state.draft
-    ? `${activeBook.value?.title[locale.value]}. ${branches.find((branch) => branch.id === state.draft?.branchId)?.name[locale.value]}. ${t.value.simulated}`
-    : state.receipt
-      ? `${activeBook.value?.title[locale.value]}. ${activeBranch.value?.name[locale.value]}. ${state.receipt.reference}`
-      : [
-          ...(state.billResult?.records.map(
-            (bill) =>
-              `${billCategories[bill.category].label[locale.value]}. ${bill.periodLabel}. ${bill.amount} TWD. ${t.value[`billStatus_${bill.status}`]}`,
-          ) ?? []),
-          ...shownBooks.value.map((book) => book.title[locale.value]),
-          ...(state.navigation
-            ? [
-                `${state.navigation.title[locale.value]}. ${state.navigation.description?.[locale.value] ?? ''}`,
-              ]
-            : []),
-          ...state.records.map(
-            (record) =>
-              `${record.title[locale.value]}. ${record.description?.[locale.value] ?? ''}`,
-          ),
-        ].join('。');
+  const extra =
+    state.emergency && state.notice === 'emergency'
+      ? emergencyReadout(state.emergency, t.value)
+      : state.draft
+        ? `${activeBook.value?.title[locale.value]}. ${branches.find((branch) => branch.id === state.draft?.branchId)?.name[locale.value]}. ${t.value.simulated}`
+        : state.receipt
+          ? `${activeBook.value?.title[locale.value]}. ${activeBranch.value?.name[locale.value]}. ${state.receipt.reference}`
+          : [
+              ...(state.billResult?.records.map(
+                (bill) =>
+                  `${billCategories[bill.category].label[locale.value]}. ${bill.periodLabel}. ${bill.amount} TWD. ${t.value[`billStatus_${bill.status}`]}`,
+              ) ?? []),
+              ...shownBooks.value.map((book) => book.title[locale.value]),
+              ...(state.navigation
+                ? [
+                    `${state.navigation.title[locale.value]}. ${state.navigation.description?.[locale.value] ?? ''}`,
+                  ]
+                : []),
+              ...state.records.map(
+                (record) =>
+                  `${record.title[locale.value]}. ${record.description?.[locale.value] ?? ''}`,
+              ),
+            ].join('。');
   // 螢幕閱讀與朗讀的使用者也要聽得到選項。
   const choiceText = choices.value
     ? `${choices.value.prompt[locale.value]}：${choices.value.options.map((o) => o.label[locale.value]).join('、')}`
@@ -868,12 +912,6 @@ onBeforeUnmount(() => {
       >
         <UiIcon name="settings" />
       </button>
-      <nav v-if="native && !home" class="assistant-navigation" :aria-label="t.assistantNavigation">
-        <button class="text-button" :disabled="busy" @click="goHome">
-          <UiIcon name="back" /><span>{{ t.backToHome }}</span>
-        </button>
-      </nav>
-
       <main id="main" ref="assistantBody" class="assistant-body">
         <button v-if="mode === 'phone' && !home" class="phone-status-button" @click="openSettings">
           {{ phoneState.ready ? t.phoneConnected : t.phoneStart }}
@@ -922,6 +960,33 @@ onBeforeUnmount(() => {
                 <article class="past-message" :aria-label="t.assistant">
                   <p v-if="turn.restored" class="small-note">{{ t.savedSummaryNote }}</p>
                   <p class="reply-bubble">{{ noticeText(turn.notice) }}</p>
+                  <EmergencyCard v-if="turn.emergency" :kind="turn.emergency" :locale="locale" />
+                  <div
+                    v-if="
+                      turn.restored &&
+                      turn.parking &&
+                      turn.id === turns.at(-1)?.id &&
+                      state.notice === 'welcome' &&
+                      !busy
+                    "
+                    class="parking-actions"
+                    role="group"
+                    :aria-label="t.parkingActions"
+                  >
+                    <button class="outline-button" @click="searchParking(turn.parking)">
+                      {{ t.parkingSearchAgain }}
+                    </button>
+                    <button
+                      class="outline-button"
+                      @click="searchParking(turn.parking === 'disabled' ? 'pregnancy' : 'disabled')"
+                    >
+                      {{
+                        turn.parking === 'disabled'
+                          ? t.parkingSwitchPregnancy
+                          : t.parkingSwitchDisabled
+                      }}
+                    </button>
+                  </div>
                   <ul v-if="turn.books.length" class="plain-list">
                     <li v-for="book in turn.books" :key="book.id">
                       <strong>{{ book.title[locale] }}</strong
@@ -1097,6 +1162,22 @@ onBeforeUnmount(() => {
                       {{ t.parkingExpand }}
                     </button>
                     <button
+                      class="outline-button"
+                      @click="
+                        searchParking(
+                          parkingSearch.space === 'disabled' ? 'pregnancy' : 'disabled',
+                          1000,
+                          parkingSearch.area,
+                        )
+                      "
+                    >
+                      {{
+                        parkingSearch.space === 'disabled'
+                          ? t.parkingSwitchPregnancy
+                          : t.parkingSwitchDisabled
+                      }}
+                    </button>
+                    <button
                       v-if="state.notice === 'needLocation'"
                       class="outline-button"
                       @click="searchParking(parkingSearch.space, parkingSearch.radius, null, false)"
@@ -1161,6 +1242,13 @@ onBeforeUnmount(() => {
                     :demo-mode="mode === 'demo'"
                     :describe="(image: string) => runner.describePhoto(image, locale)"
                     :cancel-describe="() => runner.cancelVision()"
+                    :fill-form="
+                      mode === 'demo'
+                        ? undefined
+                        : (spec: FormSpec, request: string, context: FormContext) =>
+                            runner.fillForm(spec, request, context)
+                    "
+                    :cancel-fill="() => runner.cancelForm()"
                     :photo-file="pendingPhoto"
                     @photo-consumed="pendingPhoto = null"
                     @stay="stay"
@@ -1333,6 +1421,13 @@ onBeforeUnmount(() => {
           >
             {{ t.voiceRetry }}
           </button>
+          <button
+            v-if="native && (voiceStatus === 'modelUnavailable' || voiceStatus === 'unavailable')"
+            class="voice-text-button"
+            @click="startSystemVoice"
+          >
+            {{ t.voiceSystem }}
+          </button>
           <button class="voice-text-button" @click="typeInstead">{{ t.useKeyboard }}</button>
         </div>
       </div>
@@ -1344,14 +1439,28 @@ onBeforeUnmount(() => {
         role="group"
         :aria-label="t.quick"
       >
-        <button :disabled="inputDisabled" :aria-label="t.browseBills" @click="pick(t.browseBills)">
-          <span aria-hidden="true"></span>{{ t.billShortcut }}
+        <!-- 只放查得到真實資料的捷徑：開放資料的廁所與停車場、官方身障服務頁。
+             帳單、陳情、叫號會開到台北通範本頁（頁面內容是示範資料），所以不放。 -->
+        <button
+          :disabled="inputDisabled"
+          :aria-label="t.toiletSuggestion"
+          @click="pick(t.toiletSuggestion)"
+        >
+          <span aria-hidden="true"></span>{{ t.toiletShortcut }}
         </button>
-        <button :disabled="inputDisabled" @click="pick(t.reportRequest)">
-          <span aria-hidden="true"></span>{{ t.reportShortcut }}
+        <button
+          :disabled="inputDisabled"
+          :aria-label="t.parkingSuggestion"
+          @click="pick(t.parkingSuggestion)"
+        >
+          <span aria-hidden="true"></span>{{ t.parkingShortcut }}
         </button>
-        <button :disabled="inputDisabled" :aria-label="t.counter" @click="pick(t.counter)">
-          <span aria-hidden="true"></span>{{ t.counterShortcut }}
+        <button
+          :disabled="inputDisabled"
+          :aria-label="t.disabledSuggestion"
+          @click="pick(t.disabledSuggestion)"
+        >
+          <span aria-hidden="true"></span>{{ t.disabledShortcut }}
         </button>
       </div>
       <p v-if="state.draft && !home" class="draft-hint">{{ t.draftHint }}</p>
@@ -1544,7 +1653,7 @@ onBeforeUnmount(() => {
             <label
               >{{ t.mode
               }}<select v-model="selectedMode" :disabled="busy">
-                <option value="demo">{{ t.demoMode }}</option>
+                <option v-if="!native" value="demo">{{ t.demoMode }}</option>
                 <option value="local">{{ t.localMode }}</option>
                 <option value="phone">{{ t.phoneMode }}</option>
               </select></label

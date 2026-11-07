@@ -33,7 +33,7 @@ This project is licensed under [AGPL-3.0](LICENSE). The components below come fr
 
 | 模型 Model | 授權 License | 說明 Notes |
 | --- | --- | --- |
-| [LFM3-1.7B](https://huggingface.co/LiquidAI)（Liquid AI） | 模型卡標示 `lfm1.0`（二手資料指為 LFM Open License v1.0，全文待確認）· tagged `lfm1.0` (reported as LFM Open License v1.0; full text not yet verified) | 執行時另行下載；打包或散布前需確認授權全文。· Downloaded at run time; check the full license before bundling or redistributing. |
+| [LFM3-VL-2B](https://huggingface.co/LiquidAI/LFM3-VL-2B-GGUF)（Liquid AI） | [LFM Open License v1.0](https://huggingface.co/LiquidAI/LFM3-VL-2B-GGUF/blob/main/LICENSE)（年營收達 1,000 萬美元以上的商業使用不在授權範圍）· commercial use by entities with annual revenue of US$10M or more is not licensed | 執行時另行下載；打包或散布前需確認與 AGPL-3.0 的相容性。· Downloaded at run time; check compatibility with AGPL-3.0 before bundling or redistributing. |
 | [Taiwan-Tongues-ASR-CE-v1.0](https://huggingface.co/adi-gov-tw/Taiwan-Tongues-ASR-CE-v1.0)（adi-gov-tw） | [TRAIL-M](https://huggingface.co/adi-gov-tw/Taiwan-Tongues-ASR-CE-v1.0/blob/main/LICENSE) | 需自行轉換與安裝；不發布衍生權重。· Converted and installed by each developer; derived weights are not published. |
 | [BlueMagpie-TTS](https://huggingface.co/OpenFormosa/BlueMagpie-TTS)（OpenFormosa） | `other`（限研究與評估）· research and evaluation only | 不散布權重、衍生權重或生成語音。· Weights, derived weights and generated speech are not distributed. |
 

@@ -66,3 +66,43 @@ export const EMERGENCY_NUMBERS: Record<EmergencyKind, string[]> = {
   // The model said it is an emergency but no rule names the kind: offer the main lines.
   general: ['119', '110', '1925'],
 };
+
+/** Dictionary keys for the card heading of each kind. */
+export const EMERGENCY_TEXT = {
+  fire: 'emergencyFire',
+  medical: 'emergencyMedical',
+  violence: 'emergencyViolence',
+  police: 'emergencyPolice',
+  mental: 'emergencyMental',
+  general: 'emergencyGeneral',
+} as const satisfies Record<EmergencyKind, string>;
+
+/** Dictionary keys for each call button. */
+export const CALL_LABEL = {
+  '119': 'call119',
+  '110': 'call110',
+  '113': 'call113',
+  '1925': 'call1925',
+} as const;
+
+export const EMERGENCY_KINDS = Object.keys(EMERGENCY_NUMBERS) as EmergencyKind[];
+
+export function isEmergencyKind(value: unknown): value is EmergencyKind {
+  return typeof value === 'string' && (EMERGENCY_KINDS as string[]).includes(value);
+}
+
+type EmergencyKey =
+  | (typeof EMERGENCY_TEXT)[EmergencyKind]
+  | (typeof CALL_LABEL)[keyof typeof CALL_LABEL]
+  | 'emergencyNote';
+
+/**
+ * What the card says, in reading order: what to do, each number on its buttons, and that the
+ * button only opens the dialer. Read aloud with the reply so listeners hear the same as the screen.
+ */
+export function emergencyReadout(kind: EmergencyKind, t: Record<EmergencyKey, string>) {
+  const calls = EMERGENCY_NUMBERS[kind].map(
+    (number) => t[CALL_LABEL[number as keyof typeof CALL_LABEL]],
+  );
+  return [t[EMERGENCY_TEXT[kind]], ...calls, t.emergencyNote].join('。');
+}

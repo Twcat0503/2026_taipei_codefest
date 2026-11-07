@@ -29,7 +29,7 @@
 
 這項 App 內錄音需要包含麥克風權限處理的新版 APK，以及依 [ASR 文件](../../../tools/asr-android/README.md) 安裝的模型和原生執行檔；LLM 啟動不代表 ASR 模型已安裝。缺少模型、拒絕授權或逾時時顯示可見訊息與文字輸入替代。自動化測試使用合成音訊與伺服器替身，仍需 Android 實機複驗收音、辨識與 TalkBack。
 
-ASR 入口追蹤於 [#52](https://github.com/Twcat0503/2026_taipei_codefest/issues/52)。原生辨識取消與 Activity 銷毀時的清理另由 [#53](https://github.com/Twcat0503/2026_taipei_codefest/issues/53) 追蹤；正式啟用入口前，仍須完成該生命週期修正及實機驗證。前端的取消、逾時及回覆隔離測試不代表已完成 #53。
+ASR 入口追蹤於 [#52](https://github.com/Twcat0503/2026_taipei_codefest/issues/52)。原生取消待啟動工作與 Activity 銷毀時的清理修正（[#53](https://github.com/Twcat0503/2026_taipei_codefest/issues/53)）已隨 `main` 合入，仍需 Android 實機驗證完整收音與取消流程。本機 ASR 模型未就緒或環境不支援時，可明確選擇「改用系統語音輸入」，沿用 App 的 `speech_start`／`speech_stop`／`speech_cancel`；系統辨識同樣先填入文字，不會自動送出。
 
 續開頁面時可恢復預設需求的識別碼、狀態摘要，以及已遮蔽身分證字號、電子郵件與六位以上數字序列的自由輸入文字；自由輸入最多保留 200 字。工具回覆、帳單內容、附件和定位座標不會寫入對話儲存。示範預約仍透過經驗證的書籍／分館識別碼續填，清除進度會一併移除摘要。
 

@@ -1,4 +1,5 @@
 import { createNativeVoiceInput } from './native-voice-input';
+import { hasNativeBridge, newNativeRequestId, postNative } from './native-bridge';
 
 export type VoiceStatus =
   | 'idle'
@@ -27,18 +28,106 @@ type VoiceWindow = Window & {
   webkitSpeechRecognition?: new () => Recognition;
 };
 
-/** Native WebViews use local ASR; standalone browsers use their speech-recognition API. */
+type SpeechEvent = { type: string; text?: string; error?: string };
+
+/**
+ * Reads a `speech_start` reply for `requestId`. Like the TTS bridge, these arrive as `message`
+ * events on `window` (posted to this page's origin only), not on `flutterObject`.
+ */
+function parseSpeechEvent(raw: unknown, requestId: string): SpeechEvent | undefined {
+  if (typeof raw !== 'string' || raw.length > 4096) return undefined;
+  let message: unknown;
+  try {
+    message = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+  if (typeof message !== 'object' || message === null) return undefined;
+  const { name, data } = message as { name?: unknown; data?: unknown };
+  if (name !== 'speech_start' || typeof data !== 'object' || data === null) return undefined;
+  const { requestId: id, type, text, error } = data as Record<string, unknown>;
+  if (id !== requestId || typeof type !== 'string') return undefined;
+  return {
+    type,
+    text: typeof text === 'string' ? text : undefined,
+    error: typeof error === 'string' ? error : undefined,
+  };
+}
+
+/**
+ * Local ASR in the WebView, with an explicit Android system-recognition alternative;
+ * standalone browsers keep their Web Speech API input.
+ */
 export function createVoiceInput(
   onStatus: (status: VoiceStatus) => void,
   onText: (text: string) => void,
   onFinished: () => void,
 ) {
   let recognition: Recognition | undefined;
+  let nativeSession:
+    { requestId: string; receive: (event: { data?: unknown }) => void } | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const native = createNativeVoiceInput(onStatus, onText, onFinished);
+  const endNative = (notify: boolean) => {
+    const session = nativeSession;
+    if (!session) return;
+    nativeSession = undefined;
+    window.removeEventListener('message', session.receive);
+    window.removeEventListener('pagehide', cancel);
+    if (notify) postNative('speech_cancel', { requestId: session.requestId });
+  };
+  const startNative = (locale: string) => {
+    const requestId = newNativeRequestId();
+    let transcript = '';
+    const receive = (message: { data?: unknown }) => {
+      if (nativeSession?.requestId !== requestId) return;
+      const event = parseSpeechEvent(message?.data, requestId);
+      if (!event) return;
+      if (event.type === 'listening') onStatus('listening');
+      else if (event.type === 'partial' && event.text) {
+        transcript = event.text;
+        onText(transcript.slice(0, 600));
+      } else if (event.type === 'final') {
+        clearTimeout(timer);
+        endNative(false);
+        transcript = event.text ?? transcript;
+        if (!transcript.trim()) onStatus('error');
+        else {
+          onText(transcript.slice(0, 600));
+          onStatus('idle');
+          onFinished();
+        }
+      } else if (event.type === 'error') {
+        clearTimeout(timer);
+        endNative(false);
+        onStatus(
+          event.error === 'permission'
+            ? 'permission'
+            : event.error === 'unavailable' || event.error === 'origin_not_allowed'
+              ? 'unavailable'
+              : 'error',
+        );
+      }
+    };
+    nativeSession = { requestId, receive };
+    window.addEventListener('message', receive);
+    window.addEventListener('pagehide', cancel);
+    onStatus('starting');
+    if (!postNative('speech_start', { requestId, language: locale === 'en' ? 'en-US' : 'zh-TW' })) {
+      endNative(false);
+      onStatus('unavailable');
+      return;
+    }
+    timer = setTimeout(() => {
+      endNative(true);
+      onStatus('error');
+    }, 30000);
+  };
   const cancel = () => {
+    window.removeEventListener('pagehide', cancel);
     native.cancel();
     clearTimeout(timer);
+    endNative(true);
     const previous = recognition;
     recognition = undefined;
     if (previous) {
@@ -53,7 +142,7 @@ export function createVoiceInput(
   return {
     start(locale: string) {
       cancel();
-      if (window.flutterObject) {
+      if (hasNativeBridge()) {
         native.start(locale);
         return;
       }
@@ -110,8 +199,14 @@ export function createVoiceInput(
         onStatus('error');
       }
     },
+    startSystem(locale: string) {
+      cancel();
+      if (hasNativeBridge()) startNative(locale);
+      else onStatus('unavailable');
+    },
     finish() {
       native.finish();
+      if (nativeSession) postNative('speech_stop', { requestId: nativeSession.requestId });
       recognition?.stop();
     },
     cancel,

@@ -11,11 +11,34 @@ async function nativeVoice(page: Page, missingModel = false, previous = false, s
         );
       const listeners = new Set<(event: { data: string }) => void>();
       const names: string[] = [];
+      let speechRequestId: string | undefined;
       window.flutterObject = {
         addEventListener: (_name, listener) => listeners.add(listener),
         removeEventListener: (_name, listener) => listeners.delete(listener),
         postMessage: (raw) => {
           const request = JSON.parse(raw);
+          if (request.name.startsWith('speech_')) {
+            names.push(request.name);
+            document.documentElement.dataset.voiceRequests = names.join(',');
+            if (request.name === 'speech_cancel') speechRequestId = undefined;
+            else if (request.name === 'speech_start' || request.name === 'speech_stop') {
+              if (request.name === 'speech_start') speechRequestId = request.data.requestId;
+              if (!speechRequestId) return;
+              const data = {
+                requestId: speechRequestId,
+                type: request.name === 'speech_start' ? 'listening' : 'final',
+                ...(request.name === 'speech_stop' ? { text: '附近的無障礙廁所' } : {}),
+              };
+              queueMicrotask(() =>
+                window.dispatchEvent(
+                  new MessageEvent('message', {
+                    data: JSON.stringify({ name: 'speech_start', data }),
+                  }),
+                ),
+              );
+            }
+            return;
+          }
           if (
             !['llm_start', 'llm_stop', 'llm_status', 'asr_start', 'asr_stop'].includes(request.name)
           )
@@ -94,7 +117,7 @@ test('phone voice can start before the text model is ready', async ({ page }) =>
   await expect(page.getByText(/^手機上的語音辨識模型尚未就緒/)).toBeVisible();
 });
 
-test('phone voice stays available after model startup, transcribes to editable text and has a visible back button', async ({
+test('phone voice stays available after model startup and transcribes to editable text', async ({
   page,
 }) => {
   await nativeVoice(page, false, true);
@@ -130,7 +153,7 @@ test('phone voice stays available after model startup, transcribes to editable t
   expect(
     await page.evaluate(() => localStorage.getItem('townpass-agent-conversation-v1')),
   ).toBeNull();
-  await expect(page.getByRole('button', { name: '返回首頁', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '返回首頁', exact: true })).toHaveCount(0);
   await page.waitForFunction(() => document.documentElement.dataset.voiceRecorded === 'yes');
   await page.getByRole('button', { name: '完成語音輸入', exact: true }).click();
   await expect(page.getByLabel('你想要做什麼？', { exact: true })).toHaveValue('幫我找圖書');
@@ -143,19 +166,15 @@ test('phone voice stays available after model startup, transcribes to editable t
     (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
       .violations,
   ).toEqual([]);
-  await page.getByRole('button', { name: '返回首頁', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '歡迎使用', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: '開始語音輸入', exact: true })).toBeVisible();
 });
 
-test('back to home cancels capture and returns without needing WebView history', async ({
+test('leaving the page cancels capture', async ({
   page,
 }) => {
   await nativeVoice(page);
   await page.getByRole('button', { name: '開始語音輸入', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.voiceRecorded === 'yes');
-  await page.getByRole('button', { name: '返回首頁', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '歡迎使用', exact: true })).toBeVisible();
+  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide')));
   await expect
     .poll(() => page.evaluate(() => document.documentElement.dataset.microphoneStopped))
     .toBe('yes');
@@ -173,16 +192,35 @@ test('missing ASR model shows a visible recovery and keeps text input usable', a
   await expect(page.getByRole('button', { name: '返回首頁', exact: true })).toBeVisible();
 });
 
+test('missing local ASR can use upstream system speech without submitting the transcript', async ({
+  page,
+}) => {
+  await nativeVoice(page, true);
+  await page.getByRole('button', { name: '開始語音輸入', exact: true }).click();
+  await page.getByRole('button', { name: '改用系統語音輸入', exact: true }).click();
+  await expect(page.getByText('正在聆聽，請說出你的需求', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '完成語音輸入', exact: true }).click();
+  await expect(page.getByLabel('你想要做什麼？', { exact: true })).toHaveValue('附近的無障礙廁所');
+  await expect(page.locator('section.assistant-message')).toHaveCount(0);
+  await expect(page.locator('html')).toHaveAttribute(
+    'data-voice-requests',
+    /speech_start,speech_stop/,
+  );
+  await page.getByLabel('你想要做什麼？', { exact: true }).fill('');
+  await page.getByRole('button', { name: '開始語音輸入', exact: true }).click();
+  await page.getByRole('button', { name: '改用系統語音輸入', exact: true }).click();
+  await expect(page.getByText('正在聆聽，請說出你的需求', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '返回首頁', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '歡迎使用', exact: true })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-voice-requests', /speech_cancel$/);
+});
+
 test('the phone back control stays visible when long results scroll', async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 420 });
   await nativeVoice(page);
-  await page.getByRole('button', { name: '設定', exact: true }).click();
-  await page.getByText('開發者檢視與接點設定', { exact: true }).click();
-  await page.getByLabel('模型來源').selectOption('demo');
-  await page.getByRole('button', { name: '套用接點', exact: true }).click();
-  await page.getByRole('button', { name: '關閉設定', exact: true }).click();
-  await page.getByLabel('你想要做什麼？', { exact: true }).fill('幫我找圖書');
+  await page.getByLabel('你想要做什麼？', { exact: true }).fill('你好');
   await page.getByRole('button', { name: '送出需求', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toBeVisible();
+  await expect(page.locator('section.assistant-message')).toContainText('你好！');
   await expect(
     page
       .getByRole('button', { name: '開始語音輸入', exact: true })
@@ -193,6 +231,9 @@ test('the phone back control stays visible when long results scroll', async ({ p
   await page
     .locator('.assistant-body')
     .evaluate((element) => (element.scrollTop = element.scrollHeight));
+  expect(
+    await page.locator('.assistant-body').evaluate((element) => element.scrollTop),
+  ).toBeGreaterThan(0);
   await expect(back).toBeVisible();
   expect(await back.boundingBox()).toEqual(before);
   await back.click();

@@ -653,7 +653,7 @@ test('only explicitly continuing keeps the old draft; typing or a suggestion fro
   await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toHaveCount(0);
   await prepareDraft();
   await page.getByRole('button', { name: '回到安心助手首頁', exact: true }).click();
-  await page.getByRole('button', { name: '我想預約復康巴士', exact: true }).click();
+  await page.getByRole('button', { name: '附近的無障礙廁所', exact: true }).click();
   await expect(page.locator('section.assistant-message')).toBeVisible();
   await expect(page.getByRole('button', { name: '確認示範預約', exact: true })).toHaveCount(0);
   expect(
@@ -663,6 +663,16 @@ test('only explicitly continuing keeps the old draft; typing or a suggestion fro
   ).toBeNull();
   await page.getByRole('button', { name: '回到安心助手首頁', exact: true }).click();
   await expect(page.getByRole('button', { name: '開新對話', exact: true })).toHaveCount(0);
+});
+
+test('emergency call buttons come back with the saved summary after a reload', async ({ page }) => {
+  await chooseService(page, '有人昏倒了叫不醒');
+  await expect(page.getByRole('button', { name: '撥打 119（火災、救護車）' })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: '繼續上次對話', exact: true }).click();
+  await expect(page.getByText('這是已保存的摘要，查詢結果未保存。')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '請立刻撥打 119 叫救護車。' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '撥打 119（火災、救護車）' })).toBeVisible();
 });
 
 test('haptic and voice feedback can be switched in settings and are remembered', async ({
@@ -804,6 +814,10 @@ test('voice feedback also reads the reply to a greeting and the emergency notice
   const [, emergency, ...more] = await spoken();
   expect(more).toEqual([]);
   expect(emergency.text).toContain(await reply.innerText());
+  // The call card is read too, so listeners hear which number to call and how.
+  expect(emergency.text).toContain('請先離開危險的地方，立刻撥打 119。');
+  expect(emergency.text).toContain('撥打 119（火災、救護車）');
+  expect(emergency.text).toContain('按下按鈕會打開撥號畫面，由你按下撥出。');
 });
 
 test('returning with a saved conversation starts on home with the voice button', async ({

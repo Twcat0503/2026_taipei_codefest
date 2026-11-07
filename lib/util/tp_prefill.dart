@@ -13,11 +13,13 @@ const String kPrefillOrigin = 'https://taipei-pass-service.vercel.app';
 /// 號碼類欄位：只接受英數與連字號。
 const Set<String> kCodeFields = {'water_number', 'tax_id'};
 
-/// 文字類欄位與長度上限（有話要說的地點、主旨、描述）。
+/// 文字類欄位與長度上限（有話要說的地點、主旨、描述；災情通報的地點描述、補充描述）。
 const Map<String, int> kTextFields = {
   'location': 100,
   'title': 40,
   'description': 500,
+  'desc': 200,
+  'additional_disc': 500,
 };
 
 /// 聯絡資料（線上報案）：各自有嚴格格式。
@@ -68,10 +70,35 @@ bool canPrefill(Uri? page) =>
     page.scheme == 'https' &&
     '${page.scheme}://${page.host}' == kPrefillOrigin;
 
+/// 帶入失敗時告訴民眾是哪些欄位（不顯示值）。
+const Map<String, String> kPrefillFieldLabels = {
+  'water_number': '水號',
+  'tax_id': '身分證字號',
+  'location': '地點',
+  'title': '主旨',
+  'description': '描述',
+  'mobile_number': '手機',
+  'mail': 'Email',
+  'desc': '地點描述',
+  'additional_disc': '補充描述',
+};
+
+/// 有欄位沒能帶入時的提示；[fields] 為空時回傳 null。
+String? prefillFailureMessage(Iterable<String> fields) {
+  final List<String> labels = [
+    for (final String field in fields) kPrefillFieldLabels[field] ?? field,
+  ];
+  if (labels.isEmpty) return null;
+  return '有些資料沒能自動帶入，請自行填寫：${labels.join('、')}';
+}
+
 /// 等表單出現後填入空白欄位，並觸發 input 事件讓 Vue 的 v-model 更新；最多等 8 秒。
+///
+/// 這是 `callAsyncJavaScript` 的函式本體：回傳一個 Promise，結果是找不到欄位
+/// （例如表單改版、欄位 id 對不上）而沒填上的欄位名稱。原本就有值的欄位不覆寫，也不算失敗。
 String prefillScript(Map<String, String> values) =>
     '''
-(() => {
+return new Promise((resolve) => {
   const values = ${jsonEncode(values)};
   const setters = new Map([
     [HTMLInputElement, Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set],
@@ -91,8 +118,13 @@ String prefillScript(Map<String, String> values) =>
       // 範本的驗證在 v-model 更新前執行，會先顯示「不能為空」；值更新後再觸發一次。
       setTimeout(() => input.dispatchEvent(new Event('input', { bubbles: true })), 100);
     }
-    if (pending && ++tries < 40) setTimeout(fill, 200);
+    if (!pending) return resolve([]);
+    if (++tries < 40) return setTimeout(fill, 200);
+    resolve(Object.keys(values).filter((id) => {
+      const input = document.getElementById(id);
+      return !(input && setters.get(input.constructor));
+    }));
   };
   fill();
-})();
+});
 ''';

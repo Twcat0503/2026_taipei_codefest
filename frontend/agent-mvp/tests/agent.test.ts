@@ -430,6 +430,38 @@ describe('generic tool results and decision state', () => {
   const lots = { source: 'snapshot', records: [{ id: 'lot', title: text('停車場') }] };
   const titleLookup = 'Quoted titles without place words are book lookups.';
 
+  it('maps 愛心車位 to disabled spaces and remembers the space type', async () => {
+    const state = initialState();
+    const client = answering(lots);
+    const callTool = vi.spyOn(client, 'callTool');
+    await new AgentRunner(
+      routedTo('places', 'find_nearby_parking', { near_me: true, parking_space: 'pregnancy' }),
+      state,
+      client,
+    ).run('附近哪裡有愛心車位');
+    expect(callTool.mock.calls[0]?.[0]).toEqual({
+      name: 'find_nearby_parking',
+      arguments: { near_me: true, accessible: true, parking_space: 'disabled' },
+    });
+    expect(state.lastPlace?.parkingSpace).toBe('disabled');
+  });
+
+  it('keeps pregnancy spaces apart from disabled spaces', async () => {
+    const state = initialState();
+    const client = answering(lots);
+    const callTool = vi.spyOn(client, 'callTool');
+    await new AgentRunner(
+      routedTo('places', 'find_nearby_parking', { near_me: true }),
+      state,
+      client,
+    ).run('附近有孕婦車位的停車場');
+    expect(callTool.mock.calls[0]?.[0]).toEqual({
+      name: 'find_nearby_parking',
+      arguments: { near_me: true, accessible: true, parking_space: 'pregnancy' },
+    });
+    expect(state.lastPlace?.parkingSpace).toBe('pregnancy');
+  });
+
   it('drops a district the user never named and asks for nearby places instead', async () => {
     const state = initialState();
     const client = answering(lots);
