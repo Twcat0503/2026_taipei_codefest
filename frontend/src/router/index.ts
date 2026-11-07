@@ -45,6 +45,7 @@ import FeePaymentHistoryDetailView from '@/views/FeePaymentHistoryDetailView.vue
 import FeePaymentScanView from '@/views/FeePaymentScanView.vue';
 import FeePaymentStepView from '@/views/FeePaymentStepView.vue';
 import FeePaymentFinishedView from '@/views/FeePaymentFinishedView.vue';
+import AboutView from '@/views/AboutView.vue';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -52,6 +53,14 @@ const router = createRouter({
     return { top: 0 };
   },
   routes: [
+    {
+      path: '/about',
+      name: 'about',
+      meta: {
+        title: '資料來源'
+      },
+      component: AboutView
+    },
     {
       path: '/',
       name: 'home',
