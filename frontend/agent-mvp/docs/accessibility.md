@@ -45,7 +45,7 @@ Flutter 端與前端的約定，視為固定。App 與 web 必須是對應的版
 | speak | `{ requestId, action: 'speak', text, lang: 'zh-TW' \| 'en-US', rate }`，`rate` 與 Web Speech API 相同（1.0 為正常速度） | 先 `{ requestId, event: 'start' }`，之後**恰好一則** `{ requestId, event: 'done' }`、`{ requestId, event: 'stopped' }` 或 `{ requestId, event: 'error', error }` |
 | stop  | `{ requestId, action: 'stop' }`                                                                                         | `{ requestId, ok: true }`；被中斷的 speak 請求會收到 `event: 'stopped'`                                                                                          |
 
-前端對應：`done`、`stopped` → `finished()`；`error` → `failed()`；送出後 5 秒內沒有收到 `start` → `failed()` 並補送一則 stop。過期（已被新的朗讀取代或已停止）的請求的事件一律忽略，所以 `finished` 與 `failed` 不會同時呼叫，也不會呼叫兩次。
+前端對應：`done`、`stopped` → `finished()`；`error` → `failed()`；送出後 5 秒內沒有收到 `start` → `failed()` 並補送一則 stop；收到 `start` 之後，超過 15 秒加每個字 400 毫秒（再除以 `rate`）還沒收到 `done`、`stopped` 或 `error` → 補送一則 stop 並 `finished()`，這只是防止結束事件遺失而一直顯示朗讀中，實際朗讀遠比這短。被 `stopReading()` 停止或被下一次 `readAloud()` 取代的朗讀會立刻 `finished()`，之後那個請求的事件一律忽略，所以每一次朗讀的 `finished` 與 `failed` 加起來恰好呼叫一次，不會同時呼叫，也不會呼叫兩次。
 
 **`a11y_state`**
 
@@ -81,7 +81,7 @@ feedback('selection'); // 只有震動，沒有文字時用
 2. `haptic()`：`success`、`warning`、`error`、`selection` 對應同名震動，`info` 沒有震動。
 3. 只有同時符合下面三個條件才語音朗讀：偏好 `tp-voice-feedback` 是 `on`（預設 `off`）、`a11yState.screenReader !== true`、有 `message`。語言跟著 `<html lang>`（`en` 開頭用英文，其餘用繁體中文），速度固定 1。
 
-任何一個管道失敗都不會影響其他管道，`feedback()` 本身不會丟出錯誤。注意語音走 `readAloud()`，會中斷正在進行的朗讀。
+任何一個管道失敗都不會影響其他管道，`feedback()` 本身不會丟出錯誤。注意語音走 `readAloud()`，會中斷正在進行的朗讀；被中斷的那一次會呼叫它的 `finished`。
 
 ### `announce()`：只通知螢幕閱讀器
 
@@ -134,9 +134,9 @@ readAloud(
 
 簽名與以往相同。`locale` 為 `'en'` 時用英文，其餘用繁體中文。`rate` 與 Web Speech API 相同。
 
-- `finished`：朗讀結束，或被原生端中斷（`done`、`stopped`）。
-- `failed`：朗讀失敗、5 秒內沒有開始、或 bridge 無法送出。
-- 呼叫 `stopReading()` 之後，那一次朗讀的 callback 都不會再被呼叫，所以呼叫端自己要把 `speaking` 之類的狀態設回來。
+- `finished`：朗讀結束（`done`）、被 `stopReading()` 停止、被下一次 `readAloud()` 取代、被原生端中斷（`stopped`），或在 App 內開始後太久沒有收到結束事件（見上方的 15 秒加每字 400 毫秒）。瀏覽器的 `cancel()` 造成的 `interrupted`、`canceled` 也算。
+- `failed`：朗讀失敗（原生 `error`，或瀏覽器的其他 `error`）、App 內 5 秒內沒有開始、或 bridge 無法送出。
+- 每一次朗讀的 callback 恰好呼叫一次。`stopReading()` 與下一次 `readAloud()` 會**同步**先對被停止、被取代的那一次呼叫 `finished`，所以 `speaking` 之類的狀態會被設回來（`feedback()` 的語音取代使用者按下的朗讀時也一樣），停止時也不會出現朗讀失敗的訊息。
 - `stopReading()` 在 App 內只有朗讀進行中才會送出 `tts` stop；沒在朗讀時不送任何 bridge 訊息（原生端每次開始朗讀前也會先停掉上一段）。
 
 ## 目前接在哪裡（`src/App.vue`）
@@ -191,7 +191,7 @@ readAloud(
 - `navigator.vibrate` 需要頁面先有使用者點擊（user activation）才會生效，裝置在靜音（silent ringer）模式時也不會震動。桌機瀏覽器通常也沒有作用。
 - Android 11 以前沒有 `success`、`warning`、`error` 專用的 haptic，這三種在舊機型上分不出差別（實際退化方式由 Flutter 端決定）。
 - App 與 web 必須搭配對應的 bridge 版本：App 太舊（沒有 `tts`、`haptic`、`a11y_state` handler）就不會有回覆，前端的處理是 `a11y_state` 1.5 秒後退回瀏覽器 fallback、`readAloud()` 5 秒後呼叫 `failed()`、`haptic()` 靜默沒有作用。UI 不能假設這些一定成功，所以文字一定要在畫面上。
-- 一般瀏覽器的朗讀行為與以前相同；在 App 內朗讀改走 `tts` bridge，不再使用 `speechSynthesis`。
+- 一般瀏覽器仍用 `speechSynthesis`；只有在 App 內朗讀才改走 `tts` bridge。
 
 ## 給 Figma 設計的檢核清單
 
