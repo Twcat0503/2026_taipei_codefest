@@ -16,6 +16,7 @@ import 'package:town_pass/service/llm_service.dart';
 import 'package:town_pass/service/notification_service.dart';
 import 'package:town_pass/service/shared_preferences_service.dart';
 import 'package:town_pass/service/subscription_service.dart';
+import 'package:town_pass/service/tts_service.dart';
 import 'package:town_pass/util/tp_button.dart';
 import 'package:town_pass/util/tp_dialog.dart';
 import 'package:town_pass/util/tp_prefill.dart';
@@ -886,6 +887,117 @@ class AsrStatusMessageHandler extends TPWebMessageHandler {
       return;
     }
     final status = await AsrService.status();
+    onReply?.call(
+      replyWebMessage(data: _withRequestId(message, status.toJson())),
+    );
+  }
+}
+
+/// Listener 與 TTS handlers 共用授權條件，避免回覆路徑與原生呼叫的檢查不一致。
+bool isTtsRequestAllowed({
+  required WebUri? sourceOrigin,
+  required bool isMainFrame,
+}) => isMainFrame && isLlmOriginAllowed(_originOf(sourceOrigin));
+
+/// 啟動本機 TTS；只接受 LLM 白名單來源的主 frame，成功時才回傳 apiKey。
+/// 不轉發網頁的 threads、路徑、URL、voice 或其他資源參數。
+class TtsStartMessageHandler extends TPWebMessageHandler {
+  @override
+  String get name => 'tts_start';
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
+    if (!isTtsRequestAllowed(
+      sourceOrigin: sourceOrigin,
+      isMainFrame: isMainFrame,
+    )) {
+      onReply?.call(
+        replyWebMessage(
+          data: _withRequestId(message, {
+            'phase': 'error',
+            'running': false,
+            'error': 'origin_not_allowed',
+          }),
+        ),
+      );
+      return;
+    }
+    final status = await TtsService.start();
+    onReply?.call(
+      replyWebMessage(
+        data: _withRequestId(message, status.toJson(includeKey: true)),
+      ),
+    );
+  }
+}
+
+/// 停止本機 TTS；只接受白名單來源的主 frame，不回傳 apiKey。
+class TtsStopMessageHandler extends TPWebMessageHandler {
+  @override
+  String get name => 'tts_stop';
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
+    if (!isTtsRequestAllowed(
+      sourceOrigin: sourceOrigin,
+      isMainFrame: isMainFrame,
+    )) {
+      onReply?.call(
+        replyWebMessage(
+          data: _withRequestId(message, {
+            'phase': 'error',
+            'running': false,
+            'error': 'origin_not_allowed',
+          }),
+        ),
+      );
+      return;
+    }
+    final status = await TtsService.stop();
+    onReply?.call(
+      replyWebMessage(data: _withRequestId(message, status.toJson())),
+    );
+  }
+}
+
+/// 查詢本機 TTS；只接受白名單來源的主 frame，不回傳 apiKey。
+class TtsStatusMessageHandler extends TPWebMessageHandler {
+  @override
+  String get name => 'tts_status';
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
+    if (!isTtsRequestAllowed(
+      sourceOrigin: sourceOrigin,
+      isMainFrame: isMainFrame,
+    )) {
+      onReply?.call(
+        replyWebMessage(
+          data: _withRequestId(message, {
+            'phase': 'error',
+            'running': false,
+            'error': 'origin_not_allowed',
+          }),
+        ),
+      );
+      return;
+    }
+    final status = await TtsService.status();
     onReply?.call(
       replyWebMessage(data: _withRequestId(message, status.toJson())),
     );

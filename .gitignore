@@ -122,3 +122,10 @@ package-lock.json
 /models/ct2/
 /models/ggml-taiwan-tongues-*.bin
 /models/whisper.cpp/
+
+# 本機 BlueMagpie TTS 編譯產物與工具快取，不含模型或生成音訊
+/android/app/src/main/jniLibs/**/libtts_server.so
+/android/app/src/main/jniLibs/**/libttsbackbone.so
+/android/app/src/main/jniLibs/**/libc++_shared.so
+/tools/tts-android/build/
+/tools/tts-android/__pycache__/

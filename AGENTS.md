@@ -87,7 +87,7 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
   - `TPInAppWebView`（`lib/util/tp_web_view.dart`）在 `onWebViewCreated` 掛上 `TPWebMessageListener`，注入的 JS 物件名為 `flutterObject`。
   - 所有 handler 都寫在同一檔 `lib/util/web_message_handler/tp_web_message_handler.dart`；listener 依訊息的 `name` 找 `_cachedMessageHandlers` 中同名的 handler，對不到就不會回覆。
   - 現有 `name` 以 `TPWebMessageListener._cachedMessageHandlers`（`lib/util/web_message_handler/tp_web_message_listener.dart`）的清單為準，不在文件重複列舉；前端以 `frontend/src/composables/` 的 `useConnectionMessage`（送出）與 `useHandleConnectionData`（接收）收發訊息。
-  - 回覆由 `replyWebMessage()` 包成 `{"name", "data"}` JSON 字串，網頁端從 `flutterObject` 的 `message` 事件（`event.data`）收到。
+  - 回覆由 `replyWebMessage()` 包成 `{"name", "data"}` JSON 字串，網頁端通常從 `flutterObject` 的 `message` 事件（`event.data`）收到。**例外：`tts_start`／`tts_stop`／`tts_status` 的授權主 frame 回覆走 `window` 的 `message` 事件**，透過 `postWebMessage` 綁定原請求 origin，避免共享 reply proxy 將憑證送到其他 frame；呼叫範例與本機模型安裝見 [Android TTS 文件](tools/tts-android/README.md)。舊 `tts` 系統朗讀與 LLM 事件不變。
 - Vue 端必須偵測 `window.flutterObject` 是否存在，瀏覽器獨立執行時走 mock fallback（參與者不裝 Flutter 也能純瀏覽器開發）。
 - 開發聯調：`pnpm dev --host`，app 內開 `http://<開發機IP>:5173`（模擬器 `http://10.0.2.2:5173`）；cleartext HTTP 需 AndroidManifest debug 設定（`usesCleartextTraffic` 或 networkSecurityConfig）。
 - 正式整合：SPA 部署為 https 靜態站；不將 `dist/` 打包進 Flutter assets。

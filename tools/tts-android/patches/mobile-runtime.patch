@@ -1,0 +1,35 @@
+--- a/common/tts_runner.cpp
++++ b/common/tts_runner.cpp
+@@ -567,6 +567,9 @@
+     cp.n_ctx        = (uint32_t) req.n_ctx;
+     cp.n_batch      = cp.n_ctx;
+     cp.n_ubatch     = req.n_ubatch > 0 ? (uint32_t) req.n_ubatch : cp.n_ctx;
++    // 手機短句服務限制microbatch，避免4096-token預留graph佔用約1.8GiB。
++    cp.n_batch = std::min(cp.n_batch, 512u);
++    cp.n_ubatch = std::min(cp.n_ubatch, 64u);
+     cp.n_seq_max    = (uint32_t) std::max(1, req.n_seq_max);
+     cp.embeddings   = req.embeddings;
+     cp.pooling_type = LLAMA_POOLING_TYPE_NONE;
+--- a/cmake/SetupTtsBackbone.cmake
++++ b/cmake/SetupTtsBackbone.cmake
+@@ -47,7 +47,7 @@
+ 
+ # Toolchain / target platform (cross builds: Android NDK, iOS / macOS
+ # architectures, CUDA / HIP GPU archs).
+-foreach(_v CMAKE_TOOLCHAIN_FILE CMAKE_C_COMPILER CMAKE_CXX_COMPILER
++foreach(_v CMAKE_MAKE_PROGRAM CMAKE_TOOLCHAIN_FILE CMAKE_C_COMPILER CMAKE_CXX_COMPILER
+            CMAKE_C_COMPILER_LAUNCHER CMAKE_CXX_COMPILER_LAUNCHER CMAKE_C_FLAGS CMAKE_CXX_FLAGS
+            CMAKE_SYSTEM_NAME CMAKE_SYSTEM_PROCESSOR CMAKE_SYSTEM_VERSION
+            CMAKE_OSX_ARCHITECTURES CMAKE_OSX_DEPLOYMENT_TARGET CMAKE_OSX_SYSROOT
+--- a/cmake/ttsbackbone/CMakeLists.txt
++++ b/cmake/ttsbackbone/CMakeLists.txt
+@@ -17,7 +17,8 @@
+ add_library(ttsbackbone SHARED "${CMAKE_CURRENT_BINARY_DIR}/ttsbackbone.c")
+ set_target_properties(ttsbackbone PROPERTIES
+     LINKER_LANGUAGE CXX
+-    LIBRARY_OUTPUT_DIRECTORY "${TTSBACKBONE_OUTPUT_DIR}")
++    LIBRARY_OUTPUT_DIRECTORY "${TTSBACKBONE_OUTPUT_DIR}"
++    RUNTIME_OUTPUT_DIRECTORY "${TTSBACKBONE_OUTPUT_DIR}")
+ target_link_libraries(ttsbackbone PRIVATE llama llama-common)
+ 
+ # Nothing in the wrapper references llama / common, so their archives go in
