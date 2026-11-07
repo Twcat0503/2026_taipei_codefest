@@ -1,0 +1,57 @@
+export type LatLng = { lat: number; lng: number };
+
+const TIMEOUT_MS = 8000;
+
+type Bridge = NonNullable<Window['flutterObject']>;
+
+function fromBridge(bridge: Bridge, signal: AbortSignal) {
+  return new Promise<LatLng | null>((resolve) => {
+    const finish = (value: LatLng | null) => {
+      clearTimeout(timer);
+      bridge.removeEventListener?.('message', listen);
+      signal.removeEventListener('abort', cancel);
+      resolve(value);
+    };
+    const cancel = () => finish(null);
+    const listen = (event: { data: string }) => {
+      try {
+        const reply = JSON.parse(event.data);
+        if (reply.name !== 'location') return;
+        const { latitude, longitude } = reply.data ?? {};
+        finish(
+          typeof latitude === 'number' && typeof longitude === 'number'
+            ? { lat: latitude, lng: longitude }
+            : null,
+        );
+      } catch {
+        /* A reply for another bridge message. */
+      }
+    };
+    const timer = setTimeout(cancel, TIMEOUT_MS);
+    signal.addEventListener('abort', cancel, { once: true });
+    bridge.addEventListener?.('message', listen);
+    bridge.postMessage(JSON.stringify({ name: 'location', data: null }));
+  });
+}
+
+/** Device position for nearby searches. It is used in the browser only and never sent to the model. */
+export function getLocation(signal: AbortSignal): Promise<LatLng | null> {
+  if (window.flutterObject?.addEventListener) return fromBridge(window.flutterObject, signal);
+  if (!navigator.geolocation) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => resolve({ lat: coords.latitude, lng: coords.longitude }),
+      () => resolve(null),
+      { timeout: TIMEOUT_MS, maximumAge: 60000 },
+    );
+  });
+}
+
+/** Inside the app, pages open through the existing open_link bridge so the chat is kept. */
+export function openLink(url: string) {
+  if (window.flutterObject) {
+    window.flutterObject.postMessage(JSON.stringify({ name: 'open_link', data: url }));
+    return;
+  }
+  window.open(url, '_blank', 'noopener');
+}

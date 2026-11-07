@@ -18,8 +18,8 @@ const cases = [
   },
   { request: '幫我找「一起慢慢走」', domain: 'library', notice: 'books', ids: ['book-01'] },
   { request: '找書「不存在的書」', domain: 'library', notice: 'empty', ids: [] },
-  { request: '有哪些服務？', domain: 'services', notice: 'services', ids: [] },
-  { request: '我想查詢叫號服務', domain: 'services', notice: 'services', ids: [] },
+  { request: '有哪些服務？', domain: 'services', notice: 'results', ids: [] },
+  { request: '我想查詢叫號服務', domain: 'services', notice: 'results', ids: [] },
   {
     request: 'Find books',
     domain: 'library',

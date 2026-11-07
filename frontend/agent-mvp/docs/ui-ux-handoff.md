@@ -10,7 +10,7 @@ flowchart TD
     B --> E[Unsupported：說明支援範圍]
     C --> F[白名單與參數驗證]
     D --> F
-    F --> G[McpClient：目前是 DemoMcpClient]
+    F --> G[工具 client：DemoToolClient 或 tools/townpass]
     G --> H[工具結果驗證]
     H --> I[專家完成訊號]
     I --> J[字典與驗證後資料呈現結果]
@@ -26,7 +26,7 @@ flowchart TD
 
 - **UI／UX 隊友**：資訊層級、版面、元件、文案、互動回饋、無障礙與可用性。
 - **Agent 這邊**：分流、上下文、工具執行與驗證、狀態與確認、錯誤恢復、評測。
-- **MCP／LLM 隊友**：正式本機推論介面、MCP transport、服務 API、登入授權。契約見 [README](../README.md) 與 [API 現況](api-status.md)。
+- **工具／LLM 隊友**：正式本機推論介面、工具、服務 API、登入授權。契約見 [README](../README.md) 與 [API 現況](api-status.md)。
 
 ## 不需要模型或 Flutter 即可開始
 
@@ -78,7 +78,7 @@ mise exec -- pnpm dev
 - 搜尋不會自行預約；取消、錯誤與無結果不能顯示成功回執。
 - 忙碌時不能重複送出，可停止處理；有未確認草稿時先確認或取消。
 - 不把示範回執寫成正式成功，不把規則模擬寫成 AI。
-- 不在 component 內直接 fetch LLM／MCP，不擴大工具權限；呼叫現有 runner 與操作函式。
+- 不在 component 內直接 fetch LLM／工具，不擴大工具權限；呼叫現有 runner 與操作函式。
 - 保留標籤、語意化按鈕、可見焦點、狀態通知、48dp 觸控目標，繁中與英文的 200% 字級不截斷或橫向溢出。
 - UI 字串放字典檔；只保存必要偏好與示範進度，不保存對話或敏感個資。
 - 最新 App 已提供 `tts`／`share` bridge；MVP Vue 尚未接上，不能只因瀏覽器朗讀成功就標示 App 也支援。無障礙支援須有文字替代。
@@ -97,4 +97,4 @@ mise exec -- pnpm test:e2e
 
 既有驗證：前端單元測試 13、E2E 3、Flutter widget tests 2；真實模型回歸情境 8。axe 與 200% 字級已通過；TalkBack、切換控制、完整橫向與目標使用者可用性測試仍待完成，不能宣稱全面符合 WCAG。
 
-PR 附前後截圖、改動原因與上述自檢結果；至少一位 reviewer，維護者 squash merge。若 UX 需要多輪補問、真實服務或新的任務狀態，先與 agent／MCP 隊友對齊契約。
+PR 附前後截圖、改動原因與上述自檢結果；至少一位 reviewer，維護者 squash merge。若 UX 需要多輪補問、真實服務或新的任務狀態，先與 agent／工具隊友對齊契約。

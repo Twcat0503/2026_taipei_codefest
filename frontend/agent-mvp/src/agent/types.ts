@@ -1,6 +1,6 @@
-import type { Book, Service } from './catalog';
+import type { Book } from './catalog';
 export type Locale = 'zh-Hant-TW' | 'en';
-export type Domain = 'services' | 'library' | 'unsupported';
+export type Domain = 'library' | 'services' | 'perks' | 'places' | 'unsupported';
 export type Localized = Record<Locale, string>;
 export type Schema = Record<string, unknown>;
 export type ToolDefinition = {
@@ -33,20 +33,40 @@ export type Trace = {
   detail: string;
   elapsedMs: number;
 };
+export type ToolRecord = {
+  id: string;
+  title: Localized;
+  description?: Localized;
+  category?: Localized;
+  fields?: { label: Localized; value: Localized }[];
+  url?: string;
+};
+/** Where the shown records came from. Always displayed so demo data is never mistaken for real data. */
+export type ResultSource = {
+  kind: 'demo' | 'snapshot' | 'live';
+  label: string;
+  note: string;
+  url: string;
+  total: number;
+  truncated: boolean;
+};
+export type ToolFailure = { code: string; message: string; hint?: string };
 export type Draft = { id: string; bookId: string; branchId: string };
 export type Receipt = Draft & { reference: string; createdAt: string; source: 'demo' };
 export type TaskState = {
   domain: Domain | null;
   bookIds: string[];
   bookResults: Book[];
-  serviceResults: Service[];
-  serviceIds: string[];
+  records: ToolRecord[];
+  source: ResultSource | null;
+  failure: ToolFailure | null;
   draft: Draft | null;
   receipt: Receipt | null;
   notice:
     | 'welcome'
     | 'books'
-    | 'services'
+    | 'results'
+    | 'needLocation'
     | 'empty'
     | 'unsupported'
     | 'review'
@@ -59,8 +79,9 @@ export const initialState = (): TaskState => ({
   domain: null,
   bookIds: [],
   bookResults: [],
-  serviceResults: [],
-  serviceIds: [],
+  records: [],
+  source: null,
+  failure: null,
   draft: null,
   receipt: null,
   notice: 'welcome',

@@ -2,7 +2,7 @@
 
 UI／UX 隊友請先看 [交接文件與流程圖](docs/ui-ux-handoff.md)，可不用模型與 Flutter 直接修改介面。
 
-本工作區負責 **agent orchestration 與無障礙操作介面**。**LLM 推論與 MCP 由隊友實作**；這裡的 Ollama adapter 和 DemoMcpClient 是聯調替身，不是團隊的正式模型或 MCP server。
+本工作區負責 **agent orchestration 與無障礙操作介面**。**LLM 推論與工具由隊友實作**；這裡的 Ollama adapter 和 DemoToolClient 是聯調替身，不是團隊的正式模型或工具。
 
 目前可用：繁體中文／英文需求 → 路由代理 → 圖書或服務代理 → 驗證工具結果 → 本地化呈現。圖書可接續「選書 → 修改取書館 → 預覽確認 → 本機示範回執」，可重開續填。所有館藏、分館及服務都是自製虛構資料，沒有呼叫臺北通正式 API，也沒有送出真實預約。
 
@@ -33,16 +33,16 @@ mise exec -- pnpm dev
 
 ## 隊友交接邊界
 
-| 負責方          | 介面／檔案                             | 契約                                                                           |
-| --------------- | -------------------------------------- | ------------------------------------------------------------------------------ |
-| 我們的 agent    | `src/agent/runner.ts`                  | 分流、隔離上下文、步數上限、取消、工具白名單與驗證                             |
-| 隊友 LLM        | `ModelAdapter` in `src/agent/types.ts` | 接收 messages/tools/signal，回傳 calls 或完成狀態                              |
-| 暫時的 LLM 接點 | `src/agent/model.ts`                   | OpenAI-compatible `/v1/chat/completions`，可換模型名稱與協定                   |
-| 隊友 MCP        | `McpClient` in `src/agent/mcp.ts`      | 提供 listTools / callTool，處理真正 transport、初始化、session、登入及服務 API |
-| 我們的執行層    | `src/agent/tools.ts`                   | 固定服務契約、參數與結果檢查、預覽／確認，不接受任意工具                       |
-| 使用者介面      | `src/App.vue`, `src/i18n.ts`           | 繁中／英文、可調字級、進度、確認與錯誤呈現                                     |
+| 負責方          | 介面／檔案                                 | 契約                                                                   |
+| --------------- | ------------------------------------------ | ---------------------------------------------------------------------- |
+| 我們的 agent    | `src/agent/runner.ts`                      | 分流、隔離上下文、步數上限、取消、工具白名單與驗證                     |
+| 隊友 LLM        | `ModelAdapter` in `src/agent/types.ts`     | 接收 messages/tools/signal，回傳 calls 或完成狀態                      |
+| 暫時的 LLM 接點 | `src/agent/model.ts`                       | OpenAI-compatible `/v1/chat/completions`，可換模型名稱與協定           |
+| 隊友工具        | `ToolClient` in `src/agent/tool-client.ts` | 提供 listTools / callTool；目前由 `tools/townpass/` 以直接函式呼叫實作 |
+| 我們的執行層    | `src/agent/tools.ts`                       | 固定服務契約、參數與結果檢查、預覽／確認，不接受任意工具               |
+| 使用者介面      | `src/App.vue`, `src/i18n.ts`               | 繁中／英文、可調字級、進度、確認與錯誤呈現                             |
 
-接入點為 `new AgentRunner(modelAdapter, state, mcpClient)`。目前 App 使用預設 DemoMcpClient；隊友實作符合介面的 client 後傳入第三參數。不需重寫路由或 UI。
+接入點為 `new AgentRunner(modelAdapter, state, toolClient)`。App 預設透過 `tools/townpass/src/agent-client.ts` 查台北通示範站；設定 `VITE_TOOL_SOURCE=demo` 時改用 DemoToolClient 的虛構資料（e2e 使用）。第一次使用前要在 `tools/townpass/` 執行 `pnpm install`。工具契約見 [tools/townpass/docs/tools.md](../../tools/townpass/docs/tools.md)。
 
 ### LLM
 
@@ -52,26 +52,16 @@ mise exec -- pnpm dev
 - 不是載入多份模型：同一模型以不同英文 system prompt 執行路由／專家角色，順序呼叫，專家取得新上下文。中文原始需求、書名及工具資料作為資料保留，避免翻譯破壞搜尋。UI 回答由字典與已驗證資料產生，不呈現模型思考過程。
 - 小模型 JSON 格式正確不代表分類一定正確；英文提示與少量範例只改善已測情境，仍需隊友模型的獨立評測。
 
-### MCP
+### 工具
 
-這裡只是 MCP client 的應用程式介面，**不是完整 MCP protocol 實作**。代理從 listTools 發現工具，再與本地白名單取交集；不把遠端工具描述當 system 指令。MVP 只允許：
+`ToolClient` 是 agent 呼叫工具的介面，目前的實作都是直接函式呼叫。代理從 listTools 發現工具，再與本地白名單 `TOOLS` 取交集，只提供分流領域內的工具；不把工具描述當 system 指令。領域與工具見 [tools/townpass/docs/tools.md](../../tools/townpass/docs/tools.md)。
 
-```ts
-search_books({ query: string });
-search_services({ query: string });
-```
+- 工具結果必須是 `source` 為 `demo`、`snapshot` 或 `live`，`records` 不超過 20 筆，每筆有 `id` 與雙語 `title`，`url` 一定是 `https://`。
+- 畫面只呈現驗證過的記錄與資料來源標示；模型只收到前 5 筆的 `id` 與標題，不收到完整資料。
+- 附近查詢時模型只能設 `near_me`，定位在瀏覽器取得，不傳給模型；拿不到定位會請使用者改說行政區。
+- 決策過程（分流、提供的工具、工具呼叫與參數、筆數、失敗原因）顯示在每則回覆的「決策過程」，只留在記憶體。
 
-`query` 最多 100 字元，空字串表示瀏覽；多餘參數被拒絕。callTool 回傳格式：
-
-```json
-{
-  "content": [{ "type": "text", "text": "{\"source\":\"demo\",\"records\":[]}" }]
-}
-```
-
-書籍記錄需要 `id`, `title`, `author`, `category`；服務需要 `id`, `title`, `description`。文字欄位都是 `{ "zh-Hant-TW": "…", "en": "…" }`。範例見 `src/agent/catalog.ts`，最多 20 筆。錯誤回傳 `isError: true`。
-
-**目前刻意只接受 `source: demo`**，不可把正式資料偽裝成 demo。接正式服務時需一起擴充來源、ID、分館與資料持久化契約；新增操作則要加白名單、驗證器與確認畫面。真實寫入的使用者授權、伺服器端冪等鍵、重試／逾時後的狀態查詢，需與 MCP 隊友確認後實作。本機示範回執不等同服務成功。
+**示範預約只能從 `demo` 書目開始**，不可把正式資料偽裝成 demo。接正式服務時需一起擴充來源、ID、分館與資料持久化契約；新增操作則要加白名單、驗證器與確認畫面。真實寫入的使用者授權、伺服器端冪等鍵、重試／逾時後的狀態查詢，需與工具隊友確認後實作。本機示範回執不等同服務成功。
 
 ## 臺北通 App 入口
 
