@@ -61,9 +61,7 @@ class TrendingServiceWidget extends StatelessWidget {
   ///
   /// Spacer between each [Table]'s row.
   static TableRow get _rowSpacer {
-    return const TableRow(
-      children: [SizedBox(height: 16.0)],
-    );
+    return const TableRow(children: [SizedBox(height: 16.0)]);
   }
 
   // 倘若每橫列按鈕數量更改(當前為 2)，底下邏輯也須作調整。
@@ -91,14 +89,16 @@ class TrendingServiceWidget extends StatelessWidget {
       }
 
       // 將處理好的橫列內容加入到 TableRow
-      rows.add(TableRow(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: rowChildren,
-          ),
-        ],
-      ));
+      rows.add(
+        TableRow(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: rowChildren,
+            ),
+          ],
+        ),
+      );
 
       // 如果還有下一組按鈕，則在當前行之後加入行間距
       if (i + 2 < _list.length) {
@@ -131,11 +131,7 @@ class _ServiceButton extends StatelessWidget {
   /// 熱門服務按鈕。
   ///
   /// Trending-service button.
-  const _ServiceButton({
-    required this.icon,
-    required this.title,
-    this.onTap,
-  });
+  const _ServiceButton({required this.icon, required this.title, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -144,10 +140,7 @@ class _ServiceButton extends StatelessWidget {
       onTap: () => onTap?.call(),
       child: Row(
         children: [
-          SizedBox.square(
-            dimension: 48,
-            child: icon,
-          ),
+          SizedBox.square(dimension: 48, child: icon),
           const SizedBox(width: 8.0),
           Flexible(
             child: TPText(

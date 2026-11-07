@@ -22,7 +22,7 @@ class TPBottomNavigationBar extends StatelessWidget {
             blurRadius: 16,
             offset: Offset(0, -10),
             spreadRadius: 0,
-          )
+          ),
         ],
       ),
       child: BottomNavigationBar(

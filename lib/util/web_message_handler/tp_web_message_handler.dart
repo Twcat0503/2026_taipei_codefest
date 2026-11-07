@@ -29,10 +29,7 @@ abstract class TPWebMessageHandler {
   });
 
   WebMessage replyWebMessage({required Object? data}) {
-    return TPWebStringMessageReply(
-      name: name,
-      data: data,
-    ).message;
+    return TPWebStringMessageReply(name: name, data: data).message;
   }
 }
 
@@ -47,9 +44,9 @@ class UserinfoWebMessageHandler extends TPWebMessageHandler {
     required bool isMainFrame,
     required onReply,
   }) async {
-    onReply?.call(replyWebMessage(
-      data: Get.find<AccountService>().account ?? [],
-    ));
+    onReply?.call(
+      replyWebMessage(data: Get.find<AccountService>().account ?? []),
+    );
   }
 }
 
@@ -65,16 +62,12 @@ class LaunchMapWebMessageHandler extends TPWebMessageHandler {
     required Function(WebMessage reply)? onReply,
   }) async {
     if (message == null || message is! String) {
-      onReply?.call(
-        replyWebMessage(data: false),
-      );
+      onReply?.call(replyWebMessage(data: false));
     }
     final Uri uri = Uri.parse(message as String);
     final bool canLaunch = await canLaunchUrl(uri);
 
-    onReply?.call(
-      replyWebMessage(data: canLaunch),
-    );
+    onReply?.call(replyWebMessage(data: canLaunch));
 
     if (canLaunch) {
       await launchUrl(uri);
@@ -94,9 +87,7 @@ class Agree1999MessageHandler extends TPWebMessageHandler {
     required Function(WebMessage reply)? onReply,
   }) async {
     if (message == null) {
-      onReply?.call(
-        replyWebMessage(data: false),
-      );
+      onReply?.call(replyWebMessage(data: false));
     }
     final Uri uri = Uri.parse('tel://1999');
 
@@ -106,11 +97,19 @@ class Agree1999MessageHandler extends TPWebMessageHandler {
       return;
     }
 
-    final bool userAgreement = SharedPreferencesService().instance.getBool(SharedPreferencesService.keyPhoneCallUserAgreement) ?? false;
+    final bool userAgreement =
+        SharedPreferencesService().instance.getBool(
+          SharedPreferencesService.keyPhoneCallUserAgreement,
+        ) ??
+        false;
     if (!userAgreement) {
       await Get.toNamed(TPRoute.phoneCallUserAgreement);
 
-      final bool userAgreement = SharedPreferencesService().instance.getBool(SharedPreferencesService.keyPhoneCallUserAgreement) ?? false;
+      final bool userAgreement =
+          SharedPreferencesService().instance.getBool(
+            SharedPreferencesService.keyPhoneCallUserAgreement,
+          ) ??
+          false;
       if (!userAgreement) {
         onReply?.call(replyWebMessage(data: false));
         return;
@@ -151,16 +150,12 @@ class PhoneCallMessageHandler extends TPWebMessageHandler {
     required Function(WebMessage reply)? onReply,
   }) async {
     if (message == null) {
-      onReply?.call(
-        replyWebMessage(data: false),
-      );
+      onReply?.call(replyWebMessage(data: false));
     }
     final Uri uri = Uri.parse('tel://${message!}');
     final bool canLaunch = await canLaunchUrl(uri);
 
-    onReply?.call(
-      replyWebMessage(data: canLaunch),
-    );
+    onReply?.call(replyWebMessage(data: canLaunch));
 
     if (canLaunch) {
       await launchUrl(uri);
@@ -188,9 +183,7 @@ class LocationMessageHandler extends TPWebMessageHandler {
       printError(info: error.toString());
     }
 
-    onReply?.call(replyWebMessage(
-      data: position?.toJson() ?? [],
-    ));
+    onReply?.call(replyWebMessage(data: position?.toJson() ?? []));
   }
 }
 
@@ -205,9 +198,11 @@ class DeviceInfoMessageHandler extends TPWebMessageHandler {
     required bool isMainFrame,
     required Function(WebMessage reply)? onReply,
   }) async {
-    onReply?.call(replyWebMessage(
-      data: Get.find<DeviceService>().baseDeviceInfo?.data ?? [],
-    ));
+    onReply?.call(
+      replyWebMessage(
+        data: Get.find<DeviceService>().baseDeviceInfo?.data ?? [],
+      ),
+    );
   }
 }
 
@@ -236,13 +231,12 @@ class NotifyMessageHandler extends TPWebMessageHandler {
   String get name => 'notify';
 
   @override
-  Future<void> handle(
-      {required Object? message,
-      required WebUri? sourceOrigin,
-      required bool isMainFrame,
-      required Function(
-        WebMessage replyWebMessage,
-      )? onReply}) async {
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
     switch (message) {
       case Object json when json is Map<String, dynamic>:
         NotificationService.showNotification(
@@ -251,10 +245,14 @@ class NotifyMessageHandler extends TPWebMessageHandler {
         );
         final String content = json['content'];
         if (RegExp(r'已訂閱(.+)').hasMatch(content)) {
-          final String target = RegExp(r'已訂閱(.+)').firstMatch(content)!.group(1)!;
+          final String target = RegExp(r'已訂閱(.+)')
+              .firstMatch(content)!
+              .group(1)!;
           Get.find<SubscriptionService>().addSubscription(title: target);
         } else if (RegExp(r'已取消訂閱(.+)').hasMatch(content)) {
-          final String target = RegExp(r'已取消訂閱(.+)').firstMatch(content)!.group(1)!;
+          final String target = RegExp(r'已取消訂閱(.+)')
+              .firstMatch(content)!
+              .group(1)!;
           Get.find<SubscriptionService>().removeSubscription(title: target);
         }
       default:
@@ -276,8 +274,6 @@ class QRCodeScanMessageHandler extends TPWebMessageHandler {
     required onReply,
   }) async {
     final result = await Get.toNamed(TPRoute.qrCodeScan);
-    onReply?.call(
-      replyWebMessage(data: result),
-    );
+    onReply?.call(replyWebMessage(data: result));
   }
 }

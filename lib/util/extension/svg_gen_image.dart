@@ -15,9 +15,6 @@ extension SvgGenImageIconExtension on SvgGenImage {
   /// 同時明確指出返回的具體類型是 `TPSvgIcon` (而非泛指的 `SvgIcon`)，
   /// 並增加了對擴充功能用途的簡要說明，提升了文件的精確性和可讀性。
   Widget icon({String? semanticsLabel}) {
-    return TPSvgIcon(
-      icon: this,
-      semanticsLabel: semanticsLabel,
-    );
+    return TPSvgIcon(icon: this, semanticsLabel: semanticsLabel);
   }
 }

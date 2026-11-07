@@ -8,7 +8,8 @@ class HomeBannerList {
 
   const HomeBannerList({required this.data});
 
-  factory HomeBannerList.fromJson(Map<String, dynamic> json) => _$HomeBannerListFromJson(json);
+  factory HomeBannerList.fromJson(Map<String, dynamic> json) =>
+      _$HomeBannerListFromJson(json);
 
   Map<String, dynamic> toJson() => _$HomeBannerListToJson(this);
 }
@@ -30,7 +31,8 @@ class HomeBannerItem {
     required this.title,
   });
 
-  factory HomeBannerItem.fromJson(Map<String, dynamic> json) => _$HomeBannerItemFromJson(json);
+  factory HomeBannerItem.fromJson(Map<String, dynamic> json) =>
+      _$HomeBannerItemFromJson(json);
 
   Map<String, dynamic> toJson() => _$HomeBannerItemToJson(this);
 }

@@ -16,10 +16,7 @@ class PerkView extends StatelessWidget {
         showLogo: true,
         title: '優惠',
         leading: IconButton(
-          icon: Semantics(
-            label: '帳戶',
-            child: Assets.svg.iconPerson.svg(),
-          ),
+          icon: Semantics(label: '帳戶', child: Assets.svg.iconPerson.svg()),
           onPressed: () => Get.toNamed(TPRoute.account),
         ),
         actions: [
@@ -37,7 +34,9 @@ class PerkView extends StatelessWidget {
       body: TPInAppWebView(
         onWebViewCreated: (controller) {
           controller.loadUrl(
-            urlRequest: URLRequest(url: WebUri('https://taipei-pass-service.vercel.app/coupon/')),
+            urlRequest: URLRequest(
+              url: WebUri('https://taipei-pass-service.vercel.app/coupon/'),
+            ),
           );
         },
       ),

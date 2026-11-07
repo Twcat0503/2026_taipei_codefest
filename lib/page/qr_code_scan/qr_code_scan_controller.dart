@@ -5,13 +5,17 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 class QRCodeScanController extends GetxController {
-  final MobileScannerController scanController = MobileScannerController(formats: [BarcodeFormat.qrCode]);
+  final MobileScannerController scanController = MobileScannerController(
+    formats: [BarcodeFormat.qrCode],
+  );
 
   StreamSubscription<BarcodeCapture>? _subscription;
 
   Future<String?> scanFromImage() async {
     try {
-      return switch (switch (await ImagePicker().pickImage(source: ImageSource.gallery)) {
+      return switch (switch (await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+      )) {
         null => null,
         XFile file => await scanController.analyzeImage(file.path),
       }) {

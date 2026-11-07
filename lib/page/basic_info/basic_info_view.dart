@@ -21,10 +21,7 @@ class BasicInfoView extends GetView<BasicInfoViewController> {
           Obx(
             () => TPSettingList(
               children: [
-                TPSettingListTile.display(
-                  title: controller.name,
-                  content: '',
-                ),
+                TPSettingListTile.display(title: controller.name, content: ''),
                 TPSettingListTile.navigate(
                   title: '身分證',
                   content: controller.idNumber.value,
@@ -36,8 +33,8 @@ class BasicInfoView extends GetView<BasicInfoViewController> {
                         currentValue: controller.idNumber.value ?? '',
                         validator: (idNumber) =>
                             idNumberValidator(idNumber: idNumber ?? '')
-                                ? null
-                                : '',
+                            ? null
+                            : '',
                       ),
                     )?.then(
                       (value) => switch (value) {
@@ -57,7 +54,8 @@ class BasicInfoView extends GetView<BasicInfoViewController> {
                         title: '生日',
                         currentValue: controller.birthday.value ?? '',
                         keyboardType: TextInputType.datetime,
-                        validator: (string) => DateFormat('yyyy/MM/dd')
+                        validator: (string) =>
+                            DateFormat('yyyy/MM/dd')
                                     .tryParseStrict(string ?? '') ==
                                 null
                             ? ''
@@ -104,13 +102,14 @@ class BasicInfoView extends GetView<BasicInfoViewController> {
                         keyboardType: TextInputType.phone,
                         validator: (phoneNumber) =>
                             RegExp(r'^09\d{8}$').hasMatch(phoneNumber ?? '')
-                                ? null
-                                : '',
+                            ? null
+                            : '',
                       ),
                     )?.then(
                       (value) => switch (value) {
-                        String() =>
-                          controller.updateAccount(phoneNumber: value),
+                        String() => controller.updateAccount(
+                          phoneNumber: value,
+                        ),
                         Object() || null => null,
                       },
                     );

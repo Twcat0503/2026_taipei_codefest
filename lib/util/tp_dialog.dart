@@ -71,10 +71,7 @@ class TPDialog {
       ),
     );
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: children,
-    );
+    return Column(mainAxisSize: MainAxisSize.min, children: children);
   }
 
   static Future showError({String? title, String? content}) async {
@@ -112,7 +109,11 @@ class TPDialog {
     );
   }
 
-  Future showType2({required Widget asset, String? title, Widget? content}) async {
+  Future showType2({
+    required Widget asset,
+    String? title,
+    Widget? content,
+  }) async {
     TPDialog.show(
       content: Column(
         children: [
@@ -136,13 +137,12 @@ class TPDialog {
   }) async {
     await Get.dialog(
       Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10.0),
+        ),
         child: Stack(
           children: [
-            Padding(
-              padding: padding,
-              child: content,
-            ),
+            Padding(padding: padding, child: content),
             if (showCloseCross) ...[
               Positioned.fill(
                 child: Align(

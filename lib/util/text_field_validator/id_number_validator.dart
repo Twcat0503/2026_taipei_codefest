@@ -18,23 +18,20 @@ bool idNumberValidator({required String idNumber}) {
 
   int sum = 0;
   return 0 ==
-      idNumber.characters.mapIndexed<int>(
-        (index, char) {
-          if (index == 0) {
-            sum += (_head.indexOf(char) + 10) ~/ 10;
-          }
-          return switch (index) {
-            0 => (_head.indexOf(char) + 10) % 10,
-            _ => int.parse(char),
-          };
-        },
-      ).foldIndexed(
-        sum,
-        (index, pre, number) {
-          return switch (index) {
-            9 => number - (10 - pre % 10),
-            _ => sum += (number * (9 - index)),
-          };
-        },
-      );
+      idNumber.characters
+          .mapIndexed<int>((index, char) {
+            if (index == 0) {
+              sum += (_head.indexOf(char) + 10) ~/ 10;
+            }
+            return switch (index) {
+              0 => (_head.indexOf(char) + 10) % 10,
+              _ => int.parse(char),
+            };
+          })
+          .foldIndexed(sum, (index, pre, number) {
+            return switch (index) {
+              9 => number - (10 - pre % 10),
+              _ => sum += (number * (9 - index)),
+            };
+          });
 }

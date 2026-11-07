@@ -25,10 +25,7 @@ class OfficialServiceCardTopLeft extends OfficialServiceCard {
           gradient: const LinearGradient(
             begin: Alignment(0.71, 0.71),
             end: Alignment(-0.71, -0.71),
-            colors: [
-              Color(0xB344B6C7),
-              Color(0xFF44B6C7),
-            ],
+            colors: [Color(0xB344B6C7), Color(0xFF44B6C7)],
           ),
         ),
         child: Stack(

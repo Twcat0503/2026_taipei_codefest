@@ -43,9 +43,7 @@ class PhoneCallUserAgreementView
         children: [
           Padding(
             padding: const EdgeInsets.all(_CardContent._kOuterPadding),
-            child: TPCard(
-              child: _CardContent(),
-            ),
+            child: TPCard(child: _CardContent()),
           ),
         ],
       ),
@@ -83,20 +81,24 @@ class _CardContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        const Positioned( // 此處可加 const，因為其屬性皆為常數。
+        const Positioned(
+          // 此處可加 const，因為其屬性皆為常數。
           top: _kCircleAvatarTopOffset,
           left: _kCircleAvatarLeftOffset,
-          child: CircleAvatar( // 此處可加 const，因為其屬性皆為常數。
+          child: CircleAvatar(
+            // 此處可加 const，因為其屬性皆為常數。
             radius: _kCircleAvatarRadius,
             backgroundColor: TPColors.primary100,
           ),
         ),
-        Positioned( // Assets.svg.icon1999phone.svg() 非 const，故此處不可加 const。
+        Positioned(
+          // Assets.svg.icon1999phone.svg() 非 const，故此處不可加 const。
           top: _kIconTopOffset,
           left: _kIconLeftOffset,
           child: Assets.svg.icon1999phone.svg(),
         ),
-        const Padding( // 此處可加 const，因為其屬性皆為常數，且子 Widget 也皆為常數。
+        const Padding(
+          // 此處可加 const，因為其屬性皆為常數，且子 Widget 也皆為常數。
           padding: EdgeInsets.all(_kOuterPadding),
           child: Column(
             children: [

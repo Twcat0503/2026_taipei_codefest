@@ -19,10 +19,7 @@ class HomeView extends StatelessWidget {
         showLogo: true,
         title: '首頁',
         leading: IconButton(
-          icon: Semantics(
-            label: '帳戶',
-            child: Assets.svg.iconPerson.svg(),
-          ),
+          icon: Semantics(label: '帳戶', child: Assets.svg.iconPerson.svg()),
           onPressed: () => Get.toNamed(TPRoute.account),
         ),
         backgroundColor: TPColors.white,

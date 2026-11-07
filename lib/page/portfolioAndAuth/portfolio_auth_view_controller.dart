@@ -1,16 +1,9 @@
 import 'package:get/get.dart';
 
-enum ToggleTab {
-  portfolio,
-  auth,
-  ;
-}
+enum ToggleTab { portfolio, auth }
 
 class PortfolioAuthViewController extends GetxController {
-  List<ToggleTab> get toggles => [
-        ToggleTab.portfolio,
-        ToggleTab.auth,
-      ];
+  List<ToggleTab> get toggles => [ToggleTab.portfolio, ToggleTab.auth];
 
   int _selectIndex = 0;
 

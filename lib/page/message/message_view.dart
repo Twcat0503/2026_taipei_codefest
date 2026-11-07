@@ -38,15 +38,16 @@ class MessageView extends GetView<MessageViewController> {
         appBar: TPAppBar(
           title: '訊息',
           actions: [
-            IconButton(
-              icon: Assets.svg.iconTrashClose.svg(),
-              onPressed: () {},
-            ),
+            IconButton(icon: Assets.svg.iconTrashClose.svg(), onPressed: () {}),
           ],
         ),
         body: TPTabView(
-          titles: controller.tabTypeList.map<String>((type) => type.string).toList(),
-          children: controller.tabTypeList.map<Widget>((type) => MessageListView(messageType: type)).toList(),
+          titles: controller.tabTypeList
+              .map<String>((type) => type.string)
+              .toList(),
+          children: controller.tabTypeList
+              .map<Widget>((type) => MessageListView(messageType: type))
+              .toList(),
         ),
       ),
     );

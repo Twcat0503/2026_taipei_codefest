@@ -47,12 +47,13 @@ class QRCodeScanView extends GetView<QRCodeScanController> {
           ValueListenableBuilder(
             valueListenable: controller.scanController,
             builder: (context, value, child) {
-              if (!value.isInitialized || !value.isRunning || value.error != null || value.size.isEmpty) {
+              if (!value.isInitialized ||
+                  !value.isRunning ||
+                  value.error != null ||
+                  value.size.isEmpty) {
                 return const SizedBox();
               }
-              return CustomPaint(
-                painter: _ScannerOverlay(window: _scanWindow),
-              );
+              return CustomPaint(painter: _ScannerOverlay(window: _scanWindow));
             },
           ),
           Positioned(
@@ -80,7 +81,10 @@ class QRCodeScanView extends GetView<QRCodeScanController> {
                     decorationColor: TPColors.primary500,
                   ),
                   onTap: () async => switch (await controller.scanFromImage()) {
-                    null => await TPDialog.showError(title: '錯誤', content: '無法辨識 QR Code'),
+                    null => await TPDialog.showError(
+                      title: '錯誤',
+                      content: '無法辨識 QR Code',
+                    ),
                     String string => Get.back(result: string),
                   },
                 ),
@@ -104,7 +108,13 @@ class QRCodeScanView extends GetView<QRCodeScanController> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Assets.svg.info.svg(height: 16, colorFilter: const ColorFilter.mode(TPColors.white, BlendMode.srcIn)),
+                  Assets.svg.info.svg(
+                    height: 16,
+                    colorFilter: const ColorFilter.mode(
+                      TPColors.white,
+                      BlendMode.srcIn,
+                    ),
+                  ),
                   const SizedBox(width: 4),
                   const TPText(
                     '掃描說明',
@@ -128,7 +138,9 @@ class QRCodeScanView extends GetView<QRCodeScanController> {
     final double scanWindowHeight = scanWindowWidth; // 掃描視窗為正方形
 
     final double centerX = screenWidth / 2;
-    final double centerY = screenWidth * _scanWindowTopRelativeOffsetFactor + _scanWindowVerticalFixedOffset;
+    final double centerY =
+        screenWidth * _scanWindowTopRelativeOffsetFactor +
+        _scanWindowVerticalFixedOffset;
 
     return Rect.fromCenter(
       center: Offset(centerX, centerY),
@@ -166,25 +178,42 @@ class _ScannerOverlay extends CustomPainter {
         // top left corner
         ..moveTo(strokeRect.left, strokeRect.top + cornerStrokeHeight)
         ..lineTo(strokeRect.left, window.top)
-        ..quadraticBezierTo(strokeRect.left, strokeRect.top, window.left, strokeRect.top)
+        ..quadraticBezierTo(
+          strokeRect.left,
+          strokeRect.top,
+          window.left,
+          strokeRect.top,
+        )
         ..lineTo(strokeRect.left + cornerStrokeWidth, strokeRect.top)
-
         // top right corner
         ..moveTo(strokeRect.right - cornerStrokeWidth, strokeRect.top)
         ..lineTo(window.right, strokeRect.top)
-        ..quadraticBezierTo(strokeRect.right, strokeRect.top, strokeRect.right, window.top)
+        ..quadraticBezierTo(
+          strokeRect.right,
+          strokeRect.top,
+          strokeRect.right,
+          window.top,
+        )
         ..lineTo(strokeRect.right, strokeRect.top + cornerStrokeHeight)
-
         // bottom right
         ..moveTo(strokeRect.right, strokeRect.bottom - cornerStrokeHeight)
         ..lineTo(strokeRect.right, window.bottom)
-        ..quadraticBezierTo(strokeRect.right, strokeRect.bottom, window.right, strokeRect.bottom)
+        ..quadraticBezierTo(
+          strokeRect.right,
+          strokeRect.bottom,
+          window.right,
+          strokeRect.bottom,
+        )
         ..lineTo(strokeRect.right - cornerStrokeWidth, strokeRect.bottom)
-
         // bottom left
         ..moveTo(strokeRect.left + cornerStrokeWidth, strokeRect.bottom)
         ..lineTo(window.left, strokeRect.bottom)
-        ..quadraticBezierTo(strokeRect.left, strokeRect.bottom, strokeRect.left, window.bottom)
+        ..quadraticBezierTo(
+          strokeRect.left,
+          strokeRect.bottom,
+          strokeRect.left,
+          window.bottom,
+        )
         ..lineTo(strokeRect.left, strokeRect.bottom - cornerStrokeHeight),
       borderPaint,
     );
@@ -227,10 +256,7 @@ class ScannerErrorWidget extends StatelessWidget {
               padding: EdgeInsets.only(bottom: 16),
               child: Icon(Icons.error, color: Colors.white),
             ),
-            TPText(
-              errorMessage,
-              style: const TextStyle(color: Colors.white),
-            ),
+            TPText(errorMessage, style: const TextStyle(color: Colors.white)),
             TPText(
               error.errorDetails?.message ?? '',
               style: const TextStyle(color: Colors.white),

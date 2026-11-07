@@ -21,12 +21,13 @@ class PinnedServiceItemWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onTap?.call ??
+      onTap:
+          onTap?.call ??
           switch (service.destinationUrl.isNotEmpty) {
             true => () async => await TPRoute.openUri(
-                  uri: service.destinationUrl,
-                  forceTitle: service.forceWebViewTitle,
-                ),
+              uri: service.destinationUrl,
+              forceTitle: service.forceWebViewTitle,
+            ),
             false => null,
           },
       child: Stack(
@@ -60,7 +61,7 @@ class PinnedServiceItemWidget extends StatelessWidget {
                       blurRadius: 8,
                       offset: Offset(0, 1),
                       spreadRadius: 0,
-                    )
+                    ),
                   ],
                 ),
                 child: Assets.svg.iconRemove.svg(),
