@@ -27,15 +27,16 @@ flowchart TB
 
 | 區塊 | 內容 | 狀態 | 位置 |
 | --- | --- | --- | --- |
-| App | Town Pass Flutter app：`TPWebView`、JS bridge（含 `tts`、`share`）、系統字級同步 | 可用 | `lib/` |
-| 前端 | Vue 3 聊天畫面與結果卡片，以 TownPass-Services 為範本 | 開發中 | `frontend/`（常駐 branch `frontend`） |
-| Agent | 路由、圖書／服務／地點／優惠／帳單 skill、工具驗證、確認與示範回執 | MVP 已接手機模型與唯讀工具；個人帳務未接 | `frontend/agent-mvp/`（常駐分工 branch `agent`） |
-| 模型 | LFM3 1.7B 本機推論 | 手機 adapter 整合中 | `model/`（常駐 branch `model`）；Android runtime 在 `tools/llm-android/` |
-| 工具 | `townpass-mcp`：把台北通服務包裝成唯讀工具，經資料讀取層存取資料 | 本地可用，尚未納入 repo | `tools/townpass-mcp/`（常駐 branch `tools`） |
+| App | Town Pass Flutter app：`TPWebView`、JS bridge（`tts` 朗讀生命週期、`haptic`、`a11y_state`、`share`、表單帶入）、系統字級同步、TalkBack 可進入 WebView | 可用 | `lib/`、`android/` |
+| 前端範本 | TownPass-Services 服務範本（保留作參考，主要開發在 agent-mvp） | 保留 | `frontend/`（常駐 branch `frontend`） |
+| Agent | 安心助手：Figma 版介面、路由與各 skill、補資料的選擇題、陳情草稿與表單帶入、緊急撥號、震動與語音回饋、朗讀 | 已接手機模型與唯讀工具；個人帳務未接 | `frontend/agent-mvp/` |
+| 模型 | LFM3 1.7B 手機本機推論（native 子行程） | 已整合 | `tools/llm-android/`（常駐 branch `model`） |
+| 語音 | 手機本機 ASR（whisper.cpp）與選用的 BlueMagpie 自然語音；模型需另行安裝 | 原生服務可用；ASR 尚無前端入口，自然語音在設定開啟 | `tools/asr-android/`、`tools/tts-android/` |
+| 工具 | `tools/townpass`：把台北通服務與開放資料包裝成唯讀工具，經資料讀取層存取資料 | 可用 | `tools/townpass/`（常駐 branch `tools`） |
 
 ## 已可操作的 Agent MVP
 
-[獨立 MVP](frontend/agent-mvp/README.md) 已整合 App 首頁與服務頁入口。已整合手機 LFM3、聊天 UI 與隊友的 16 個唯讀工具，保留示範帳單。資料分為示範站內容、地點快照與 YouBike 即時資料；沒有正式個人帳務或 MCP transport。上方架構圖是團隊目標架構，MVP 的實際流程、UI／UX 修改入口與驗收方式見 [交接文件](frontend/agent-mvp/docs/ui-ux-handoff.md)。
+[獨立 MVP](frontend/agent-mvp/README.md) 已整合 App 首頁與服務頁入口，以及手機 LFM3、Figma 版聊天介面與隊友的唯讀工具。預設只用真實資料（YouBike 即時資料、停車場與公廁開放資料、台北通站內服務入口）；示範帳單只在 `VITE_TOOL_SOURCE=townpass-demo` 時出現。沒有正式個人帳務或 MCP transport。上方架構圖是團隊目標架構，MVP 的實際流程、UI／UX 修改入口與驗收方式見 [交接文件](frontend/agent-mvp/docs/ui-ux-handoff.md)。
 
 ```sh
 cd frontend/agent-mvp
@@ -52,9 +53,9 @@ pnpm dev
 | --- | --- |
 | App | Flutter 3.47.6（FVM）、GetX、flutter_inappwebview、flutter_tts、share_plus |
 | 前端 | Vue 3、Vite、TypeScript、Tailwind CSS、Pinia、vue-router |
-| 工具 | MCP（Model Context Protocol） |
-| 模型 | LFM3 1.7B（int4） |
-| 品質 | ESLint、Prettier、Vitest、`dart format`、`flutter analyze`，由 GitHub Actions CI 把關 |
+| 工具 | TypeScript 唯讀工具（直接函式呼叫；MCP transport 尚未接） |
+| 模型與語音 | LFM3 1.7B、whisper.cpp（ASR）、BlueMagpie-TTS，皆在 Android 上以 native 子行程本機執行 |
+| 品質 | ESLint、Prettier、Vitest、Playwright（含 axe 無障礙掃描）、`dart format`、`flutter analyze`、`flutter test`，由 GitHub Actions CI 把關 |
 | 部署 | Cloudflare Pages（前端）、Android APK（app） |
 
 ## 快速開始

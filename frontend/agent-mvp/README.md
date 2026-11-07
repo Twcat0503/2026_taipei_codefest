@@ -42,11 +42,11 @@ mise exec -- pnpm dev
 | 結果驗證      | `src/agent/tools.ts`，工具清單與 schema 見 [工具文件](../../tools/townpass/docs/tools.md) |
 | UI            | `src/App.vue`、`src/i18n.ts`、`src/style.css`；保留 `BillPanel` 與 `PhoneModelPanel`      |
 
-`new AgentRunner(model, state, toolClient)` 是整合入口。`withDemoBills` 把示範帳單加到隊友工具清單；接正式帳務時應替換此組合，不能把真實帳單標成 demo。工具是直接函式呼叫，尚無 MCP transport／server；未來 MCP 可實作相同 `ToolClient` 介面。
+`new AgentRunner(model, state, toolClient)` 是整合入口。`withDemoBills` 只在 `VITE_TOOL_SOURCE=townpass-demo` 時把示範帳單加到隊友工具清單；接正式帳務時應替換此組合，不能把真實帳單標成 demo。工具是直接函式呼叫，尚無 MCP transport／server；未來 MCP 可實作相同 `ToolClient` 介面。
 
 模型每次最多 256 output tokens，電腦預設 20 秒、手機 90 秒；工具發現與執行各最多 45 秒，涵蓋定位及上游讀取。取消後晚到的結果不能更新畫面。位置只供工具層計算距離，不送進模型；定位失敗可補充行政區，或切換新需求。對明確地點查詢有保守的路由修正，並保留使用者指定的台北市行政區及無障礙廁所條件，避免小模型漏掉條件。
 
-對話及 trace 只留記憶體；localStorage 只保留閱讀偏好與已驗證的示範預約草稿／回執，不保存帳單、位置或模型 key。內部路由與專家提示為英文，保留原始中文名稱；上游工具 schema／資料可能含中文。畫面只呈現工具資料，不呈現模型自由生成的完成宣告。
+trace 只留記憶體。localStorage 保存：對話摘要（只存白名單內的固定請求與結果代號，最多 100 筆，`townpass-agent-conversation-v1`）、閱讀與回饋偏好（`tp-font`、`tp-language`、`tp-haptics`、`tp-voice-feedback`、`tp-natural-voice`）、使用者在設定裡記住的資料（水號、我家行政區、只列無障礙地點，`tp-profile-v1`，可在設定刪除），以及已驗證的示範預約草稿／回執；不保存帳單、位置、身分證字號、螢幕閱讀器狀態或模型 key。內部路由與專家提示為英文，保留原始中文名稱；上游工具 schema／資料可能含中文。畫面只呈現工具資料，不呈現模型自由生成的完成宣告。
 
 ## 替民眾帶入資料
 
