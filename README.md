@@ -19,8 +19,8 @@ flowchart TB
   Front -- "聊天 API" --> Agent["Agent 服務<br/>對話流程、工具呼叫、錯誤處理"]
   Agent -- "對話與工具結果" --> Model["自訓模型<br/>理解問題、選工具、產生回覆"]
   Model -- "回覆或工具呼叫" --> Agent
-  Agent -- "呼叫工具（MCP 或轉接）" --> MCP["townpass-mcp<br/>唯讀工具"]
-  MCP --> DAL["資料讀取層<br/>逾時、快取、格式驗證"]
+  Agent -- "呼叫工具（函式呼叫）" --> Tools["townpass tools<br/>唯讀工具"]
+  Tools --> DAL["資料讀取層<br/>逾時、快取、格式驗證"]
   DAL --> Mock["TownPass-Services<br/>public/mock/*.json"]
   DAL --> YouBike["YouBike 公開資料<br/>即時資料"]
 ```
@@ -31,7 +31,7 @@ flowchart TB
 | 前端 | Vue 3 聊天畫面與結果卡片，以 TownPass-Services 為範本 | 開發中 | `frontend/`（常駐 branch `frontend`） |
 | Agent | 對話流程、逐步拆解與工具呼叫、錯誤處理 | 規劃中 | `agent/`（常駐 branch `agent`） |
 | 模型 | 自訓模型（LFM3 1.7B、int4 量化）：理解問題、選工具、產生回覆 | 規劃中 | `model/`（常駐 branch `model`） |
-| 工具 | `townpass-mcp`：把台北通服務包裝成唯讀工具，經資料讀取層存取資料 | 本地可用，尚未納入 repo | `tools/townpass-mcp/`（常駐 branch `tools`） |
+| 工具 | `townpass` tools：把台北通服務包裝成唯讀工具，經資料讀取層存取資料 | agent 可接圖書與服務查詢 | `tools/townpass/`（常駐 branch `tools`） |
 
 ## 技術棧
 
@@ -39,7 +39,7 @@ flowchart TB
 | --- | --- |
 | App | Flutter 3.47.6（FVM）、GetX、flutter_inappwebview、flutter_tts、share_plus |
 | 前端 | Vue 3、Vite、TypeScript、Tailwind CSS、Pinia、vue-router |
-| 工具 | MCP（Model Context Protocol） |
+| 工具 | TypeScript、zod，由 agent 直接呼叫 |
 | 模型 | LFM3 1.7B（int4） |
 | 品質 | ESLint、Prettier、Vitest、`dart format`、`flutter analyze`，由 GitHub Actions CI 把關 |
 | 部署 | Cloudflare Pages（前端）、Android APK（app） |

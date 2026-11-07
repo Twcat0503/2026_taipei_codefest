@@ -30,9 +30,9 @@
 
 ## 工具（`tools`）
 
-- [ ] 把 `townpass-mcp`（15 支唯讀工具）搬進 `tools/townpass-mcp/`
-- [ ] 資料讀取層：逾時、快取、格式驗證
-- [ ] YouBike 即時資料工具，附上資料來源
+- [x] 把唯讀工具搬進 `tools/townpass/`，由 agent 直接呼叫
+- [x] 資料讀取層：逾時、快取、格式驗證
+- [x] YouBike 即時資料工具，附上資料來源
 
 ## App（Flutter，從 `main` 切出）
 

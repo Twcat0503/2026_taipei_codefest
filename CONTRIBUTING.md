@@ -31,7 +31,7 @@
 | `frontend` | `frontend/` | Vue 3 前端：聊天畫面、結果卡片 |
 | `agent` | `agent/` | Agent 服務：聊天 API、對話流程、逐步拆解與工具呼叫、錯誤處理 |
 | `model` | `model/` | 自訓模型（LFM3 1.7B、int4）：訓練、量化、推理服務 |
-| `tools` | `tools/` | 工具包裝：`townpass-mcp`（把台北通服務包裝成工具）與資料讀取層 |
+| `tools` | `tools/` | 工具包裝：`townpass`（把台北通服務包裝成工具）與資料讀取層 |
 
 - 功能從所屬的常駐 branch 切出，PR 的 base 選同一條常駐 branch，審過後 squash 合併：
 
