@@ -23,6 +23,7 @@ test('book search, editable confirmation, reload, receipt and reset', async ({ p
   await page.getByLabel('取書館', { exact: true }).selectOption('demo-community');
   await expect(page.getByRole('heading', { name: '已完成示範預約' })).toHaveCount(0);
   await page.reload();
+  await page.getByRole('button', { name: '繼續上次對話', exact: true }).click();
   await expect(page.getByLabel('取書館', { exact: true })).toHaveValue('demo-community');
   const audit = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
@@ -33,6 +34,33 @@ test('book search, editable confirmation, reload, receipt and reset', async ({ p
   await expect(page.getByText(/^DEMO-/)).toBeVisible();
   await page.getByRole('button', { name: '開始新需求', exact: true }).click();
   await expect(page.getByText(/^DEMO-/)).toHaveCount(0);
+});
+
+test('reopening the service returns home and retains the option to continue', async ({ page }) => {
+  await chooseService(page, '幫我找圖書');
+  await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toBeVisible();
+  await page.evaluate(() =>
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })),
+  );
+  await expect(page.getByRole('heading', { name: '歡迎使用', exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: '歡迎使用', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '繼續上次對話', exact: true })).toBeVisible();
+});
+
+test('conversation settings button is vertically centered with the heading', async ({ page }) => {
+  const settings = page.getByRole('button', { name: '設定', exact: true });
+  await chooseService(page, '幫我找圖書');
+  await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toBeVisible();
+  const conversationBox = await settings.boundingBox();
+  const headingBox = await page.locator('.conversation-heading h1').boundingBox();
+  expect(conversationBox).not.toBeNull();
+  expect(headingBox).not.toBeNull();
+  expect(
+    Math.abs(
+      conversationBox!.y + conversationBox!.height / 2 - headingBox!.y - headingBox!.height / 2,
+    ),
+  ).toBeLessThan(1);
 });
 
 test('accessible initial page and enlarged bilingual layouts', async ({ page }) => {
@@ -228,7 +256,7 @@ test('phone model startup, authenticated structured calls, and stop', async ({ p
     page.getByRole('button', { name: '送出需求', exact: true, includeHidden: true }),
   ).toBeDisabled();
   await page.getByRole('button', { name: '啟動手機模型', exact: true }).click();
-  await expect(page.getByRole('button', { name: '開始語音輸入', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '開始語音輸入', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '設定', exact: true }).click();
   await expect(
     page.getByRole('dialog').getByText('已連接手機模型，可以提出需求。', { exact: true }),
@@ -266,7 +294,7 @@ test('home navigation preserves a draft and settings return keyboard focus', asy
   await page.getByLabel('取書館', { exact: true }).selectOption('demo-community');
   await page.getByRole('button', { name: '回到安心助手首頁', exact: true }).click();
   await expect(page.getByRole('heading', { name: '歡迎使用', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '繼續目前的需求', exact: true }).click();
+  await page.getByRole('button', { name: '繼續上次對話', exact: true }).click();
   await expect(page.getByLabel('取書館', { exact: true })).toHaveValue('demo-community');
   await expect(page.getByLabel('你想要做什麼？', { exact: true })).toBeDisabled();
   await expect(page.getByText(/^DEMO-/)).toHaveCount(0);
@@ -496,7 +524,7 @@ test('an existing session uses the same home layout at small and large text size
       expect(await page.locator('.composer-box').isVisible()).toBe(true);
     }
   }
-  await page.getByRole('button', { name: '繼續確認目前需求', exact: true }).click();
+  await page.getByRole('button', { name: '繼續上次對話', exact: true }).click();
   await expect(page.getByLabel('取書館', { exact: true })).toHaveValue('demo-community');
   await expect(page.getByLabel('你想要做什麼？', { exact: true })).toBeDisabled();
   await expect(page.getByText(/^DEMO-/)).toHaveCount(0);
@@ -519,7 +547,7 @@ test('native model setup stays in settings and does not push the home off screen
     )
     .toBe(true);
   await expect(page.getByRole('button', { name: '啟動手機模型', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: '開始語音輸入', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '開始語音輸入', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '用照片報案', exact: true }).click();
   await expect(page.getByText('請先啟動手機模型，再用照片辨識。', { exact: true })).toBeVisible();
   expect(
@@ -545,7 +573,7 @@ test('the plus shortcut only accepts photos when a model can describe them', asy
   );
   await plus.click();
   await expect(
-    page.getByText('規則模擬模式不會辨識照片；請切換到手機或本機模型。', { exact: true }),
+    page.getByText('規則模擬模式不會辨識照片；請切換模型。', { exact: true }),
   ).toBeVisible();
   expect(
     await page
@@ -553,6 +581,9 @@ test('the plus shortcut only accepts photos when a model can describe them', asy
       .evaluate((input: HTMLInputElement) => input.files?.length),
   ).toBe(0);
   await expect(page.locator('.navigation-card')).toHaveCount(0);
+  await expect(
+    page.getByText('規則模擬模式不會辨識照片；請切換模型。', { exact: true }),
+  ).toBeHidden({ timeout: 7000 });
 });
 
 test('haptic feedback follows live events only, never a restored conversation', async ({
@@ -583,6 +614,7 @@ test('haptic feedback follows live events only, never a restored conversation', 
 
   // The saved conversation comes back silently.
   await page.reload();
+  await page.getByRole('button', { name: '繼續上次對話', exact: true }).click();
   await expect(page.getByText('這是已保存的摘要，查詢結果未保存。')).toBeVisible();
   expect(await vibrations()).toEqual([]);
 
@@ -599,6 +631,38 @@ test('haptic feedback follows live events only, never a restored conversation', 
   await chooseService(page, '失火了！');
   await expect(page.getByRole('heading', { name: /119/ })).toBeVisible();
   expect(await vibrations()).toEqual([warning]);
+});
+
+test('only explicitly continuing keeps the old draft; typing or a suggestion from home starts fresh', async ({
+  page,
+}) => {
+  const prepareDraft = async () => {
+    await chooseService(page, '幫我找圖書');
+    await page.getByRole('button', { name: '預約這本書', exact: true }).first().click();
+    await page.getByLabel('取書館', { exact: true }).selectOption('demo-community');
+  };
+  await prepareDraft();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: '歡迎使用', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '繼續上次對話', exact: true }).click();
+  await expect(page.getByLabel('取書館', { exact: true })).toHaveValue('demo-community');
+  await page.getByRole('button', { name: '回到安心助手首頁', exact: true }).click();
+  await chooseService(page, '你好');
+  await expect(page.locator('section.assistant-message')).toContainText('你好！');
+  await expect(page.getByRole('button', { name: '確認示範預約', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toHaveCount(0);
+  await prepareDraft();
+  await page.getByRole('button', { name: '回到安心助手首頁', exact: true }).click();
+  await page.getByRole('button', { name: '我想預約復康巴士', exact: true }).click();
+  await expect(page.locator('section.assistant-message')).toBeVisible();
+  await expect(page.getByRole('button', { name: '確認示範預約', exact: true })).toHaveCount(0);
+  expect(
+    await page.evaluate(
+      () => JSON.parse(localStorage.getItem('townpass-agent-demo-v1') ?? '{}').draft,
+    ),
+  ).toBeNull();
+  await page.getByRole('button', { name: '回到安心助手首頁', exact: true }).click();
+  await expect(page.getByRole('button', { name: '開新對話', exact: true })).toHaveCount(0);
 });
 
 test('haptic and voice feedback can be switched in settings and are remembered', async ({
@@ -750,6 +814,7 @@ test('voice feedback does not read a restored conversation', async ({ page }) =>
   // This time the app is there from the start and reports that no screen reader is on.
   await page.addInitScript(speechBridge, false);
   await page.reload();
+  await page.getByRole('button', { name: '繼續上次對話', exact: true }).click();
   await expect(page.getByText('這是已保存的摘要，查詢結果未保存。')).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-a11y-bold', 'true');
   expect(await ttsMessages(page)).toEqual([]);

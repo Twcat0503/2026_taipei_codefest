@@ -1,5 +1,14 @@
+import { createNativeVoiceInput } from './native-voice-input';
+
 export type VoiceStatus =
-  'idle' | 'starting' | 'listening' | 'unavailable' | 'permission' | 'error';
+  | 'idle'
+  | 'starting'
+  | 'listening'
+  | 'transcribing'
+  | 'modelUnavailable'
+  | 'unavailable'
+  | 'permission'
+  | 'error';
 
 type Recognition = {
   lang: string;
@@ -18,7 +27,7 @@ type VoiceWindow = Window & {
   webkitSpeechRecognition?: new () => Recognition;
 };
 
-/** Browser-only input. Native WebViews keep the keyboard fallback until an ASR bridge exists. */
+/** Native WebViews use local ASR; standalone browsers use their speech-recognition API. */
 export function createVoiceInput(
   onStatus: (status: VoiceStatus) => void,
   onText: (text: string) => void,
@@ -26,7 +35,9 @@ export function createVoiceInput(
 ) {
   let recognition: Recognition | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const native = createNativeVoiceInput(onStatus, onText, onFinished);
   const cancel = () => {
+    native.cancel();
     clearTimeout(timer);
     const previous = recognition;
     recognition = undefined;
@@ -42,9 +53,13 @@ export function createVoiceInput(
   return {
     start(locale: string) {
       cancel();
+      if (window.flutterObject) {
+        native.start(locale);
+        return;
+      }
       const target = window as VoiceWindow;
       const Constructor = target.SpeechRecognition ?? target.webkitSpeechRecognition;
-      if (window.flutterObject || !Constructor) {
+      if (!Constructor) {
         onStatus('unavailable');
         return;
       }
@@ -96,6 +111,7 @@ export function createVoiceInput(
       }
     },
     finish() {
+      native.finish();
       recognition?.stop();
     },
     cancel,

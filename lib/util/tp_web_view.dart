@@ -5,12 +5,14 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
+import 'package:town_pass/service/asr_service.dart';
 import 'package:town_pass/gen/assets.gen.dart';
 import 'package:town_pass/util/tp_app_bar.dart';
 import 'package:town_pass/util/tp_colors.dart';
 import 'package:town_pass/util/tp_external_link.dart';
 import 'package:town_pass/util/tp_prefill.dart';
 import 'package:town_pass/util/web_message_handler/tp_web_message_listener.dart';
+import 'package:town_pass/util/web_message_handler/local_ai_origin.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class WebViewArgument {
@@ -149,12 +151,60 @@ class TPWebView extends StatelessWidget {
                 retain: true,
               );
             },
+            onPermissionRequest: (controller, request) async {
+              var granted = false;
+              try {
+                if (canRequestAssistantMicrophone(
+                  request,
+                  await controller.getUrl(),
+                )) {
+                  granted = await AsrService.requestMicrophonePermission();
+                  if (granted) {
+                    granted = canRequestAssistantMicrophone(
+                      request,
+                      await controller.getUrl(),
+                    );
+                  }
+                }
+              } catch (_) {
+                // 頁面已關閉或換頁時，不沿用先前的麥克風授權。
+                granted = false;
+              }
+              return PermissionResponse(
+                resources: request.resources,
+                action: granted
+                    ? PermissionResponseAction.GRANT
+                    : PermissionResponseAction.DENY,
+              );
+            },
             onCloseWindow: (_) => Get.back(),
           ),
           Obx(() => _TextZoomSync(controller: webViewController.value)),
         ],
       ),
     );
+  }
+}
+
+/// 只允許核准的助手頁面要求麥克風；不在這裡開放攝影機權限。
+@visibleForTesting
+bool canRequestAssistantMicrophone(
+  PermissionRequest request,
+  WebUri? mainPage,
+) {
+  if (mainPage == null ||
+      request.resources.isEmpty ||
+      request.resources.any(
+        (resource) => resource != PermissionResourceType.MICROPHONE,
+      ) ||
+      request.frame?.isMainFrame == false) {
+    return false;
+  }
+  try {
+    return isLocalAiOriginAllowed(request.origin.origin) &&
+        request.origin.origin == mainPage.origin;
+  } on FormatException {
+    return false;
   }
 }
 

@@ -9,8 +9,8 @@ import governmentIllustration from '../../../../assets/svg/Illustrations_gov.svg
 const props = defineProps<{
   locale: Locale;
   disabled: boolean;
+  voiceDisabled: boolean;
   hasTask: boolean;
-  pendingDraft: boolean;
   nearbyParking: boolean;
   nearbyParkingDisabled: boolean;
   native: boolean;
@@ -22,7 +22,6 @@ defineEmits<{
   request: [text: string];
   voice: [];
   resume: [];
-  settings: [];
   startModel: [];
   nearbyParking: [];
 }>();
@@ -31,19 +30,12 @@ const panel = ref<HTMLElement>();
 const suggestionStage = ref<HTMLElement>();
 const measurement = ref<HTMLElement>();
 const voiceButton = ref<HTMLButtonElement>();
+const modelButton = ref<HTMLButtonElement>();
+const modelFontSize = ref(16);
 const voiceFontSize = ref(30);
 const compact = ref(false);
 const visibleCount = ref(3);
-const resumePrimary = computed(
-  () => props.hasTask && (props.pendingDraft || visibleCount.value === 0),
-);
-const primaryLabel = computed(() =>
-  props.modelNeedsStart
-    ? t.value.phoneStart
-    : resumePrimary.value
-      ? t.value.resumeAction
-      : t.value.voiceButton,
-);
+const primaryLabel = computed(() => t.value.voiceButton);
 let observer: ResizeObserver | undefined;
 let frame = 0;
 let canvas: HTMLCanvasElement | undefined;
@@ -77,15 +69,40 @@ async function measure() {
     }
     await nextTick();
   }
+  if (modelButton.value) {
+    const button = modelButton.value;
+    const style = getComputedStyle(button);
+    const available =
+      button.clientWidth -
+      parseFloat(style.paddingLeft) -
+      parseFloat(style.paddingRight) -
+      (button.querySelector('svg')?.getBoundingClientRect().width ?? 0) -
+      (parseFloat(style.columnGap) || 0);
+    const maximum = Math.min(scale, 28);
+    canvas ??= document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (context) {
+      context.font = `700 ${maximum}px ${style.fontFamily}`;
+      modelFontSize.value = Math.max(
+        1,
+        Math.min(
+          maximum,
+          ((maximum * available) / context.measureText(t.value.phoneStart).width) * 0.97,
+        ),
+      );
+    }
+  }
   if (!suggestionStage.value || !measurement.value) return;
-  const rowHeight = Math.max(
-    ...Array.from(measurement.value.children, (child) => child.getBoundingClientRect().height),
+  const heights = Array.from(
+    measurement.value.children,
+    (child) => child.getBoundingClientRect().height,
   );
   const list = suggestionStage.value.querySelector('.welcome-suggestions');
   const gap = list ? parseFloat(getComputedStyle(list).rowGap) : 16;
   const available = suggestionStage.value.clientHeight;
   let count = 3;
-  while (count > 0 && rowHeight * count + gap * (count - 1) > available) count--;
+  while (count > 0 && Math.max(...heights.slice(0, count)) * count + gap * (count - 1) > available)
+    count--;
   visibleCount.value = count;
 }
 function scheduleMeasure() {
@@ -97,11 +114,12 @@ onMounted(() => {
   if (panel.value) observer.observe(panel.value);
   if (suggestionStage.value) observer.observe(suggestionStage.value);
   if (voiceButton.value) observer.observe(voiceButton.value);
+  if (modelButton.value) observer.observe(modelButton.value);
   for (const child of measurement.value?.children ?? []) observer.observe(child);
   scheduleMeasure();
 });
 watch(
-  () => [props.locale, props.hasTask, props.pendingDraft],
+  () => [props.locale, props.hasTask, props.modelNeedsStart, props.modelStatus],
   async () => {
     await nextTick();
     scheduleMeasure();
@@ -114,13 +132,7 @@ onBeforeUnmount(() => {
 });
 const suggestions = computed(() => [
   ...(props.hasTask
-    ? [
-        {
-          title: t.value.continueTask,
-          hint: props.pendingDraft ? t.value.draftHint : t.value.resumeHint,
-          action: 'resume' as const,
-        },
-      ]
+    ? [{ title: t.value.continueConversation, hint: t.value.resumeHint, action: 'resume' as const }]
     : []),
   ...(props.nearbyParking
     ? [
@@ -142,33 +154,27 @@ const visibleSuggestions = computed(() => suggestions.value.slice(0, visibleCoun
   <section
     ref="panel"
     class="welcome-panel"
-    :class="{ 'is-compact': compact }"
+    :class="{ 'is-compact': compact, 'is-native': native }"
     aria-labelledby="welcome-title"
   >
     <div class="welcome-banner">
-      <div class="welcome-lockup">
-        <div class="welcome-copy">
-          <div class="welcome-heading">
-            <h1 id="welcome-title">{{ t.welcomeTitle }}</h1>
-            <span class="townpass-wordmark" aria-hidden="true">
-              <span><b>TOWN</b> PASS</span><strong>城 市 通</strong>
-            </span>
+      <div class="welcome-brand">
+        <div class="welcome-lockup">
+          <div class="welcome-copy">
+            <div class="welcome-heading">
+              <h1 id="welcome-title">{{ t.welcomeTitle }}</h1>
+              <span class="townpass-wordmark" aria-hidden="true">
+                <span><b>TOWN</b> PASS</span><strong>城 市 通</strong>
+              </span>
+            </div>
+            <p>{{ t.welcomeProduct }}</p>
           </div>
-          <p>{{ t.welcomeProduct }}</p>
+          <img :src="governmentIllustration" width="100" height="80" alt="" />
         </div>
-        <img :src="governmentIllustration" width="100" height="80" alt="" />
       </div>
     </div>
-    <div class="suggestions-header">
+    <div v-if="!compact" class="suggestions-header">
       <h2 class="suggestions-heading"><UiIcon name="help" />{{ t.welcomeSuggestions }}</h2>
-      <button
-        type="button"
-        class="icon-button suggestions-settings"
-        :aria-label="t.settings"
-        @click="$emit('settings')"
-      >
-        <UiIcon name="settings" />
-      </button>
     </div>
     <div ref="suggestionStage" class="suggestion-stage">
       <div ref="measurement" class="suggestion-measure" aria-hidden="true" inert>
@@ -214,28 +220,26 @@ const visibleSuggestions = computed(() => suggestions.value.slice(0, visibleCoun
     </div>
     <button
       v-if="modelNeedsStart"
-      ref="voiceButton"
-      class="voice-launch model-launch"
+      ref="modelButton"
+      class="outline-button model-launch"
       :disabled="modelStarting"
       :aria-label="t.phoneStart"
       @click="$emit('startModel')"
     >
-      <UiIcon class="voice-resume-icon" name="settings" />
-      <span class="voice-label" :style="{ fontSize: `${voiceFontSize}px` }">{{
-        t.phoneStart
-      }}</span>
+      <UiIcon name="settings" />
+      <span :style="{ fontSize: `${modelFontSize}px` }">{{ t.phoneStart }}</span>
     </button>
-    <p v-if="modelNeedsStart" class="model-hint" role="status">{{ modelStatus }}</p>
+    <p v-if="modelNeedsStart" class="model-hint" :class="{ 'sr-only': hasTask }" role="status">
+      {{ modelStatus }}
+    </p>
     <button
-      v-else-if="!native || resumePrimary"
       ref="voiceButton"
       class="voice-launch"
-      :disabled="!resumePrimary && disabled"
-      :aria-label="resumePrimary ? t.resumeAction : t.voiceLabel"
-      @click="resumePrimary ? $emit('resume') : $emit('voice')"
+      :disabled="voiceDisabled"
+      :aria-label="t.voiceLabel"
+      @click="$emit('voice')"
     >
-      <UiIcon v-if="resumePrimary" class="voice-resume-icon" name="clock" />
-      <VoiceWave v-else />
+      <VoiceWave />
       <span class="voice-label" :style="{ fontSize: `${voiceFontSize}px` }">{{
         primaryLabel
       }}</span>
