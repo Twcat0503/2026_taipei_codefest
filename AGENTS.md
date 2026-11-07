@@ -55,7 +55,7 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 
 ### 前端（`frontend/`）
 
-- Vue3 + Vite + TS 前端，**主要開發區**（待建立；scaffold 後補內部結構說明）。
+- Vue3 + Vite + TS 前端，**主要開發區**；內部結構與目錄慣例寫在 `frontend/README.md`，以該檔為準。
 
 ### Flutter（repo 根目錄）
 
@@ -76,7 +76,7 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 - JS→Flutter bridge：`window.flutterObject.postMessage(JSON.stringify({name, data}))`；新增能力須 extends `TPWebMessageHandler` 並註冊於 `TPWebMessageListener`。
   - `TPInAppWebView`（`lib/util/tp_web_view.dart`）在 `onWebViewCreated` 掛上 `TPWebMessageListener`，注入的 JS 物件名為 `flutterObject`。
   - 所有 handler 都寫在同一檔 `lib/util/web_message_handler/tp_web_message_handler.dart`；listener 依訊息的 `name` 找 `_cachedMessageHandlers` 中同名的 handler，對不到就不會回覆。
-  - 現有 `name`：`userinfo`、`launch_map`、`1999agree`、`phone_call`、`location`、`deviceinfo`、`open_link`、`notify`、`qr_code_scan`。
+  - 現有 `name` 以 `TPWebMessageListener._cachedMessageHandlers`（`lib/util/web_message_handler/tp_web_message_listener.dart`）的清單為準，不在文件重複列舉；前端可用的 `name` 對應 `frontend/src/lib/bridge.ts` 的 `BridgeName`。
   - 回覆由 `replyWebMessage()` 包成 `{"name", "data"}` JSON 字串，網頁端從 `flutterObject` 的 `message` 事件（`event.data`）收到。
 - Vue 端必須偵測 `window.flutterObject` 是否存在，瀏覽器獨立執行時走 mock fallback（參與者不裝 Flutter 也能純瀏覽器開發）。
 - 開發聯調：`pnpm dev --host`，app 內開 `http://<開發機IP>:5173`（模擬器 `http://10.0.2.2:5173`）；cleartext HTTP 需 AndroidManifest debug 設定（`usesCleartextTraffic` 或 networkSecurityConfig）。
