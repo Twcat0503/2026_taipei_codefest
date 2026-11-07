@@ -49,6 +49,14 @@ export function getLocation(signal: AbortSignal): Promise<LatLng | null> {
 
 /** Inside the app, pages open through the existing open_link bridge so the chat is kept. */
 export function openLink(url: string) {
+  if (url.startsWith('tel:')) {
+    const number = url.slice(4);
+    // Native phone_call opens the dialer; the user still presses call there.
+    if (window.flutterObject)
+      window.flutterObject.postMessage(JSON.stringify({ name: 'phone_call', data: number }));
+    else window.location.href = url;
+    return;
+  }
   if (window.flutterObject) {
     window.flutterObject.postMessage(JSON.stringify({ name: 'open_link', data: url }));
     return;
