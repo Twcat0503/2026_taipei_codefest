@@ -4,6 +4,8 @@ playwright-report/
 test-results/
 *.tsbuildinfo
 model-eval.latest.json
+form-fill-eval.latest.json
+form-fill-eval.phone.json
 .env*
 !.env.example
 stress-results/
