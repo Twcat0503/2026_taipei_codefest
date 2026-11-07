@@ -23,6 +23,9 @@ abstract class TPWebMessageListener {
     LlmStartMessageHandler(),
     LlmStopMessageHandler(),
     LlmStatusMessageHandler(),
+    AsrStartMessageHandler(),
+    AsrStopMessageHandler(),
+    AsrStatusMessageHandler(),
   ];
 
   static List<TPWebMessageHandler> get messageHandler => _cachedMessageHandlers;
