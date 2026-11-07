@@ -37,6 +37,7 @@ import {
 import { AgentRunner, fillsPendingLocation } from './agent/runner';
 import { createAgentToolClient } from '../../../tools/townpass/src/agent-client';
 import { DemoModel, LocalModel } from './agent/model';
+import type { FormContext, FormSpec } from './agent/skills/form-fill';
 import { cancelDraft, changeBranch, confirmReservation, prepareReservation } from './agent/tools';
 import {
   clearConversation,
@@ -1182,6 +1183,13 @@ onBeforeUnmount(() => {
                   :demo-mode="mode === 'demo'"
                   :describe="(image: string) => runner.describePhoto(image, locale)"
                   :cancel-describe="() => runner.cancelVision()"
+                  :fill-form="
+                    mode === 'demo'
+                      ? undefined
+                      : (spec: FormSpec, request: string, context: FormContext) =>
+                          runner.fillForm(spec, request, context)
+                  "
+                  :cancel-fill="() => runner.cancelForm()"
                   :photo-file="pendingPhoto"
                   @photo-consumed="pendingPhoto = null"
                   @stay="stay"
