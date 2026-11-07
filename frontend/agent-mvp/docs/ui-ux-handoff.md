@@ -65,7 +65,11 @@ mise exec -- pnpm dev
 | `tests/app.e2e.ts`                   | 使用者流程、axe、雙語 200% 字級檢查                          |
 | `../../lib/util/tp_agent_entry.dart` | App 首頁與服務頁的共用入口                                   |
 
-以下為舊版歷史截圖；目前已採聊天版面，請以執行中的介面為準：
+整合版 Pixel WebView 帳單畫面（自製示範資料）：
+
+<img src="images/agent-integrated-mobile.png" alt="聊天版面中的示範帳單，顯示已繳與未繳狀態並明確標示非真實帳務" width="360" />
+
+以下為舊版歷史截圖；請以執行中的介面為準：
 
 ![桌面示範首頁](images/agent-desktop.png)
 
