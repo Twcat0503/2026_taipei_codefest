@@ -3,9 +3,17 @@ import { defineStore } from 'pinia';
 import { Loader } from '@googlemaps/js-api-loader';
 
 export const useGoogleMapsStore = defineStore('googleMaps', () => {
+  /**
+   * Google Maps API key，由 Vite 環境變數 VITE_GOOGLE_MAPS_API_KEY 提供（見 .env.example）。
+   * key 不進 git；沒有 key 時 isMapAvailable 為 false，畫面要顯示替代訊息。
+   */
+  const apiKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '').trim();
+
+  /** 是否有設定 Google Maps API key */
+  const isMapAvailable = apiKey !== '';
+
   const loader = new Loader({
-    // 替換成您的 API KEY
-    apiKey: '',
+    apiKey,
     version: 'weekly',
     libraries: ['places', 'geometry']
   });
@@ -35,6 +43,7 @@ export const useGoogleMapsStore = defineStore('googleMaps', () => {
 
   return {
     loader,
+    isMapAvailable,
     showMapNotification,
     gettingPosition
   };
