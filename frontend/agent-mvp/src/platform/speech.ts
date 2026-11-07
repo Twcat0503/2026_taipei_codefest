@@ -1,4 +1,5 @@
 import { hasNativeBridge, listenNative, newNativeRequestId, postNative } from './native-bridge';
+import { speakNaturalVoice, stopNaturalVoice } from './natural-voice';
 
 /** The native side must confirm with a `start` event within this time, or the reading fails. */
 const NATIVE_START_TIMEOUT_MS = 5000;
@@ -15,16 +16,18 @@ const MAX_TIMER_MS = 2 ** 31 - 1;
 type Reading = {
   /** What the caller hears when the reading is stopped or replaced. */
   finished: () => void;
+  /** The natural voice speaks it, not the system voice, so there is nothing to stop on the bridge. */
+  naturalVoice?: boolean;
   startTimer?: ReturnType<typeof setTimeout>;
   endTimer?: ReturnType<typeof setTimeout>;
   unlisten: () => void;
 };
 
 /**
- * The one reading, native or in a browser, whose events still matter; events of any other are
- * stale. Every reading ends exactly once and its caller hears about it exactly once: `finished` or
- * `failed` when it ends by itself, `finished` when `stopReading()` or the next `readAloud()` ends
- * it. Callers can rely on that to reset their "speaking" state.
+ * The one reading, native, by the natural voice or in a browser, whose events still matter; events
+ * of any other are stale. Every reading ends exactly once and its caller hears about it exactly
+ * once: `finished` or `failed` when it ends by itself, `finished` when `stopReading()` or the next
+ * `readAloud()` ends it. Callers can rely on that to reset their "speaking" state.
  */
 let reading: Reading | undefined;
 
@@ -63,11 +66,13 @@ export function canReadAloud() {
   return hasNativeBridge() || hasBrowserSpeech();
 }
 export function stopReading() {
+  // Forgetting a natural voice reading stops its playback (its `unlisten`).
   const stopped = forgetReading();
   if (hasNativeBridge()) {
-    // Only an active native reading needs a stop. Posting one while idle would put unrelated
-    // traffic on the bridge, and the native side already stops before every new reading.
-    if (stopped) sendNativeStop();
+    // Only an active native reading needs a stop. Posting one while idle, or for the natural voice
+    // that the system voice never heard of, would put unrelated traffic on the bridge, and the
+    // native side already stops before every new reading.
+    if (stopped && !stopped.naturalVoice) sendNativeStop();
   } else if (typeof window !== 'undefined' && 'speechSynthesis' in window)
     window.speechSynthesis.cancel();
   // A stopped reading still ends: whoever waits for it must be able to reset.
@@ -80,8 +85,39 @@ export function readAloud(
   finished: () => void,
   failed: () => void,
 ) {
+  if (hasNativeBridge() && lang !== 'en' && readAloudNatural(text, lang, rate, finished, failed))
+    return;
   if (hasNativeBridge()) readAloudNative(text, lang, rate, finished, failed);
   else readAloudInBrowser(text, lang, rate, finished, failed);
+}
+
+/**
+ * Reads with the opt-in natural voice (natural-voice.ts), which takes Chinese when its service is
+ * ready. False when the system voice has to read it: the preference is off, the service is not
+ * ready, or there is nothing to say. Registers the reading like any other, so it ends exactly once.
+ */
+function readAloudNatural(
+  text: string,
+  lang: string,
+  rate: number,
+  finished: () => void,
+  failed: () => void,
+) {
+  // Ends the reading this one replaces, so its caller is not left waiting.
+  stopReading();
+  const current: Reading = { finished, naturalVoice: true, unlisten: stopNaturalVoice };
+  const started = speakNaturalVoice(
+    text,
+    rate,
+    () => end(current, finished),
+    // What it could not speak goes to the system voice. This reading ends by handing over, not by
+    // calling `finished`: the system reading carries the same callbacks, so the caller hears
+    // `finished` or `failed` once, from that one.
+    (rest) => end(current, () => readAloudNative(rest, lang, rate, finished, failed)),
+  );
+  // Neither callback runs before this returns, so the reading can be registered afterwards.
+  if (started) reading = current;
+  return started;
 }
 
 function readAloudNative(

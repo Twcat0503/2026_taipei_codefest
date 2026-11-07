@@ -173,6 +173,8 @@ const zh = {
   hapticFeedback: '震動回饋',
   voiceFeedback: '語音回饋',
   speechError: '朗讀未能啟動，請使用系統螢幕閱讀器。',
+  naturalVoice: '本機自然語音（BlueMagpie）',
+  naturalVoiceHint: '需要手機已安裝語音模型；無法使用時自動改用系統語音。',
   developer: '開發者檢視與接點設定',
   mode: '模型來源',
   demoMode: '規則模擬（不使用 LLM）',
@@ -487,6 +489,9 @@ const en: Record<keyof typeof zh, string> = {
   hapticFeedback: 'Vibration feedback',
   voiceFeedback: 'Voice feedback',
   speechError: 'Reading aloud could not start. Please use your system screen reader.',
+  naturalVoice: 'On-device natural voice (BlueMagpie)',
+  naturalVoiceHint:
+    'Used for Chinese read-aloud. Needs the voice model installed on this phone; when it is unavailable, the system voice is used automatically.',
   developer: 'Developer view and integration settings',
   mode: 'Model source',
   demoMode: 'Rule-based simulation (no LLM)',
