@@ -391,7 +391,7 @@ test('welcome, settings and composer reflow at 200% in both orientations', async
       expect(await page.locator('.composer-box').isVisible()).toBe(true);
       const plus = await page
         .getByRole('button', {
-          name: locale === 'en' ? 'Add a photo to help describe' : '加照片幫我描述',
+          name: locale === 'en' ? 'Report with a photo' : '用照片報案',
         })
         .boundingBox();
       const composer = await page.locator('.composer-box').boundingBox();
@@ -518,7 +518,7 @@ test('native model setup stays in settings and does not push the home off screen
     .toBe(true);
   await expect(page.getByRole('button', { name: '啟動手機模型', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: '開始語音輸入', exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: '加照片幫我描述', exact: true }).click();
+  await page.getByRole('button', { name: '用照片報案', exact: true }).click();
   await expect(page.getByText('請先啟動手機模型，再用照片辨識。', { exact: true })).toBeVisible();
   expect(
     await page
@@ -535,7 +535,7 @@ test('native model setup stays in settings and does not push the home off screen
 });
 
 test('the plus shortcut only accepts photos when a model can describe them', async ({ page }) => {
-  const plus = page.getByRole('button', { name: '加照片幫我描述', exact: true });
+  const plus = page.getByRole('button', { name: '用照片報案', exact: true });
   await expect(plus).toBeVisible();
   await expect(page.locator('#assistant-photo-input')).toHaveAttribute(
     'accept',

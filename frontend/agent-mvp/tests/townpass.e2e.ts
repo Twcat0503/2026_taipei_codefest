@@ -272,7 +272,7 @@ test('the plus photo shortcut creates an editable report, never submitting autom
   await page.getByRole('button', { name: '套用接點', exact: true }).click();
   await page.getByRole('button', { name: '關閉設定', exact: true }).click();
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: '加照片幫我描述', exact: true }).click();
+  await page.getByRole('button', { name: '用照片報案', exact: true }).click();
   await (
     await chooser
   ).setFiles({

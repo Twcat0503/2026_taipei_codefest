@@ -1039,13 +1039,14 @@ onBeforeUnmount(() => {
           type="file"
           accept="image/jpeg,image/png,image/webp"
           :aria-label="t.photoPicker"
+          aria-hidden="true"
           tabindex="-1"
           @change="selectPhoto"
         />
         <button
           type="button"
           class="add-button"
-          :aria-label="t.photoAdd"
+          :aria-label="t.photoReport"
           :disabled="busy || !!state.draft"
           @click="requestPhoto"
         >
