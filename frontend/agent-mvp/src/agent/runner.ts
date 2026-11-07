@@ -19,6 +19,7 @@ import {
 import type { Domain, Message, ModelAdapter, TaskState, ToolCall } from './types';
 
 const ACCESSIBLE_PLACE = /無障礙|身障|身心障礙|輪椅|孕婦|愛心|accessible|wheelchair|disab|pregnan/i;
+const PLACE_WORDS = /YouBike|Ubike|停車場|公廁|廁所|toilets?|restrooms?|parking lot/i;
 /** Taipei districts: the Chinese short name, then its English spelling as people type it. */
 const DISTRICTS: readonly (readonly [zh: string, en: RegExp])[] = [
   ['松山', /Songshan/i],
@@ -248,13 +249,26 @@ export class AgentRunner {
         // Keep book/report/application requests with the router; only correct short place lookups.
         const explicitPlace =
           request.length <= 80 &&
-          /YouBike|Ubike|停車場|公廁|廁所|toilets?|restrooms?|parking lot/i.test(request) &&
+          PLACE_WORDS.test(request) &&
           !/書|book|圖書|通報|陳情|報修|修繕|故障|申請|申辦|補助|report|application|[「『“"]/i.test(
             request,
           );
         if (explicitPlace && domain !== 'places') {
           trace('router', 'corrected', 'Explicit place lookup must use the places tools.');
           domain = 'places';
+        }
+        // The same models send a quoted book title to places.
+        // A quote with no place, service or bill wording is a catalog lookup.
+        if (
+          domain === 'places' &&
+          /[「『“"][^」』”"]+[」』”"]/u.test(request) &&
+          !PLACE_WORDS.test(request) &&
+          !/通報|陳情|報修|修繕|故障|申請|申辦|補助|繳|帳單|叫號|臨櫃|report|application|bill/i.test(
+            request,
+          )
+        ) {
+          trace('router', 'corrected', 'Quoted titles without place words are book lookups.');
+          domain = 'library';
         }
         // Queue numbers are a service lookup, never a personal bill.
         if (domain === 'bills' && /叫號|臨櫃|號碼牌|櫃檯|queue|counter/i.test(request)) {

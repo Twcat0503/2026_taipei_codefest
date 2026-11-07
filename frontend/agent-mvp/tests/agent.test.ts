@@ -428,6 +428,7 @@ describe('generic tool results and decision state', () => {
   });
 
   const lots = { source: 'snapshot', records: [{ id: 'lot', title: text('停車場') }] };
+  const titleLookup = 'Quoted titles without place words are book lookups.';
 
   it('drops a district the user never named and asks for nearby places instead', async () => {
     const state = initialState();
@@ -502,6 +503,76 @@ describe('generic tool results and decision state', () => {
       name: 'find_nearby_parking',
       arguments: {},
     });
+  });
+
+  /** Real mode offers library and service requests only as official-service links. */
+  const linkOnly = (id: string): ToolClient => ({
+    ...answering({
+      source: 'link',
+      records: [{ id, title: text('官方服務'), url: 'https://example.test/service' }],
+    }),
+    listTools: async () => ({ tools: [{ name: 'open_official_service', inputSchema: {} }] }),
+  });
+
+  it('sends a quoted title the router labelled places to the library', async () => {
+    const state = initialState();
+    const client = linkOnly('townpass_library');
+    const callTool = vi.spyOn(client, 'callTool');
+    await new AgentRunner(
+      routedTo('places', 'open_official_service', {
+        destination: 'townpass_library',
+        keyword: '神奇柑仔店',
+      }),
+      state,
+      client,
+    ).run('幫我找「神奇柑仔店」');
+    expect(state.domain).toBe('library');
+    expect(state.traces.map((item) => item.detail)).toContain(titleLookup);
+    expect(callTool.mock.calls[0]?.[0]).toEqual({
+      name: 'open_official_service',
+      arguments: { destination: 'townpass_library', keyword: '神奇柑仔店' },
+    });
+    expect(state.notice).toBe('navigate');
+  });
+
+  it('leaves a quoted request the router called unsupported alone', async () => {
+    const state = initialState();
+    const client = linkOnly('townpass_library');
+    const callTool = vi.spyOn(client, 'callTool');
+    await new AgentRunner(
+      routedTo('unsupported', 'open_official_service', { destination: 'townpass_library' }),
+      state,
+      client,
+    ).run('幫我寫一首關於「雨天」的詩');
+    expect(state.domain).toBe('unsupported');
+    expect(state.notice).toBe('unsupported');
+    expect(state.traces.map((item) => item.detail)).not.toContain(titleLookup);
+    expect(callTool).not.toHaveBeenCalled();
+  });
+
+  it('does not turn a quoted name next to a place word into a book lookup', async () => {
+    const state = initialState();
+    const client = answering(lots);
+    const callTool = vi.spyOn(client, 'callTool');
+    await new AgentRunner(
+      routedTo('places', 'find_nearby_parking', { keyword: '中山' }),
+      state,
+      client,
+    ).run('附近的「中山」停車場');
+    expect(state.domain).toBe('places');
+    expect(state.traces.map((item) => item.detail)).not.toContain(titleLookup);
+    expect(callTool.mock.calls[0]?.[0].name).toBe('find_nearby_parking');
+  });
+
+  it('keeps a quoted request with service words out of the library', async () => {
+    const state = initialState();
+    await new AgentRunner(
+      routedTo('places', 'open_official_service', { destination: 'fee_parking' }),
+      state,
+      linkOnly('fee_parking'),
+    ).run('幫我繳「停車費」');
+    expect(state.domain).not.toBe('library');
+    expect(state.traces.map((item) => item.detail)).not.toContain(titleLookup);
   });
 
   it('runs a UI tool action without calling the model', async () => {
