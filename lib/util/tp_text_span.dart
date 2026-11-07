@@ -7,8 +7,10 @@ class TPTextSpan extends TextSpan {
   /// children.
   ///
   /// This getter does not include the contents of its children.
+  final String? _sourceText;
+
   @override
-  final String? text;
+  String? get text => _sourceText;
 
   /// Additional spans to include as children.
   ///
@@ -19,8 +21,10 @@ class TPTextSpan extends TextSpan {
   /// and may have unexpected results.
   ///
   /// The list must not contain any nulls.
+  final List<InlineSpan>? _sourceChildren;
+
   @override
-  final List<InlineSpan>? children;
+  List<InlineSpan>? get children => _sourceChildren;
 
   /// split text with words(english characters, digits and "_")
   static final RegExp _splitRegExp = RegExp(r'(?<=\W)(?=\w)|(?<=\w)(?=\W)');
@@ -29,8 +33,8 @@ class TPTextSpan extends TextSpan {
   static final RegExp _wordCharacter = RegExp(r'\w');
 
   TPTextSpan({
-    this.text,
-    this.children,
+    String? text,
+    List<InlineSpan>? children,
     super.style,
     super.recognizer,
     super.mouseCursor,
@@ -39,7 +43,9 @@ class TPTextSpan extends TextSpan {
     super.semanticsLabel,
     super.locale,
     super.spellOut,
-  }) : super(
+  }) : _sourceText = text,
+        _sourceChildren = children,
+        super(
           text: null,
           children: [
             ...?text?.split(_splitRegExp).map(

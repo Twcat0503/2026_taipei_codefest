@@ -145,20 +145,6 @@ class _ScannerOverlay extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final backgroundPath = Path()..addRect(Rect.largest);
-    final cutoutPath = Path()..addRect(window);
-
-    final Paint backgroundPaint = Paint()
-      ..color = Colors.black.withOpacity(0.5)
-      ..style = PaintingStyle.fill
-      ..blendMode = BlendMode.dstOut;
-
-    final Path backgroundWithCutout = Path.combine(
-      PathOperation.difference,
-      backgroundPath,
-      cutoutPath,
-    );
-
     const double strokeWidth = 5.0;
     final Rect strokeRect = Rect.fromCenter(
       center: window.center,
@@ -175,34 +161,33 @@ class _ScannerOverlay extends CustomPainter {
     final double cornerStrokeWidth = window.width / 5;
     final double cornerStrokeHeight = window.height / 5;
 
-    canvas
-      ..drawPath(
-        Path()
-          // top left corner
-          ..moveTo(strokeRect.left, strokeRect.top + cornerStrokeHeight)
-          ..lineTo(strokeRect.left, window.top)
-          ..quadraticBezierTo(strokeRect.left, strokeRect.top, window.left, strokeRect.top)
-          ..lineTo(strokeRect.left + cornerStrokeWidth, strokeRect.top)
+    canvas.drawPath(
+      Path()
+        // top left corner
+        ..moveTo(strokeRect.left, strokeRect.top + cornerStrokeHeight)
+        ..lineTo(strokeRect.left, window.top)
+        ..quadraticBezierTo(strokeRect.left, strokeRect.top, window.left, strokeRect.top)
+        ..lineTo(strokeRect.left + cornerStrokeWidth, strokeRect.top)
 
-          // top right corner
-          ..moveTo(strokeRect.right - cornerStrokeWidth, strokeRect.top)
-          ..lineTo(window.right, strokeRect.top)
-          ..quadraticBezierTo(strokeRect.right, strokeRect.top, strokeRect.right, window.top)
-          ..lineTo(strokeRect.right, strokeRect.top + cornerStrokeHeight)
+        // top right corner
+        ..moveTo(strokeRect.right - cornerStrokeWidth, strokeRect.top)
+        ..lineTo(window.right, strokeRect.top)
+        ..quadraticBezierTo(strokeRect.right, strokeRect.top, strokeRect.right, window.top)
+        ..lineTo(strokeRect.right, strokeRect.top + cornerStrokeHeight)
 
-          // bottom right
-          ..moveTo(strokeRect.right, strokeRect.bottom - cornerStrokeHeight)
-          ..lineTo(strokeRect.right, window.bottom)
-          ..quadraticBezierTo(strokeRect.right, strokeRect.bottom, window.right, strokeRect.bottom)
-          ..lineTo(strokeRect.right - cornerStrokeWidth, strokeRect.bottom)
+        // bottom right
+        ..moveTo(strokeRect.right, strokeRect.bottom - cornerStrokeHeight)
+        ..lineTo(strokeRect.right, window.bottom)
+        ..quadraticBezierTo(strokeRect.right, strokeRect.bottom, window.right, strokeRect.bottom)
+        ..lineTo(strokeRect.right - cornerStrokeWidth, strokeRect.bottom)
 
-          // bottom left
-          ..moveTo(strokeRect.left + cornerStrokeWidth, strokeRect.bottom)
-          ..lineTo(window.left, strokeRect.bottom)
-          ..quadraticBezierTo(strokeRect.left, strokeRect.bottom, strokeRect.left, window.bottom)
-          ..lineTo(strokeRect.left, strokeRect.bottom - cornerStrokeHeight),
-        borderPaint,
-      );
+        // bottom left
+        ..moveTo(strokeRect.left + cornerStrokeWidth, strokeRect.bottom)
+        ..lineTo(window.left, strokeRect.bottom)
+        ..quadraticBezierTo(strokeRect.left, strokeRect.bottom, strokeRect.left, window.bottom)
+        ..lineTo(strokeRect.left, strokeRect.bottom - cornerStrokeHeight),
+      borderPaint,
+    );
   }
 
   @override
