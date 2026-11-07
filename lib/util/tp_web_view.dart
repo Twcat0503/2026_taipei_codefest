@@ -453,7 +453,12 @@ class TPInAppWebView extends StatelessWidget {
     return InAppWebView(
       onWebViewCreated: (controller) async {
         await controller.addWebMessageListener(
-          TPWebMessageListener.webMessageListener(),
+          TPWebMessageListener.webMessageListener(
+            onTtsReply: (reply, targetOrigin) => controller.postWebMessage(
+              message: reply,
+              targetOrigin: targetOrigin,
+            ),
+          ),
         );
         onWebViewCreated?.call(controller);
       },
