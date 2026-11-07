@@ -1,4 +1,4 @@
-/** 用假的 fetch 驗證瀏覽器入口符合 agent 的 McpClient 契約，不連網路。 */
+/** 用假的 fetch 驗證瀏覽器入口符合 agent 的 ToolClient 契約，不連網路。 */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
