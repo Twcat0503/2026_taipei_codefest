@@ -6,8 +6,13 @@
 html {
   background: #fff;
 }
+/*
+ * --dev-hud-height：開發看板（src/dev/hud.ts，?hud=1 啟用）的高度。看板固定在最上方，
+ * 頁面靠這個值讓位，不被蓋住；沒啟用時是 0，正式版面不受影響。
+ */
 body {
   margin: 0;
+  padding-top: var(--dev-hud-height, 0px);
   color: var(--ink);
   background: #fff;
   font-family:
@@ -19,7 +24,7 @@ body {
 #app {
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  min-height: calc(100dvh - var(--dev-hud-height, 0px));
 }
 button,
 input,
@@ -93,13 +98,13 @@ ol {
   background: var(--deep);
 }
 .skip-link:focus {
-  top: 0.5rem;
+  top: calc(var(--dev-hud-height, 0px) + 0.5rem);
 }
 
 /* 頂部 */
 .chat-header {
   position: sticky;
-  top: 0;
+  top: var(--dev-hud-height, 0px);
   z-index: 20;
   display: flex;
   align-items: center;
@@ -151,7 +156,7 @@ ol {
   display: grid;
   gap: 0.75rem;
   max-width: 26rem;
-  max-height: calc(100dvh - 5rem);
+  max-height: calc(100dvh - 5rem - var(--dev-hud-height, 0px));
   margin-left: auto;
   padding: 1rem;
   overflow-y: auto;
