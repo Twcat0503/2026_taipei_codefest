@@ -35,7 +35,7 @@ flowchart TB
 
 ## 已可操作的 Agent MVP
 
-[獨立 MVP](frontend/agent-mvp/README.md) 已整合 App 首頁與服務頁入口。它實作受限單次任務流程，使用模擬服務資料；Qwen3 1.7B 僅為聯調模型，正式 MCP 與 LLM 由隊友提供。上方架構圖是團隊目標架構，MVP 的實際流程、UI／UX 修改入口與驗收方式見 [交接文件](frontend/agent-mvp/docs/ui-ux-handoff.md)。
+[獨立 MVP](frontend/agent-mvp/README.md) 已整合 App 首頁與服務頁入口。它實作受限單次任務流程，使用模擬服務資料；Qwen3 1.7B 僅為聯調模型，正式模型由隊友提供，工具由 `tools/townpass/` 提供。上方架構圖是團隊目標架構，MVP 的實際流程、UI／UX 修改入口與驗收方式見 [交接文件](frontend/agent-mvp/docs/ui-ux-handoff.md)。
 
 ```sh
 cd frontend/agent-mvp

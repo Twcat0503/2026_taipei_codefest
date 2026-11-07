@@ -73,10 +73,10 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 
 ## Agent MVP 分工
 
-- **隊友負責 MCP 與 LLM 推論**；本範圍是 agent orchestration、工具驗證與操作介面。
+- **隊友負責工具與 LLM 推論**；本範圍是 agent orchestration、工具驗證與操作介面。
 - 已驗證的獨立 MVP 在 `frontend/agent-mvp/`，保留 `frontend/` 既有服務範本；UI／UX 交接見 `frontend/agent-mvp/docs/ui-ux-handoff.md`。
 - 在 `frontend/agent-mvp/` 執行 `mise install`、`pnpm install`、`pnpm dev`；lint、format:check、test、build 也在該目錄獨立執行，CI 另行檢查。
-- LLM 透過 `ModelAdapter`、MCP 透過 `McpClient` 替換；Ollama 與 DemoMcpClient 僅供聯調，契約見 MVP README。
+- LLM 透過 `ModelAdapter`、工具透過 `McpClient` 介面替換（介面沿用此名，實作是直接函式呼叫，未使用 MCP 協定）；Ollama 與 DemoMcpClient 僅供聯調，契約見 MVP README。
 - 路由及專家提示用英文；中文需求與專有名詞保留為資料，使用者介面預設繁體中文。
 - App 首頁／服務頁入口使用 `TPAgentEntry`；`AGENT_WEB_URL` debug 預設 loopback，release 需明確指定 HTTPS。前端接點變數見 MVP 的 `.env.example`，不放秘密。
 

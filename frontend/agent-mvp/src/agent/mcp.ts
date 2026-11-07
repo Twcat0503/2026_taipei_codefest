@@ -7,8 +7,8 @@ export type McpResult = {
   isError?: boolean;
 };
 
-/** Teammate-owned MCP transport implements this boundary (official tools/list & tools/call shapes).
- * This interface is not a full MCP transport; no server, discovery, auth or network is simulated.
+/** Tool boundary, implemented by DemoMcpClient or tools/townpass as direct function calls.
+ * The shapes follow MCP tools/list and tools/call, but no MCP transport or server is involved.
  */
 export interface McpClient {
   listTools(options: { signal: AbortSignal }): Promise<{ tools: McpTool[] }>;
