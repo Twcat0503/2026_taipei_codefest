@@ -125,7 +125,7 @@ test('live YouBike results offer the Town Pass map instead of Google Maps', asyn
 test('water fee asks for the account number once, then fills it in', async ({ page }) => {
   await stubBridge(page);
   await send(page, '我要繳水費');
-  await expect(page.getByRole('heading', { name: '繳水費' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '繳水費', exact: true })).toBeVisible();
   await page.getByLabel('你的水號是？').fill('1-23-456789');
   await page.getByRole('button', { name: '前往', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('10 碼');
@@ -152,7 +152,7 @@ test('water fee asks for the account number once, then fills it in', async ({ pa
   await expect(card.getByLabel('你的水號是？')).toHaveCount(0);
 
   // People can see and delete what is remembered.
-  await page.getByText('設定', { exact: true }).click();
+  await page.getByRole('button', { name: '設定', exact: true }).click();
   await expect(page.locator('.remembered')).toContainText('1-23-456789-0');
   await page.getByRole('button', { name: '刪除', exact: true }).click();
   await expect(page.locator('.remembered')).toContainText('目前沒有記住任何資料');
@@ -165,7 +165,9 @@ test('a citizen report is drafted from what was said and opens the form filled i
   await send(page, '大安區和平東路二段100號前的路燈不亮好幾天了，我要陳情');
   await expect(page.getByRole('heading', { name: '有話要說' })).toBeVisible();
   await expect(page.getByLabel('案件主旨')).toHaveValue('路燈故障');
-  await expect(page.getByLabel(/描述/)).toHaveValue('大安區和平東路二段100號前的路燈不亮好幾天了');
+  await expect(page.getByLabel(/^描述（/)).toHaveValue(
+    '大安區和平東路二段100號前的路燈不亮好幾天了',
+  );
   await expect(page.getByLabel(/發生地點/)).toHaveValue('大安區和平東路二段100號前');
   expect(
     (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())

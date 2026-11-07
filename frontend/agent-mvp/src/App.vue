@@ -125,16 +125,16 @@ let adapter: ModelAdapter =
           import.meta.env.VITE_MODEL_PROTOCOL === 'tools' ? 'tools' : 'json-schema',
         )
       : new DemoModel();
-// 預設只用真實資料：台北通官方工具與開放資料（includeDemo: false），報案、前往確認卡才會出現；
-// 帳單面板仍帶示範帳單。VITE_TOOL_SOURCE=townpass-demo 加回示範站模擬資料，=demo 為完全虛構的資料。
+// 預設只用真實資料：台北通官方工具與開放資料（includeDemo: false）。帳單、前往確認卡與水號帶入
+// 都走這條路；示範帳單面板（withDemoBills）會攔下繳費需求，所以只在示範資料模式提供。
+// VITE_TOOL_SOURCE=townpass-demo 加回示範站模擬資料與示範帳單，=demo 為完全虛構的資料。
 const toolSource = import.meta.env.VITE_TOOL_SOURCE;
 const toolClient =
   toolSource === 'demo'
     ? undefined
-    : withDemoBills(
-        createAgentToolClient({ getLocation, includeDemo: toolSource === 'townpass-demo' }),
-        billReadTool,
-      );
+    : toolSource === 'townpass-demo'
+      ? withDemoBills(createAgentToolClient({ getLocation }), billReadTool)
+      : createAgentToolClient({ getLocation, includeDemo: false });
 const realData = toolSource !== 'demo' && toolSource !== 'townpass-demo';
 let runner = new AgentRunner(adapter, state, toolClient);
 // 台北通會員資料：只在 App 內讀一次、只留在記憶體，供選項、草稿與「我的資料」使用。
@@ -1149,7 +1149,7 @@ onBeforeUnmount(() => {
           >
           <p v-else class="small-note">{{ t.speechUnavailable }}</p>
         </section>
-        <section class="settings-section" aria-labelledby="remembered-title">
+        <section class="settings-section remembered" aria-labelledby="remembered-title">
           <h3 id="remembered-title">{{ t.rememberedTitle }}</h3>
           <p v-if="!profile.waterNumber" class="small-note">{{ t.rememberedNone }}</p>
           <div v-else class="action-row">

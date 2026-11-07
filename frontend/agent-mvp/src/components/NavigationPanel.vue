@@ -12,7 +12,6 @@ import { openLink } from '../platform/location';
 import { serviceOrigin } from '../platform/service-navigation';
 import { maskIdNo, maskPhone, readMember, type Member } from '../platform/member';
 import {
-  forgetWaterNumber,
   formatWaterNumber,
   loadProfile,
   normalizeWaterNumber,
@@ -85,10 +84,6 @@ const waterInput = ref('');
 const rememberWater = ref(true);
 const editingWater = ref(false);
 const waterError = ref(false);
-function forgetWater() {
-  forgetWaterNumber();
-  profile.value = loadProfile();
-}
 
 // --- Report draft ---
 const draft = reactive<ReportDraft>({
@@ -387,9 +382,6 @@ function goNavigation() {
             </dl>
             <button type="button" class="text-button" @click="editingWater = true">
               {{ t.prefillWaterChange }}
-            </button>
-            <button type="button" class="text-button" @click="forgetWater">
-              {{ t.rememberedDelete }}
             </button>
           </template>
           <template v-else>
