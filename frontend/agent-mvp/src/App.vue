@@ -13,6 +13,7 @@ import {
   type Locale,
   type Localized,
   type ModelAdapter,
+  type Navigation,
   type TaskState,
 } from './agent/types';
 import { AgentRunner } from './agent/runner';
@@ -22,6 +23,7 @@ import { cancelDraft, changeBranch, confirmReservation, prepareReservation } fro
 import { clearTask, getPreference, restoreTask, saveTask, setPreference } from './platform/storage';
 import { canReadAloud, readAloud, stopReading } from './platform/speech';
 import { getLocation, openLink } from './platform/location';
+import { serviceOrigin } from './platform/service-navigation';
 
 const locale = ref<Locale>(
   getPreference('tp-language', 'zh-Hant-TW') === 'en' ? 'en' : 'zh-Hant-TW',
@@ -64,11 +66,16 @@ let adapter: ModelAdapter =
           import.meta.env.VITE_MODEL_PROTOCOL === 'tools' ? 'tools' : 'json-schema',
         )
       : new DemoModel();
-// 預設查台北通工具；VITE_TOOL_SOURCE=demo 才用 DemoToolClient 的虛構資料。
+// 預設只用真實資料：官方即時／開放資料與官方入口，不拿模擬資料回答使用者。
+// 開發時 VITE_TOOL_SOURCE=townpass-demo 可加回示範站資料與示範帳單，=demo 則為完全虛構的資料。
+const toolSource = import.meta.env.VITE_TOOL_SOURCE;
+const realData = toolSource !== 'demo' && toolSource !== 'townpass-demo';
 const toolClient =
-  import.meta.env.VITE_TOOL_SOURCE === 'demo'
+  toolSource === 'demo'
     ? undefined
-    : withDemoBills(createAgentToolClient({ getLocation }), billReadTool);
+    : toolSource === 'townpass-demo'
+      ? withDemoBills(createAgentToolClient({ getLocation }), billReadTool)
+      : createAgentToolClient({ getLocation, includeDemo: false });
 let runner = new AgentRunner(adapter, state, toolClient);
 const speechSupported = ref(canReadAloud());
 const speaking = ref(false);
@@ -81,7 +88,56 @@ const activeBook = computed(() =>
 const activeBranch = computed(() =>
   branches.find((branch) => branch.id === state.receipt?.branchId),
 );
-const reply = computed(() => t.value[state.notice]);
+const noticeText = (notice: TaskState['notice']) =>
+  realData && notice === 'unsupported'
+    ? t.value.unsupportedReal
+    : realData && notice === 'empty'
+      ? t.value.emptyReal
+      : t.value[notice];
+const reply = computed(() => noticeText(state.notice));
+const suggestions = computed(() =>
+  realData
+    ? [
+        t.value.toiletSuggestion,
+        t.value.parkingSuggestion,
+        t.value.petitionSuggestion,
+        t.value.paySuggestion,
+        t.value.counter,
+        t.value.bookSuggestion,
+        t.value.disabledSuggestion,
+        t.value.browseServices,
+      ]
+    : [
+        t.value.browseBills,
+        t.value.browseBooks,
+        t.value.browseServices,
+        t.value.counter,
+        t.value.feeSuggestion,
+        t.value.youbikeSuggestion,
+        t.value.perkSuggestion,
+      ],
+);
+// Leaving the assistant always needs a second, explicit tap.
+const confirmingLink = ref<string | null>(null);
+const leftFor = ref<string | null>(null);
+const hostOf = (url: string) => (url.startsWith('tel:') ? url.slice(4) : new URL(url).host);
+// In-app Town Pass pages are named by service, not by the demo host they happen to load from.
+const leaveQuestion = (record: TaskState['records'][number]) =>
+  record.url?.startsWith(`${serviceOrigin}/`)
+    ? t.value.leaveAskApp.replace('{name}', record.title[locale.value])
+    : t.value.leaveAsk.replace('{host}', hostOf(record.url ?? ''));
+function go(url: string) {
+  openLink(url);
+  leftFor.value = url;
+  confirmingLink.value = null;
+}
+function stay() {
+  if (state.navigation) {
+    state.navigation = null;
+    state.notice = 'navigationDeclined';
+  }
+  confirmingLink.value = null;
+}
 const inputDisabled = computed(
   () => busy.value || !!state.draft || (mode.value === 'phone' && !phoneState.value.ready),
 );
@@ -90,7 +146,9 @@ const showSuggestions = computed(
     !busy.value &&
     !state.draft &&
     !state.receipt &&
-    ['welcome', 'unsupported', 'empty', 'error', 'cancelled'].includes(state.notice),
+    ['welcome', 'unsupported', 'empty', 'error', 'cancelled', 'navigationDeclined'].includes(
+      state.notice,
+    ),
 );
 
 // 對話紀錄只留在記憶體，不寫入 localStorage。
@@ -100,6 +158,7 @@ type Turn = {
   notice: TaskState['notice'];
   books: TaskState['bookResults'];
   records: TaskState['records'];
+  navigation: Navigation | null;
   source: TaskState['source'];
   bills: TaskState['billResult'];
   failure: TaskState['failure'];
@@ -118,6 +177,7 @@ function archiveTurn() {
     notice: state.notice,
     books: finished ? [] : state.bookResults,
     records: state.records,
+    navigation: state.navigation,
     source: state.source,
     bills: state.billResult,
     failure: state.failure,
@@ -158,6 +218,8 @@ async function submit(text = input.value) {
   archiveTurn();
   lastRequest.value = text.trim();
   input.value = '';
+  confirmingLink.value = null;
+  leftFor.value = null;
   resumed.value = false;
   busy.value = true;
   await focusResult();
@@ -297,6 +359,11 @@ function speak() {
               `${billCategories[bill.category].label[locale.value]}. ${bill.periodLabel}. ${bill.amount} TWD. ${t.value[`billStatus_${bill.status}`]}`,
           ) ?? []),
           ...shownBooks.value.map((book) => book.title[locale.value]),
+          ...(state.navigation
+            ? [
+                `${state.navigation.title[locale.value]}. ${state.navigation.description?.[locale.value] ?? ''}`,
+              ]
+            : []),
           ...state.records.map(
             (record) =>
               `${record.title[locale.value]}. ${record.description?.[locale.value] ?? ''}`,
@@ -413,7 +480,10 @@ onBeforeUnmount(() => {
       </div>
       <div class="assistant-message">
         <span class="sr-only">{{ t.assistant }}</span>
-        <p>{{ t[turn.notice] }}</p>
+        <p>{{ noticeText(turn.notice) }}</p>
+        <p v-if="turn.navigation" class="small-note">
+          {{ turn.navigation.title[locale] }}（{{ turn.navigation.where }}）
+        </p>
         <ul v-if="turn.books.length" class="plain-list">
           <li v-for="book in turn.books" :key="book.id">
             <strong>{{ book.title[locale] }}</strong>
@@ -506,13 +576,49 @@ onBeforeUnmount(() => {
                 <dd>{{ field.value[locale] }}</dd>
               </template>
             </dl>
-            <button v-if="record.url" class="outline-button" @click="openLink(record.url)">
-              {{ t.openPage }}
-            </button>
+            <template v-if="record.url">
+              <div
+                v-if="confirmingLink === record.id"
+                class="leave-confirm"
+                role="group"
+                :aria-label="t.leaveTitle"
+              >
+                <p>{{ leaveQuestion(record) }}</p>
+                <div class="action-row">
+                  <button class="primary-button" @click="go(record.url)">{{ t.leaveGo }}</button
+                  ><button class="text-button" @click="stay">{{ t.leaveStay }}</button>
+                </div>
+              </div>
+              <button v-else class="outline-button" @click="confirmingLink = record.id">
+                {{ record.url.startsWith('https://www.google.com/maps') ? t.openMap : t.openPage }}
+              </button>
+            </template>
           </li>
         </ul>
+        <section
+          v-if="state.navigation"
+          class="result-card navigation-card"
+          aria-labelledby="navigation-title"
+        >
+          <span class="category">{{ state.navigation.provider }}</span>
+          <h2 id="navigation-title">{{ state.navigation.title[locale] }}</h2>
+          <p v-if="state.navigation.description?.[locale]">
+            {{ state.navigation.description[locale] }}
+          </p>
+          <dl>
+            <dt>{{ state.navigation.url.startsWith('tel:') ? t.leaveCall : t.leaveSite }}</dt>
+            <dd>{{ state.navigation.where }}</dd>
+          </dl>
+          <p class="small-note">{{ state.source?.note || t.leaveNote }}</p>
+          <div class="action-row">
+            <button class="primary-button" @click="go(state.navigation.url)">
+              {{ state.navigation.url.startsWith('tel:') ? t.leaveDial : t.leaveGo }}</button
+            ><button class="text-button" @click="stay">{{ t.leaveStay }}</button>
+          </div>
+        </section>
+        <p v-if="leftFor" class="small-note" role="status">{{ t.leaveRequested }}</p>
         <p v-if="state.failure?.hint" class="small-note">{{ state.failure.hint }}</p>
-        <p v-if="state.source" class="small-note">
+        <p v-if="state.source && !state.navigation" class="small-note">
           {{ state.source.label }}：{{ state.source.note }}
           <template v-if="state.source.truncated">
             {{ t.truncated.replace('{total}', String(state.source.total)) }}
@@ -551,24 +657,13 @@ onBeforeUnmount(() => {
         </section>
 
         <div v-if="showSuggestions" class="suggestions" role="group" :aria-label="t.quick">
-          <button :disabled="inputDisabled" @click="submit(t.browseBills)">
-            {{ t.browseBills }}
-          </button>
-          <button :disabled="inputDisabled" @click="submit(t.browseBooks)">
-            {{ t.browseBooks }}
-          </button>
-          <button :disabled="inputDisabled" @click="submit(t.browseServices)">
-            {{ t.browseServices }}
-          </button>
-          <button :disabled="inputDisabled" @click="submit(t.counter)">{{ t.counter }}</button>
-          <button :disabled="inputDisabled" @click="submit(t.feeSuggestion)">
-            {{ t.feeSuggestion }}
-          </button>
-          <button :disabled="inputDisabled" @click="submit(t.youbikeSuggestion)">
-            {{ t.youbikeSuggestion }}
-          </button>
-          <button :disabled="inputDisabled" @click="submit(t.perkSuggestion)">
-            {{ t.perkSuggestion }}
+          <button
+            v-for="suggestion in suggestions"
+            :key="suggestion"
+            :disabled="inputDisabled"
+            @click="submit(suggestion)"
+          >
+            {{ suggestion }}
           </button>
         </div>
 
@@ -617,6 +712,6 @@ onBeforeUnmount(() => {
         <UiIcon name="send" />
       </button>
     </div>
-    <p id="input-help">{{ t.composerNote }}</p>
+    <p id="input-help">{{ realData ? t.composerNoteReal : t.composerNote }}</p>
   </form>
 </template>

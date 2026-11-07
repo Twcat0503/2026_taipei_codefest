@@ -58,10 +58,10 @@ const parse = (result: { content: { text: string }[] }) => JSON.parse(result.con
 describe("createAgentToolClient", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("列出 16 支工具與 JSON Schema", async () => {
+  it("列出 17 支工具與 JSON Schema", async () => {
     const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch });
     const { tools } = await client.listTools({ signal: signal() });
-    expect(tools).toHaveLength(16);
+    expect(tools).toHaveLength(17);
     expect(tools.map((tool) => tool.name)).toContain("find_nearby_youbike");
     expect(tools.every((tool) => tool.inputSchema.type === "object")).toBe(true);
   });
@@ -134,10 +134,13 @@ describe("createAgentToolClient", () => {
     expect(result.content[0]!.text).not.toContain("is_subscribed");
   });
 
-  it("服務清單列出只能到頁面操作的服務", async () => {
-    const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch });
+  it("服務清單是台北通站內頁面的連結，不含示範資料", async () => {
+    const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch, includeDemo: false });
     const result = await client.callTool({ name: "list_townpass_services", arguments: { keyword: "警政" } }, { signal: signal() });
-    expect(parse(result).records).toMatchObject([{ id: "police_report", url: `${BASE}/police-report`, fields: [{ value: { en: "到頁面操作" } }] }]);
+    const body = parse(result);
+    expect(body.source).toBe("link");
+    expect(body.records).toMatchObject([{ id: "police_report", url: `${BASE}/police-report` }]);
+    expect(body.records[0].fields).toBeUndefined();
   });
 
   it("上游失敗回 isError，不偽裝成查無資料", async () => {
@@ -173,5 +176,46 @@ describe("createAgentToolClient", () => {
     const client = createAgentToolClient({ baseUrl: BASE });
     const result = await client.callTool({ name: "search_library_books", arguments: { keyword: "神奇" } }, { signal: signal() });
     expect(parse(result).records).toHaveLength(1);
+  });
+
+  it("App 模式只提供真實資料與官方入口，不提供示範站模擬資料", async () => {
+    const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch, includeDemo: false });
+    const { tools } = await client.listTools({ signal: signal() });
+    expect(tools.map((tool) => tool.name).sort()).toEqual([
+      "find_nearby_parking",
+      "find_nearby_toilets",
+      "find_nearby_youbike",
+      "list_townpass_services",
+      "open_official_service",
+    ]);
+    const demo = await client.callTool({ name: "search_library_books", arguments: { keyword: "貓" } }, { signal: signal() });
+    expect(demo.isError).toBe(true);
+  });
+
+  it("入口只從白名單組網址：台北通站內優先，關鍵字只用在圖書搜尋", async () => {
+    const client = createAgentToolClient({ baseUrl: BASE, fetchFn: fakeFetch, includeDemo: false });
+    const call = async (args: Record<string, unknown>) => {
+      const result = await client.callTool({ name: "open_official_service", arguments: args }, { signal: signal() });
+      return result.isError ? null : JSON.parse(result.content[0]!.text);
+    };
+    const report = await call({ destination: "townpass_report" });
+    expect(report.source).toBe("link");
+    expect(report.source_label).toBe("台北通站內服務");
+    expect(report.source_note).toContain("示範資料");
+    expect(report.records[0].url).toBe(`${BASE}/citizen-report/`);
+    expect(report.records[0].fields.find((f: { label: { en: string } }) => f.label.en === "前往").value.en).toBe("台北通「有話要說」");
+    expect((await call({ destination: "fee_water" })).records[0].url).toBe(`${BASE}/fee-payment/detail/fee-6/`);
+    expect((await call({ destination: "townpass_library", keyword: "神奇" })).records[0].url).toBe(
+      `${BASE}/library-service/keyword-search?search=%E7%A5%9E%E5%A5%87&type=all`,
+    );
+    expect((await call({ destination: "townpass_library", keyword: "https://evil.example/" })).records[0].url).toBe(
+      `${BASE}/library-service/`,
+    );
+    expect((await call({ destination: "fee_water", keyword: "x" })).records[0].url).toBe(`${BASE}/fee-payment/detail/fee-6/`);
+    const external = await call({ destination: "services_disabled" });
+    expect(external.source_label).toBe("官方入口");
+    expect(external.records[0].url).toContain("https://service.taipei/");
+    expect((await call({ destination: "call_1999" })).records[0].url).toBe("tel:1999");
+    expect(await call({ destination: "https://evil.example/" })).toBeNull();
   });
 });

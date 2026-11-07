@@ -1,6 +1,14 @@
 import { DemoToolClient, type ToolClient } from './tool-client';
 import { routerPrompt, specialistPrompt } from './prompts';
-import { ToolCallError, allowedTools, domainTools, executeReadTool, routingTool } from './tools';
+import {
+  NAVIGATION_TOOL,
+  ToolCallError,
+  allowedTools,
+  domainTools,
+  executeReadTool,
+  routingTool,
+} from './tools';
+import { CATALOG_TOOL, catalogKeyword, destinationFor } from './skills/navigation';
 import {
   billIntentTool,
   billSkill,
@@ -8,7 +16,9 @@ import {
   parseBillOutcome,
   type BillSelection,
 } from './skills/bills';
-import type { Domain, Message, ModelAdapter, TaskState } from './types';
+import type { Domain, Message, ModelAdapter, TaskState, ToolCall } from './types';
+
+const ACCESSIBLE_PLACE = /無障礙|身障|身心障礙|輪椅|孕婦|愛心|accessible|wheelchair|disab|pregnan/i;
 
 /** Bound even adapters that ignore AbortSignal. Late responses never mutate state. */
 async function bounded<T>(
@@ -93,6 +103,7 @@ export class AgentRunner {
     this.state.source = null;
     this.state.failure = null;
     this.state.pendingLocation = null;
+    this.state.navigation = null;
     this.state.billResult = null;
     this.state.billQuery = null;
     this.state.pendingBillCategory = false;
@@ -155,6 +166,7 @@ export class AgentRunner {
     this.state.source = null;
     this.state.failure = null;
     this.state.pendingLocation = null;
+    this.state.navigation = null;
     this.state.domain = null;
     this.state.receipt = null;
     this.state.bookIds = [];
@@ -223,6 +235,30 @@ export class AgentRunner {
           trace('router', 'corrected', 'Explicit place lookup must use the places tools.');
           domain = 'places';
         }
+        // Queue numbers are a service lookup, never a personal bill.
+        if (domain === 'bills' && /叫號|臨櫃|號碼牌|櫃檯|queue|counter/i.test(request)) {
+          trace('router', 'corrected', 'Counter and queue requests belong to services.');
+          domain = 'services';
+        }
+      }
+      let available: Awaited<ReturnType<ToolClient['listTools']>> | null = null;
+      const listAvailable = async () => {
+        available ??= await bounded(
+          (child) => this.tools.listTools({ signal: child }),
+          signal,
+          this.toolTimeoutMs,
+        );
+        signal.throwIfAborted();
+        return available;
+      };
+      // A small router may give up on wording that clearly names an official service.
+      if (
+        domain === 'unsupported' &&
+        destinationFor(request) &&
+        (await listAvailable()).tools.some((tool) => tool.name === NAVIGATION_TOOL)
+      ) {
+        trace('router', 'corrected', 'Explicit official-service wording belongs to services.');
+        domain = 'services';
       }
       this.state.domain = domain;
       trace('router', 'selected', domain);
@@ -230,7 +266,12 @@ export class AgentRunner {
         this.state.notice = 'unsupported';
         return;
       }
-      if (domain === 'bills') {
+      // Without a bill tool (real mode) personal bills are only reachable on the official site.
+      const billsViaOfficialSite =
+        domain === 'bills' &&
+        !selectedCategory &&
+        !(await listAvailable()).tools.some((tool) => tool.name === 'list_bills');
+      if (domain === 'bills' && !billsViaOfficialSite) {
         trace('skill', 'loaded', `${billSkill.id}@${billSkill.version}`);
         if (!selectedCategory) {
           const result = await complete(
@@ -276,22 +317,19 @@ export class AgentRunner {
         this.state.billQuery = { category: selectedCategory, period: 'current' };
       }
       onProgress('searching');
-      const available = await bounded(
-        (child) => this.tools.listTools({ signal: child }),
-        signal,
-        this.toolTimeoutMs,
-      );
-      signal.throwIfAborted();
-      const offeredTools = allowedTools(domain, available.tools);
+      const offeredTools = allowedTools(domain, (await listAvailable()).tools);
       if (!offeredTools.length) {
         if (domain === 'bills') {
           this.state.notice = 'billUnavailable';
           return;
         }
-        throw new Error('TOOL_UNAVAILABLE');
+        // e.g. perks in real mode: no verified source, so say so instead of failing.
+        trace('tools', 'none_available', `${domain}: no verified tool`);
+        this.state.notice = 'unsupported';
+        return;
       }
       trace('tools', 'tools_listed', offeredTools.map((tool) => tool.function.name).join(', '));
-      if (domain === 'bills') {
+      if (domain === 'bills' && !billsViaOfficialSite) {
         const query = this.state.billQuery!;
         trace('bills', 'tool_requested', 'list_bills');
         const result = await bounded(
@@ -323,14 +361,51 @@ export class AgentRunner {
         }
         return;
       }
-      const response = await complete(
-        [{ role: 'system', content: specialistPrompt(domain) }, userMessage],
-        offeredTools,
-      );
-      signal.throwIfAborted();
-      if (!response.calls.length) throw new Error('NO_TOOL_RESULT');
-      if (response.calls.length !== 1) throw new Error('ONE_TOOL_AT_A_TIME');
-      const call = response.calls[0]!;
+      const offeredNames = offeredTools.map((tool) => tool.function.name);
+      // Real mode: the only tools here open Town Pass services or official sites.
+      const linksOnly = offeredNames.every((n) => n === NAVIGATION_TOOL || n === CATALOG_TOOL);
+      const navigable = offeredNames.includes(NAVIGATION_TOOL);
+      // A library request with no matching word (e.g. a quoted title) still means the catalog.
+      const ruled = destinationFor(request) ?? (domain === 'library' ? 'townpass_library' : null);
+      if (linksOnly && !ruled) {
+        // Never send someone to an unrelated page because a small model had to pick one.
+        trace('skill', 'no_destination', 'No service destination matches the request.');
+        this.state.notice = 'unsupported';
+        return;
+      }
+      let call: ToolCall;
+      if (linksOnly && ruled === 'catalog' && offeredNames.includes(CATALOG_TOOL)) {
+        call = { id: 'rule', name: CATALOG_TOOL, arguments: {} };
+        trace('skill', 'navigation', 'Listing Town Pass in-app services.');
+      } else if (linksOnly && navigable && ruled && ruled !== 'townpass_library') {
+        // The destination is explicit; a second inference would only add latency.
+        call = { id: 'rule', name: NAVIGATION_TOOL, arguments: { destination: ruled } };
+        trace('skill', 'navigation', `Destination from explicit wording: ${ruled}`);
+      } else {
+        const response = await complete(
+          [{ role: 'system', content: specialistPrompt(domain) }, userMessage],
+          offeredTools,
+        );
+        signal.throwIfAborted();
+        if (!response.calls.length) {
+          if (!linksOnly || !navigable || !ruled) throw new Error('NO_TOOL_RESULT');
+          response.calls = [{ id: 'rule', name: NAVIGATION_TOOL, arguments: {} }];
+        }
+        if (response.calls.length !== 1) throw new Error('ONE_TOOL_AT_A_TIME');
+        call = response.calls[0]!;
+      }
+      if (call.name === NAVIGATION_TOOL) {
+        if (ruled && ruled !== 'catalog' && call.arguments.destination !== ruled) {
+          trace('skill', 'corrected', `Explicit wording selects ${ruled}.`);
+          call.arguments.destination = ruled;
+        }
+        const keyword =
+          call.arguments.destination === 'townpass_library'
+            ? catalogKeyword(request, call.arguments.keyword)
+            : undefined;
+        if (keyword) call.arguments.keyword = keyword;
+        else delete call.arguments.keyword;
+      }
       // Explicit geographic/accessibility slots are user constraints, not model guesses.
       if (
         domain === 'places' &&
@@ -346,9 +421,11 @@ export class AgentRunner {
           call.arguments.area = districts[0]!;
           if (!/附近|最近|nearby|nearest|near me/i.test(request)) delete call.arguments.near_me;
         }
-        if (call.name === 'find_nearby_toilets' && /無障礙|accessible|wheelchair/i.test(request)) {
+        // Accessibility is a structured filter, not free text: names rarely contain it.
+        if (call.name !== 'find_nearby_youbike') {
           const keyword = typeof call.arguments.keyword === 'string' ? call.arguments.keyword : '';
-          if (!keyword.includes('無障礙')) call.arguments.keyword = '無障礙';
+          if (ACCESSIBLE_PLACE.test(keyword)) delete call.arguments.keyword;
+          if (ACCESSIBLE_PLACE.test(request)) call.arguments.accessible = true;
         }
       }
       trace(domain, 'tool_requested', `${call.name} ${JSON.stringify(call.arguments)}`);

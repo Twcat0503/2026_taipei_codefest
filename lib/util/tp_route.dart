@@ -175,12 +175,15 @@ abstract class TPRoute {
       null => Future.value(null),
       Uri uri => switch (uri.scheme) {
         'local' => Get.toNamed(uri.host),
+        // 從 WebView 內（例如安心助手）再開網頁時，目前路由已是 webView；
+        // GetX 預設會擋掉同名路由，必須允許重複才能疊出新頁。
         _ => Get.toNamed(
           TPRoute.webView,
           arguments: WebViewArgument(
             url: uri.toString(),
             forceTitle: forceTitle,
           ),
+          preventDuplicates: false,
         ),
       },
     };

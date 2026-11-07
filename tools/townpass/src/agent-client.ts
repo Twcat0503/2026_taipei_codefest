@@ -8,7 +8,7 @@ import { z } from "zod";
 import { TownPassClient } from "./adapters/client.js";
 import { createServices } from "./services/index.js";
 import { toPublicError } from "./shared/errors.js";
-import { AGENT_TOOLS, type ToolContext } from "./tools.js";
+import { toolsFor, type ToolContext } from "./tools.js";
 
 const DEFAULT_BASE_URL = "https://taipei-pass-service.vercel.app";
 
@@ -23,6 +23,8 @@ export interface AgentClientOptions {
   fetchFn?: typeof fetch;
   /** 由呼叫端取得裝置位置；座標不經過模型。 */
   getLocation?: ToolContext["getLocation"];
+  /** 是否提供示範站模擬資料的工具。預設 true 以相容既有測試；App 正式流程必須傳 false。 */
+  includeDemo?: boolean;
 }
 
 function untilAborted<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
@@ -43,7 +45,8 @@ export function createAgentToolClient(options: AgentClientOptions = {}) {
   const services = createServices(
     new TownPassClient({ baseUrl, timeoutMs: options.timeoutMs ?? 30_000, fetchFn: options.fetchFn }),
   );
-  const tools = AGENT_TOOLS.map((tool) => ({ name: tool.name, description: tool.description, inputSchema: inputSchema(tool.input) }));
+  const offered = toolsFor(options.includeDemo ?? true);
+  const tools = offered.map((tool) => ({ name: tool.name, description: tool.description, inputSchema: inputSchema(tool.input) }));
 
   return {
     async listTools({ signal }: { signal: AbortSignal }) {
@@ -60,7 +63,7 @@ export function createAgentToolClient(options: AgentClientOptions = {}) {
         isError: true,
         content: [{ type: "text", text: JSON.stringify({ error }) }],
       });
-      const tool = AGENT_TOOLS.find((item) => item.name === params.name);
+      const tool = offered.find((item) => item.name === params.name);
       if (!tool) return fail({ code: "TOOL_NOT_FOUND", message: `沒有工具 ${params.name}` });
       const args = tool.input.safeParse(params.arguments);
       if (!args.success) return fail({ code: "INVALID_ARGUMENTS", message: `${params.name} 的參數不正確` });

@@ -311,6 +311,31 @@ ol {
   gap: 0.5rem;
 }
 
+/* 離開助手前的確認：官方入口卡片與結果卡片內的確認區 */
+.navigation-card {
+  border-color: var(--teal);
+  border-width: 2px;
+}
+.navigation-card h2 {
+  font-size: 1.125rem;
+}
+.navigation-card .result-card p,
+.navigation-card p {
+  color: var(--ink);
+}
+.leave-confirm {
+  display: grid;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: var(--pale);
+}
+.leave-confirm p {
+  color: var(--ink);
+  font-weight: 600;
+}
+
 /* 按鈕 */
 .primary-button,
 .outline-button {

@@ -11,8 +11,9 @@ import type {
   ToolRecord,
 } from './types';
 
+type ToolDomain = Exclude<Domain, 'unsupported'>;
 /** Local whitelist: only these read-only tools and argument names ever reach a tool client. */
-export const TOOLS: Record<string, { domain: Exclude<Domain, 'unsupported'>; args: string[] }> = {
+export const TOOLS: Record<string, { domain: ToolDomain | ToolDomain[]; args: string[] }> = {
   list_bills: { domain: 'bills', args: ['category', 'period'] },
   search_library_books: { domain: 'library', args: ['keyword'] },
   get_library_book: { domain: 'library', args: ['book_id'] },
@@ -28,8 +29,24 @@ export const TOOLS: Record<string, { domain: Exclude<Domain, 'unsupported'>; arg
   list_subscription_topics: { domain: 'services', args: ['keyword'] },
   search_perks: { domain: 'perks', args: ['keyword', 'kind'] },
   find_nearby_youbike: { domain: 'places', args: ['near_me', 'radius_m', 'area', 'keyword'] },
-  find_nearby_parking: { domain: 'places', args: ['near_me', 'radius_m', 'area', 'keyword'] },
-  find_nearby_toilets: { domain: 'places', args: ['near_me', 'radius_m', 'area', 'keyword'] },
+  find_nearby_parking: {
+    domain: 'places',
+    args: ['near_me', 'radius_m', 'area', 'keyword', 'accessible'],
+  },
+  find_nearby_toilets: {
+    domain: 'places',
+    args: ['near_me', 'radius_m', 'area', 'keyword', 'accessible'],
+  },
+  // Real mode: requests that need an official site end in a confirm-before-leaving card.
+  open_official_service: {
+    domain: ['library', 'services', 'bills', 'perks'],
+    args: ['destination', 'keyword'],
+  },
+};
+export const NAVIGATION_TOOL = 'open_official_service';
+export const toolInDomain = (name: string, domain: Domain) => {
+  const owner = TOOLS[name]?.domain;
+  return Array.isArray(owner) ? owner.includes(domain as ToolDomain) : owner === domain;
 };
 
 const searchParameters = {
@@ -86,7 +103,7 @@ export const domainTools = (domain: Domain): ToolDefinition[] =>
 /** Offer only whitelisted tools of this domain that the client really provides. */
 export function allowedTools(domain: Domain, available: ToolInfo[]): ToolDefinition[] {
   return available
-    .filter((tool) => TOOLS[tool.name]?.domain === domain)
+    .filter((tool) => toolInDomain(tool.name, domain))
     .map((tool) => ({
       type: 'function',
       function: {
@@ -126,7 +143,10 @@ function validRecord(item: Record<string, unknown>, isBook: boolean) {
   if (typeof item?.id !== 'string' || item.id.length > 100 || !localized(item.title)) return false;
   if (isBook) return localized(item.author) && localized(item.category);
   if (!optionalLocalized(item.description) || !optionalLocalized(item.category)) return false;
-  if (item.url !== undefined && !(typeof item.url === 'string' && item.url.startsWith('https://')))
+  if (
+    item.url !== undefined &&
+    !(typeof item.url === 'string' && (item.url.startsWith('https://') || item.url === 'tel:1999'))
+  )
     return false;
   const fields = item.fields;
   if (fields === undefined) return true;
@@ -156,7 +176,7 @@ export async function executeReadTool(
   signal: AbortSignal,
 ) {
   const tool = TOOLS[call.name];
-  if (!tool || tool.domain !== domain) throw new Error('TOOL_NOT_ALLOWED');
+  if (!tool || !toolInDomain(call.name, domain)) throw new Error('TOOL_NOT_ALLOWED');
   if (!validArguments(tool.args, call.arguments)) throw new Error('INVALID_ARGUMENTS');
   const result = await client.callTool({ name: call.name, arguments: call.arguments }, { signal });
   signal.throwIfAborted();
@@ -169,16 +189,35 @@ export async function executeReadTool(
     throw new Error('TOOL_ERROR');
   const data = JSON.parse(result.content[0].text);
   if (
-    !['demo', 'snapshot', 'live'].includes(data.source) ||
+    !['demo', 'snapshot', 'live', 'link'].includes(data.source) ||
     !Array.isArray(data.records) ||
-    data.records.length > 20
+    data.records.length > 20 ||
+    (call.name === NAVIGATION_TOOL && data.source !== 'link')
   )
     throw new Error('UNSUPPORTED_SERVICE_DATA');
   const isBook = call.name === 'search_library_books' || call.name === 'get_library_ranking';
   for (const item of data.records)
     if (!validRecord(item, isBook)) throw new Error('INVALID_TOOL_RESULT');
-  // Reservation is a demo flow, so only demo book lists can start it.
-  if (isBook && data.source === 'demo') {
+  if (call.name === NAVIGATION_TOOL) {
+    const [record] = data.records as ToolRecord[];
+    if (data.records.length !== 1 || !record?.url) throw new Error('INVALID_TOOL_RESULT');
+    const field = (label: string) =>
+      record.fields?.find((item) => item.label['zh-Hant-TW'] === label)?.value['zh-Hant-TW'] ?? '';
+    // Nothing opens here: the UI asks the user before leaving the assistant.
+    state.navigation = {
+      id: record.id,
+      title: record.title,
+      description: record.description,
+      provider: field('提供單位'),
+      url: record.url,
+      where: field('前往') || record.url,
+    };
+    state.records = [];
+    state.bookIds = [];
+    state.bookResults = [];
+    state.notice = 'navigate';
+  } else if (isBook && data.source === 'demo') {
+    // Reservation is a demo flow, so only demo book lists can start it.
     state.bookResults = (data.records as Book[]).map(({ id, title, author, category, url }) => ({
       id,
       title,

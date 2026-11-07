@@ -69,6 +69,15 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="tel" />
         </intent>
+        <!-- launch_map 以 canLaunchUrl 檢查地圖網址（Android 11 以上需宣告） -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
         <!-- If your application checks for inAppBrowserView launch mode support -->
         <intent>
             <action android:name="android.support.customtabs.action.CustomTabsService" />

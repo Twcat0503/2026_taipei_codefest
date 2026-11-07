@@ -10,6 +10,11 @@ export interface Dataset<T> {
   label: string;
   schema: z.ZodType<T>;
   ttlMs: number;
+  /**
+   * 官方 blob 檔以 application/octet-stream 回傳 JSON；只有這類完整網址的官方檔案可略過 content-type 檢查，
+   * 仍要通過 JSON 解析與 schema 驗證。示範站 SPA 的路徑不可略過（不存在的路徑會回 HTML）。
+   */
+  anyContentType?: boolean;
 }
 
 export interface ClientOptions {
@@ -52,7 +57,7 @@ export class TownPassClient {
 
     // 示範站是 SPA：不存在的路徑也回 200 和 HTML，所以不能只看狀態碼。
     const contentType = response.headers.get("content-type") ?? "";
-    if (!contentType.includes("json")) throw new UpstreamFormatError(dataset.label);
+    if (!contentType.includes("json") && !dataset.anyContentType) throw new UpstreamFormatError(dataset.label);
 
     let raw: unknown;
     try {
