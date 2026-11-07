@@ -1,4 +1,5 @@
 import { hasNativeBridge, listenNative, newNativeRequestId, postNative } from './native-bridge';
+import { speakNaturalVoice, stopNaturalVoice } from './natural-voice';
 
 /** The native side must confirm with a `start` event within this time, or the reading fails. */
 const NATIVE_START_TIMEOUT_MS = 5000;
@@ -63,6 +64,7 @@ export function canReadAloud() {
   return hasNativeBridge() || hasBrowserSpeech();
 }
 export function stopReading() {
+  stopNaturalVoice();
   const stopped = forgetReading();
   if (hasNativeBridge()) {
     // Only an active native reading needs a stop. Posting one while idle would put unrelated
@@ -80,6 +82,13 @@ export function readAloud(
   finished: () => void,
   failed: () => void,
 ) {
+  if (hasNativeBridge() && lang !== 'en') {
+    // The opt-in natural voice (natural-voice.ts) takes Chinese when its service is ready. Anything
+    // it cannot speak, or all of it when it is not ready, goes to the system voice below.
+    stopReading();
+    const useSystemVoice = (rest: string) => readAloudNative(rest, lang, rate, finished, failed);
+    if (speakNaturalVoice(text, rate, finished, useSystemVoice)) return;
+  }
   if (hasNativeBridge()) readAloudNative(text, lang, rate, finished, failed);
   else readAloudInBrowser(text, lang, rate, finished, failed);
 }

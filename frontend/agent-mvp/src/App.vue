@@ -51,6 +51,12 @@ import { canReadAloud, readAloud, stopReading } from './platform/speech';
 import { a11yState } from './platform/a11y';
 import { feedback, setVoiceFeedbackEnabled, voiceFeedbackEnabled } from './platform/feedback';
 import { hapticsEnabled, setHapticsEnabled } from './platform/haptics';
+import {
+  naturalVoiceEnabled,
+  prepareNaturalVoice,
+  releaseNaturalVoice,
+  setNaturalVoiceEnabled,
+} from './platform/natural-voice';
 import { getLocation, openLink } from './platform/location';
 import { createVoiceInput, type VoiceStatus } from './platform/voice-input';
 
@@ -207,6 +213,8 @@ function setVoiceFeedback(event: Event) {
   setVoiceFeedbackEnabled(box.checked);
   box.checked = voiceFeedbackOn.value = voiceFeedbackEnabled();
 }
+// 本機自然語音（BlueMagpie）：只在 App 內提供、預設關閉；無法使用時自動改用系統語音。
+const naturalVoice = ref(native && naturalVoiceEnabled());
 const shownBooks = computed(() => state.bookResults);
 const activeBook = computed(() =>
   state.bookResults.find((book) => book.id === (state.draft?.bookId ?? state.receipt?.bookId)),
@@ -700,6 +708,17 @@ async function refreshPhone() {
     /* Adapter exposes status errors. */
   }
 }
+function setNaturalVoice(event: Event) {
+  const box = event.target as HTMLInputElement;
+  setNaturalVoiceEnabled(box.checked);
+  // 儲存被瀏覽器擋住時存不下來，勾選就退回實際生效的值。
+  box.checked = naturalVoice.value = naturalVoiceEnabled();
+  stopReading();
+  speaking.value = false;
+  // 開啟時先在背景載入語音模型，第一次朗讀就不必等；關閉時釋放它佔用的記憶體。
+  if (naturalVoice.value) void prepareNaturalVoice();
+  else releaseNaturalVoice();
+}
 // 開始朗讀目前的回答，「朗讀這段」與自動朗讀共用。已經在朗讀的話，新的取代舊的。
 function startReading() {
   // 先結束還在進行的朗讀：它的 finished 會同步把 speaking 設回 false，不能發生在下面設成 true 之後。
@@ -764,6 +783,7 @@ onBeforeUnmount(() => {
       .finally(() => phone.dispose());
   else phone.dispose();
   stopReading();
+  releaseNaturalVoice();
 });
 </script>
 
@@ -1365,6 +1385,17 @@ onBeforeUnmount(() => {
               t.voiceFeedback
             }}</label
           >
+          <template v-if="native">
+            <label class="check"
+              ><input
+                type="checkbox"
+                :checked="naturalVoice"
+                aria-describedby="natural-voice-hint"
+                @change="setNaturalVoice"
+              />{{ t.naturalVoice }}</label
+            >
+            <p id="natural-voice-hint" class="small-note">{{ t.naturalVoiceHint }}</p>
+          </template>
         </section>
         <section class="settings-section remembered" aria-labelledby="remembered-title">
           <h3 id="remembered-title">{{ t.rememberedTitle }}</h3>
