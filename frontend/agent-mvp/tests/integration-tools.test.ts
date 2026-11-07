@@ -78,3 +78,30 @@ describe('integrated tools and bill harness', () => {
     });
   });
 });
+
+it('corrects a model routing an explicit toilet lookup to books and retains geographic filters', async () => {
+  const { client, getLocation } = makeClient();
+  const state = initialState();
+  const model = {
+    mode: 'local' as const,
+    complete: vi
+      .fn()
+      .mockResolvedValueOnce({
+        calls: [{ id: 'r', name: 'select_agent', arguments: { domain: 'library' } }],
+      })
+      .mockResolvedValueOnce({
+        calls: [
+          { id: 'p', name: 'find_nearby_toilets', arguments: { near_me: true, area: '士林區' } },
+        ],
+      }),
+  };
+  await new AgentRunner(model, state, client).run('大安區的無障礙廁所');
+  expect(getLocation).not.toHaveBeenCalled();
+  expect(state.domain).toBe('places');
+  expect(state.records[0]?.title['zh-Hant-TW']).toBe('測試無障礙公廁');
+  expect(
+    state.traces.some(
+      (t) => t.detail.includes('"area":"大安區"') && t.detail.includes('"keyword":"無障礙"'),
+    ),
+  ).toBe(true);
+});

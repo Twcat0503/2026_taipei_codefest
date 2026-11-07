@@ -211,6 +211,18 @@ export class AgentRunner {
         )
           throw new Error('INVALID_ROUTE');
         domain = call.arguments.domain as Domain;
+        // Small on-device models can confuse explicit place lookups with book search.
+        // Keep book/report/application requests with the router; only correct short place lookups.
+        const explicitPlace =
+          request.length <= 80 &&
+          /YouBike|Ubike|停車場|公廁|廁所|toilets?|restrooms?|parking lot/i.test(request) &&
+          !/書|book|圖書|通報|陳情|報修|修繕|故障|申請|申辦|補助|report|application|[「『“"]/i.test(
+            request,
+          );
+        if (explicitPlace && domain !== 'places') {
+          trace('router', 'corrected', 'Explicit place lookup must use the places tools.');
+          domain = 'places';
+        }
       }
       this.state.domain = domain;
       trace('router', 'selected', domain);
@@ -319,6 +331,26 @@ export class AgentRunner {
       if (!response.calls.length) throw new Error('NO_TOOL_RESULT');
       if (response.calls.length !== 1) throw new Error('ONE_TOOL_AT_A_TIME');
       const call = response.calls[0]!;
+      // Explicit geographic/accessibility slots are user constraints, not model guesses.
+      if (
+        domain === 'places' &&
+        ['find_nearby_youbike', 'find_nearby_parking', 'find_nearby_toilets'].includes(call.name)
+      ) {
+        const districts = [
+          ...new Set(
+            request.match(/(?:松山|信義|大安|中山|中正|大同|萬華|文山|南港|內湖|士林|北投)區/g) ??
+              [],
+          ),
+        ];
+        if (districts.length === 1) {
+          call.arguments.area = districts[0]!;
+          if (!/附近|最近|nearby|nearest|near me/i.test(request)) delete call.arguments.near_me;
+        }
+        if (call.name === 'find_nearby_toilets' && /無障礙|accessible|wheelchair/i.test(request)) {
+          const keyword = typeof call.arguments.keyword === 'string' ? call.arguments.keyword : '';
+          if (!keyword.includes('無障礙')) call.arguments.keyword = '無障礙';
+        }
+      }
       trace(domain, 'tool_requested', `${call.name} ${JSON.stringify(call.arguments)}`);
       // Only the bounded transport can finish the lookup; no final LLM completion pass.
       const client: ToolClient = {

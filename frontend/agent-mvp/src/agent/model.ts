@@ -19,6 +19,8 @@ const toolSamples: Sample[] = [
   ['可以訂閱哪些市政訊息', 'list_subscription_topics', { keyword: '' }],
   ['有什麼票券優惠', 'search_perks', { keyword: '', kind: 'ticket' }],
   ['附近的 YouBike', 'find_nearby_youbike', { near_me: true }],
+  ['大安區 YouBike', 'find_nearby_youbike', { area: '大安區' }],
+  ['大安區的無障礙廁所', 'find_nearby_toilets', { area: '大安區', keyword: '無障礙' }],
   ['大安區的停車場', 'find_nearby_parking', { area: '大安區' }],
   ['最近的無障礙廁所', 'find_nearby_toilets', { near_me: true, keyword: '無障礙' }],
 ];
@@ -70,6 +72,8 @@ function structuredRequest(input: Parameters<ModelAdapter['complete']>[0], ollam
       ['查水費繳了沒', 'bills'],
       ['有什麼優惠券', 'perks'],
       ['附近有 YouBike 嗎', 'places'],
+      ['大安區的無障礙廁所', 'places'],
+      ['中山區停車場', 'places'],
       ['請幫我寫一首詩', 'unsupported'],
     ].flatMap(([request, domain]) => [
       { role: 'user' as const, content: JSON.stringify({ original_request: request }) },
