@@ -114,17 +114,42 @@ function validDate(year: number, month: number, day: number): Date | undefined {
   return date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? date : undefined;
 }
 
+/** A value read from the words, with where it was said (for "the last thing they said"). */
+export type Mention = { value: string; index: number };
+const unique = (mentions: Mention[]) => [...new Set(mentions.map((mention) => mention.value))];
+/** 「不是中山區」「not tomorrow」: a mention the person is ruling out. */
+const RULED_OUT = /(?:不是|不在|並非|而不是|not)\s*$/i;
+
+/**
+ * The value mentioned last, skipping ones they ruled out; `undefined` when nothing is left.
+ * Pass the text the indexes point into to recognise 「不是…」 right before a mention.
+ */
+const lastOf = (mentions: Mention[], text?: string) =>
+  mentions
+    .filter(
+      (mention) =>
+        !text || !RULED_OUT.test(text.slice(Math.max(0, mention.index - 4), mention.index)),
+    )
+    .reduce<Mention | undefined>(
+      (last, mention) => (!last || mention.index > last.index ? mention : last),
+      undefined,
+    )?.value;
+
 /** Every day the text names, resolved against today. Each phrase is consumed once. */
 export function resolveDates(text: string, context: FormContext = {}): string[] {
+  return unique(dateMentions(text, context));
+}
+
+export function dateMentions(text: string, context: FormContext = {}): Mention[] {
   const today = todayOf(context);
   const year = today.getUTCFullYear();
-  const found: string[] = [];
+  const found: Mention[] = [];
   let rest = text.normalize('NFKC');
   const take = (pattern: RegExp, resolve: (match: RegExpExecArray) => Date | undefined) => {
     rest = rest.replace(pattern, (...args) => {
       const match = args.slice(0, -2) as unknown as RegExpExecArray;
       const date = resolve(match);
-      if (date) found.push(iso(date));
+      if (date) found.push({ value: iso(date), index: Number(args.at(-2)) });
       return ' '.repeat(String(args[0]).length);
     });
   };
@@ -174,7 +199,7 @@ export function resolveDates(text: string, context: FormContext = {}): string[] 
     if (m[1]?.toLowerCase().startsWith('next')) return addDays(weekStart, 7 + target - 1);
     return addDays(today, (target - isoWeekday(today) + 7) % 7);
   });
-  return [...new Set(found)];
+  return found;
 }
 
 // ---------- times ----------
@@ -190,13 +215,17 @@ const clock = (hour: number, minute: number) =>
 
 /** Every clock time the text names, as HH:MM. Vague parts of day (下午) are not times. */
 export function extractTimes(text: string): string[] {
-  const found: string[] = [];
+  return unique(timeMentions(text));
+}
+
+export function timeMentions(text: string): Mention[] {
+  const found: Mention[] = [];
   let rest = text.normalize('NFKC');
   const take = (pattern: RegExp, resolve: (match: RegExpExecArray) => string | undefined) => {
     rest = rest.replace(pattern, (...args) => {
       const match = args.slice(0, -2) as unknown as RegExpExecArray;
       const time = resolve(match);
-      if (time) found.push(time);
+      if (time) found.push({ value: time, index: Number(args.at(-2)) });
       return time ? ' '.repeat(String(args[0]).length) : String(args[0]);
     });
   };
@@ -225,12 +254,36 @@ export function extractTimes(text: string): string[] {
       return Number.isNaN(minute) ? undefined : clock(hour, minute);
     },
   );
-  return [...new Set(found)];
+  return found;
 }
+
+// ---------- people changing their mind ----------
+
+/**
+ * Words people use when they take back what they just said: 「台北車站，不對，是松山車站」,
+ * 「我是說下午三點」, 「她那天沒空」. Plain negation (不用手語, 不是很急) is not a correction.
+ */
+const CORRECTION =
+  /不對|我是說|我的意思是|更正|應該是|說錯|講錯|(?:喔|啊|噢|欸|呃|哦)\s*不(?:是|對|用|要)?|不是[^，,。！？]{1,12}[，,、]\s*(?:是|而是)|改成|改為|改到|沒空|不能來|不來了|不用了|算了|不去了|\bactually\b|\bI mean\b|\bsorry\b|\bmake it\b|\binstead\b/gi;
+
+/** Where the person's last correction ends, or -1 when they did not correct themselves. */
+export function correctionEnd(text: string): number {
+  let end = -1;
+  for (const match of text.matchAll(CORRECTION)) end = match.index + match[0].length;
+  return end;
+}
+
+/** They backed off to "not sure yet" after correcting a time. */
+const UNSURE = /不確定|還不知道|再說|再看看|未定|not sure/i;
 
 // ---------- the guard ----------
 
+const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const NEGATION = /(?:不用|不需要|不必|不要|不坐|沒有|免|無需|no|don't|do not|without)\s*\S{0,2}$/i;
+/** 「輪椅不用」「我坐輪椅，喔不用」: a refusal right after the cue word, ending the phrase. */
+const NEGATED_AFTER =
+  /^[，,、\s]*(?:喔|啊|噢|欸|呃|嗯|哦)?[，,、\s]*(?:不用|不需要|不要|不坐|不借|免了)了?(?=[，,。！!？?\s]|$)/;
 
 const HEADCOUNT = /[0-9一二兩三四五六七八九十]+\s*(?:個人|位|人|名)|\b\d+\s*(?:people|persons?)\b/i;
 
@@ -263,6 +316,9 @@ export function guardValues(spec: FormSpec, values: FormValues, input: GuardInpu
   const ofType = (type: FormField['type']) => spec.fields.filter((field) => field.type === type);
   const dates = resolveDates(clean, context);
   const times = extractTimes(clean);
+  // After a correction, the last thing they said wins for values read from the words.
+  const corrected = correctionEnd(clean);
+  const afterCorrection = corrected >= 0 ? clean.slice(corrected) : '';
   const banned = [spec.title, ...spec.fields.flatMap((field) => [field.label, field.hint ?? ''])]
     .map(gnorm)
     .filter(Boolean);
@@ -307,6 +363,14 @@ export function guardValues(spec: FormSpec, values: FormValues, input: GuardInpu
       case 'text':
         break;
       case 'district': {
+        const mentioned = DISTRICT_NAMES.map((zh) => ({
+          value: zh,
+          index: clean.lastIndexOf(zh),
+        })).filter((mention) => mention.index >= 0);
+        if (corrected >= 0 && mentioned.length > 1) {
+          out[field.id] = lastOf(mentioned, clean) ?? '';
+          break;
+        }
         const name = DISTRICT_NAMES.find((zh) => value === zh || value === zh.slice(0, 2));
         const said = (zh: string) =>
           [clean, ...places].some((text) => text.includes(zh) || text.includes(zh.slice(0, 2)));
@@ -320,6 +384,8 @@ export function guardValues(spec: FormSpec, values: FormValues, input: GuardInpu
       }
       case 'date': {
         if (ofType('date').length === 1 && dates.length === 1) out[field.id] = dates[0]!;
+        else if (ofType('date').length === 1 && corrected >= 0 && dates.length > 1)
+          out[field.id] = lastOf(dateMentions(clean, context), clean.normalize('NFKC')) ?? '';
         else {
           const phrase = resolveDates(value, context);
           const stated = gnorm(clean).includes(gnorm(value));
@@ -329,7 +395,12 @@ export function guardValues(spec: FormSpec, values: FormValues, input: GuardInpu
         break;
       }
       case 'time': {
-        if (ofType('time').length === 1 && times.length === 1) out[field.id] = times[0]!;
+        const unsure = corrected >= 0 && UNSURE.test(afterCorrection);
+        if (ofType('time').length === 1 && unsure && !extractTimes(afterCorrection).length)
+          out[field.id] = '';
+        else if (ofType('time').length === 1 && times.length === 1) out[field.id] = times[0]!;
+        else if (ofType('time').length === 1 && corrected >= 0 && times.length > 1)
+          out[field.id] = lastOf(timeMentions(clean), clean.normalize('NFKC')) ?? '';
         else {
           const time = value.match(/^(\d{1,2}):(\d{2})/);
           const normalized = time ? clock(Number(time[1]), Number(time[2])) : undefined;
@@ -340,13 +411,29 @@ export function guardValues(spec: FormSpec, values: FormValues, input: GuardInpu
       case 'yesno':
       case 'count': {
         const cues = cuesOf(field).map((cue) => cue.toLowerCase());
-        const at = cues.map((cue) => lower.indexOf(cue)).filter((index) => index >= 0);
+        const at = cues
+          .flatMap((cue) =>
+            [...lower.matchAll(new RegExp(escape(cue), 'g'))].map((m) => ({ cue, index: m.index })),
+          )
+          .sort((a, b) => a.index - b.index);
         // A count is also backed by any "<number> 人/位/名" in the request.
         const counted = field.type === 'count' && HEADCOUNT.test(clean);
-        if (!at.length && !counted) out[field.id] = '';
-        else if (field.type === 'yesno' && at.some((index) => NEGATION.test(lower.slice(0, index))))
-          out[field.id] = 'no';
-        else out[field.id] = value;
+        if (!at.length && !counted) {
+          out[field.id] = '';
+          break;
+        }
+        if (field.type === 'count') {
+          out[field.id] = value;
+          break;
+        }
+        const refused = ({ cue, index }: { cue: string; index: number }) =>
+          NEGATION.test(lower.slice(0, index)) ||
+          NEGATED_AFTER.test(lower.slice(index + cue.length));
+        if (corrected >= 0) {
+          // They changed their mind: the last time they mentioned it decides.
+          const last = at.at(-1)!;
+          out[field.id] = refused(last) ? 'no' : at.some(refused) ? 'yes' : value;
+        } else out[field.id] = at.some(refused) ? 'no' : value;
         break;
       }
     }

@@ -5,6 +5,7 @@ import {
   fillFormGuarded,
 } from '../src/agent/skills/form-fill';
 import {
+  correctionEnd,
   extractTimes,
   guardValues,
   resolveDates,
@@ -143,7 +144,99 @@ describe('guard', () => {
   });
 });
 
+describe('people changing their mind', () => {
+  const context = { ...today, memberAddress: HOME };
+  it('detects corrections but not plain negation', () => {
+    expect(correctionEnd('台北車站，不對，是松山車站')).toBeGreaterThan(0);
+    expect(correctionEnd('下午兩點，我是說下午三點')).toBeGreaterThan(0);
+    expect(correctionEnd('我太太會陪我，啊她那天沒空')).toBeGreaterThan(0);
+    expect(correctionEnd('不是很急，不用手語')).toBe(-1);
+    expect(correctionEnd('騎樓被堆貨，不是路面不平喔')).toBe(-1);
+  });
+
+  it('takes the last date, time and district after a correction', () => {
+    const run = (request: string, values = {}) =>
+      guardValues(REHAB_BUS_FORM, values, { request, context });
+    expect(
+      run('明天早上九點，啊不對，後天早上九點，從家裡去榮總', { date: '2026-11-08' }).date,
+    ).toBe('2026-11-09');
+    expect(run('明天下午兩點，我是說下午三點', { time: '14:00' }).time).toBe('15:00');
+    expect(run('明天下午三點，喔不對，時間還不確定', { time: '15:00' }).time).toBe('');
+    expect(
+      guardValues(
+        CITIZEN_REPORT_FORM,
+        { location: '信義區基隆路一段', district: '大安區' },
+        { request: '大安區復興南路的路燈壞了，不對，是信義區基隆路一段' },
+      ).district,
+    ).toBe('信義區');
+    expect(
+      guardValues(
+        CITIZEN_REPORT_FORM,
+        { district: '中山區' },
+        { request: '民權東路三段，說錯了，是民權東路四段，區域是松山區，不是中山區' },
+      ).district,
+    ).toBe('松山區');
+  });
+
+  it('reads a refusal right after the cue word, and lets the last mention decide', () => {
+    const run = (request: string, wheelchair: string) =>
+      guardValues(REHAB_BUS_FORM, { wheelchair }, { request, context }).wheelchair;
+    expect(run('我坐輪椅，喔不用，這次我自己走', 'yes')).toBe('no');
+    expect(run('輪椅不用，我們五個人', 'yes')).toBe('no');
+    expect(run('要坐輪椅，不用人陪', 'yes')).toBe('yes');
+    expect(run('不用輪椅，喔不對，還是要輪椅', 'no')).toBe('yes');
+  });
+});
+
 describe('fillFormGuarded', () => {
+  it('asks the model to review only when the person corrected themselves', async () => {
+    const calls: string[] = [];
+    const model: ModelAdapter = {
+      mode: 'local',
+      async complete(input) {
+        const review = String(input.messages[0]!.content).startsWith('You review');
+        calls.push(review ? 'review' : 'fill');
+        const dropoff = review ? '國泰醫院' : '馬偕醫院';
+        return {
+          calls: [
+            {
+              id: '1',
+              name: 'fill_form',
+              arguments: { fields: [{ id: 'dropoff', value: dropoff }] },
+            },
+          ],
+        };
+      },
+    };
+    const fixed = await fillFormGuarded(model, REHAB_BUS_FORM, '去馬偕醫院，喔不是，是去國泰醫院', {
+      context: today,
+      review: true,
+    });
+    expect(calls).toEqual(['fill', 'review']);
+    expect(fixed).toMatchObject({ correctionDetected: true, revised: ['dropoff'] });
+    expect(fixed.values.dropoff).toBe('國泰醫院');
+
+    calls.length = 0;
+    const plain = await fillFormGuarded(model, REHAB_BUS_FORM, '明天去馬偕醫院', {
+      context: today,
+      review: true,
+    });
+    expect(calls).toEqual(['fill']);
+    expect(plain).toMatchObject({ correctionDetected: false, revised: [] });
+
+    // Default `auto`: a form without free-text fields (summary/longtext) is not reviewed.
+    calls.length = 0;
+    const auto = await fillFormGuarded(model, REHAB_BUS_FORM, '去馬偕醫院，喔不是，是去國泰醫院', {
+      context: today,
+    });
+    expect(calls).toEqual(['fill']);
+    expect(auto.correctionDetected).toBe(true);
+
+    calls.length = 0;
+    await fillFormGuarded(model, CITIZEN_REPORT_FORM, '路燈壞了，不對，是紅綠燈壞了');
+    expect(calls).toEqual(['fill', 'review']);
+  });
+
   it('never shows the model the removed instruction', async () => {
     const seen: string[] = [];
     const model: ModelAdapter = {

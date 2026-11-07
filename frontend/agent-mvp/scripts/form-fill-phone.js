@@ -89,7 +89,7 @@ const child = spawn(
     'run',
     '--config',
     'vitest.eval.config.ts',
-    'tests/form-fill.eval.ts',
+    process.env.FORM_EVAL_FILE ?? 'tests/form-fill.eval.ts',
     '--testTimeout',
     '200000',
     ...process.argv.slice(2),

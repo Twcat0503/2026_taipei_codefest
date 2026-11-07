@@ -656,6 +656,76 @@ const { values } = await fillFormGuarded(model, TOUR_FORM, 原話, {
   </section>
 
   <section>
+    <h2>民眾講到一半改口</h2>
+    <p>
+      例如「台北車站，不對，是松山車站」「下午兩點，我是說三點」「我太太會陪我，啊她那天沒空」。原本的流程遇到改口，8
+      題只對 1 題，1.7B 模型幾乎都抓第一次說的值。
+    </p>
+    <ul>
+      <li>
+        <strong>防護認得改口</strong
+        >：偵測「不對、我是說、更正、喔不、沒空…」。有改口時，日期、時間、行政區、是否欄位取最後的說法，被「不是…」否定的值不算。這部分是程式，不會變慢。
+      </li>
+      <li>
+        <strong>審核 LLM</strong
+        >：偵測到改口才請模型再看一次「最後的說法」。只在有主旨、描述這類自由文字的表單開啟。
+      </li>
+    </ul>
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr>
+            <th>改口題組（24 題，手機 LFM3）</th>
+            <th class="n">陳情</th>
+            <th class="n">復康巴士</th>
+            <th class="n">導覽</th>
+            <th class="n">合計</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>只靠模型</td>
+            <td class="n">59.4%</td>
+            <td class="n">47.9%</td>
+            <td class="n">64.6%</td>
+            <td class="n">57.0%</td>
+          </tr>
+          <tr>
+            <td>改動前的防護</td>
+            <td class="n">65.6%</td>
+            <td class="n">81.3%</td>
+            <td class="n">89.6%</td>
+            <td class="n">80.5%</td>
+          </tr>
+          <tr>
+            <td>防護＋認得改口</td>
+            <td class="n">65.6%</td>
+            <td class="n">85.4%</td>
+            <td class="n">93.8%</td>
+            <td class="n">83.6%</td>
+          </tr>
+          <tr>
+            <td>＋審核 LLM</td>
+            <td class="n">75.0%</td>
+            <td class="n">85.4%</td>
+            <td class="n">91.7%</td>
+            <td class="n">85.2%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <ul>
+      <li>
+        審核 LLM 修好 3 欄、改壞 1 欄，修好的都在陳情表的主旨與描述。代價是有改口的那題要多等約 14
+        秒（13.5 → 27.9 秒）。
+      </li>
+      <li>
+        還做不好的：地點改口（60%）、沒說「不對」的隱性改口（78%），例如「我跟太太一起，不過她那天要上班」。確認卡要把被改過的欄位標出來，請民眾確認。
+      </li>
+    </ul>
+  </section>
+
+  <section>
     <h2>還要注意的</h2>
     <div class="tbl">
       <table>

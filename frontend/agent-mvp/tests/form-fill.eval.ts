@@ -35,6 +35,7 @@ import {
 } from '../src/agent/skills/form-fill';
 import { guardValues } from '../src/agent/skills/form-guard';
 import { REHAB_HELDOUT, REPORT_HELDOUT, TOUR_FORM, TOUR_HELDOUT } from './form-fill-heldout';
+import { REHAB_CORRECTION, REPORT_CORRECTION, TOUR_CORRECTION } from './form-fill-correction';
 import type { ToolDefinition } from '../src/agent/types';
 
 const MODEL_NAME = process.env.MODEL_NAME || 'qwen3:1.7b';
@@ -56,7 +57,8 @@ type Condition =
   | 'generic+guard'
   | 'generic-shot'
   | 'guarded'
-  | 'guarded-compact';
+  | 'guarded-compact'
+  | 'guarded-noreview';
 /** `x+guard` re-uses condition x's model output (run x first) and only adds `guardValues`. */
 const DERIVED: Partial<Record<Condition, Condition>> = {
   'dedicated+guard': 'dedicated',
@@ -573,10 +575,13 @@ type Row = {
 const rows: Row[] = [];
 
 /** FORM_EVAL_RESCORE=<result json>[,<more>]: score saved model outputs again, no inference. */
+const RESUME = process.env.FORM_EVAL_RESUME === '1';
 const SAVED = new Map<string, Row>(
   process.env.FORM_EVAL_RESCORE
     ? process.env.FORM_EVAL_RESCORE.split(',')
         .flatMap((file) => (JSON.parse(readFileSync(file, 'utf8')) as { rows: Row[] }).rows)
+        // FORM_EVAL_RESUME=1: rows that failed (e.g. the phone model was stopped) run again live.
+        .filter((row) => !RESUME || !row.error)
         .map((row) => [`${row.form}|${row.condition}|${row.request}`, row])
     : [],
 );
@@ -601,21 +606,31 @@ async function runCase(spec: FormSpec, condition: Condition, item: Case): Promis
         guardValues(spec, from.values, { request: item.request, context: item.context }),
       );
       elapsedMs = from.elapsedMs;
-    } else if (saved && (condition === 'guarded' || condition === 'guarded-compact')) {
+    } else if (saved && condition.startsWith('guarded')) {
       // Re-run the (deterministic) guard on the saved model output, so guard changes are scored
       // without new inference. A failed answer degrades to code-only values, as in the app.
+      // A reviewed answer is saved as { fill, review }; the review overrides what it returns.
       raw = saved.raw ?? {};
       elapsedMs = saved.elapsedMs;
-      values = validateValues(
+      const saved_ = (raw ?? {}) as {
+        fill?: Record<string, unknown>;
+        review?: Record<string, unknown>;
+      };
+      const input = { request: item.request, context: item.context };
+      const first = validateValues(
         spec,
-        guardValues(spec, fieldValues((raw ?? {}) as Record<string, unknown>), {
-          request: item.request,
-          context: item.context,
-        }),
+        guardValues(spec, fieldValues(saved_.fill ?? (raw as Record<string, unknown>)), input),
       );
+      values =
+        saved_.review && condition === 'guarded'
+          ? validateValues(
+              spec,
+              guardValues(spec, { ...first, ...fieldValues(saved_.review) }, input),
+            )
+          : first;
     } else if (saved && condition !== 'rule') {
       ({ values, raw, error, elapsedMs } = saved);
-    } else if (SAVED.size && condition !== 'rule') {
+    } else if (SAVED.size && !RESUME && condition !== 'rule') {
       error = 'NOT_IN_SAVED_RESULTS';
     } else if (condition === 'rule') {
       const draft = draftReport(item.request, item.context?.memberAddress);
@@ -623,10 +638,12 @@ async function runCase(spec: FormSpec, condition: Condition, item: Case): Promis
       const { title, description, location, district } = draft;
       values = validateValues(spec, { title, description, location, district });
     } else if (condition === 'dedicated') ({ values, raw } = await fillDedicated(spec, item));
-    else if (condition === 'guarded' || condition === 'guarded-compact')
+    else if (condition.startsWith('guarded'))
       ({ values, raw } = await fillFormGuarded(model, spec, item.request, {
         context: item.context,
-        prompt: condition === 'guarded' ? 'form' : 'compact',
+        prompt: condition === 'guarded-compact' ? 'compact' : 'form',
+        // The compact variant was measured before the review step existed.
+        review: condition === 'guarded',
       }));
     else
       ({ values, raw } = await fillForm(model, spec, item.request, {
@@ -660,16 +677,24 @@ async function runCase(spec: FormSpec, condition: Condition, item: Case): Promis
  * who had not seen the guard or these cases, plus a third form nobody wrote code for.
  */
 const HELDOUT = process.env.FORM_EVAL_SET === 'heldout';
-const SUITES: [FormSpec, Case[]][] = HELDOUT
+/** FORM_EVAL_SET=correction: people who change their mind mid-request (form-fill-correction.ts). */
+const CORRECTION = process.env.FORM_EVAL_SET === 'correction';
+const SUITES: [FormSpec, Case[]][] = CORRECTION
   ? [
-      [CITIZEN_REPORT_FORM, REPORT_HELDOUT],
-      [REHAB_BUS_FORM, REHAB_HELDOUT],
-      [TOUR_FORM, TOUR_HELDOUT],
+      [CITIZEN_REPORT_FORM, REPORT_CORRECTION],
+      [REHAB_BUS_FORM, REHAB_CORRECTION],
+      [TOUR_FORM, TOUR_CORRECTION],
     ]
-  : [
-      [CITIZEN_REPORT_FORM, REPORT_CASES],
-      [REHAB_BUS_FORM, REHAB_CASES],
-    ];
+  : HELDOUT
+    ? [
+        [CITIZEN_REPORT_FORM, REPORT_HELDOUT],
+        [REHAB_BUS_FORM, REHAB_HELDOUT],
+        [TOUR_FORM, TOUR_HELDOUT],
+      ]
+    : [
+        [CITIZEN_REPORT_FORM, REPORT_CASES],
+        [REHAB_BUS_FORM, REHAB_CASES],
+      ];
 for (const [spec, cases] of SUITES)
   for (const condition of CONDITIONS) {
     if (condition === 'rule' && spec.id !== 'citizen_report') continue;
