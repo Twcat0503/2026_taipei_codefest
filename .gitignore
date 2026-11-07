@@ -3,6 +3,13 @@
 .env.*
 !.env.example
 
+# Local dev environment (personal, never committed)
+# Agent tooling, local overrides, editor state that is not team-shared.
+.claude/
+.pi/
+.mise.local.toml
+pubspec_overrides.yaml
+
 # Miscellaneous
 *.class
 *.log
@@ -82,6 +89,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Internal documents (drafts, research notes, meeting notes, organizer attachments)
+# These live in the team cloud, not in this repo; see CONTRIBUTING.md.
+/research/
 *.g.dart
 *.gen.dart
 
@@ -94,3 +105,6 @@ app.*.map.json
 
 # FVM Version Cache
 .fvm/
+
+# npm lockfiles (this repo uses pnpm under frontend/; see CONTRIBUTING.md)
+package-lock.json

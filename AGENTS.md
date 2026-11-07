@@ -45,20 +45,39 @@ fvm flutter test                 # 全部測試
 fvm flutter test test/widget_test.dart   # 單一測試檔
 ```
 
+## 測試與 lint 現況（2026-11-07 實測）
+
+- `fvm flutter analyze`：無任何 issue（exit code 0），新改動應維持零 issue。
+- `fvm flutter test`：目前必定失敗。唯一的 `test/widget_test.dart` 是 Flutter 範本留下的 counter smoke test，未先跑 `initServices()`，會在 `SharedPreferencesService.instance` 的 null check 失敗；與 app 功能無關。
+- PR 自檢看到上述 test 失敗屬既有狀態，只需確認沒有新增的失敗。
+
 ## 架構入門點
 
-- `frontend/`：Vue3 + Vite + TS 前端，**主要開發區**（待建立；scaffold 後補內部結構說明）。
-- `lib/main.dart`：Flutter 進入點。
+### 前端（`frontend/`）
+
+- Vue3 + Vite + TS 前端，**主要開發區**；內部結構與目錄慣例寫在 `frontend/README.md`，以該檔為準。
+
+### Flutter（repo 根目錄）
+
+- `lib/main.dart`：進入點。`initServices()` 在 `runApp` 前以 `Get.putAsync`／`Get.put` 依序註冊 `lib/service/` 的全域 service；其餘程式一律 `Get.find<XService>()` 取用，新增 service 要加在這裡。
+- `lib/util/tp_route.dart`：route 常數與 `GetPage` 清單集中於此，頁面 controller 在各自 `BindingsBuilder` 內 `Get.put`。新增頁面＝加常數＋加 `GetPage`。
+- `TPRoute.openUri(uri:, forceTitle:)`：開連結的共用入口；`local://` scheme 轉 app 內路由，其他 URL 一律開 `TPWebView`。
 - `lib/page/<feature>/`：一個功能一個目錄（home、bill、city_service、account…），頁面專屬 widget 放各頁的 `widget/` 子目錄。
 - `lib/service/`：服務層；`lib/bean/`：資料模型（多為 JSON serializable）。
 - `lib/util/`：共用 UI 元件一律 `tp_` 前綴（`tp_button.dart`、`tp_colors.dart`、`tp_text_styles.dart`…），新共用元件沿用此命名。
+- 微服務掛進 app：城市服務列表定義在 `lib/page/city_service/model/my_service_model.dart`。先在 `MyServiceItemId` enum 加 id，再於 `MyServiceIdExt` 補 `MyServiceItem`；`destinationUrl` 填前端部署網址（空字串＝項目不可點），`forceWebViewTitle` 可固定 WebView 標題。
+- Mock 資料流：controller／service 以 `rootBundle.loadString(Assets.mockData.xxx)` 讀 `assets/mock_data/*.json`，再交給 `lib/bean/` 的 model 解析（範例：`AccountService`）。
 - `assets/mock_data/`：mock 資料；`assets/svg/`、`assets/image/` 經 flutter_gen 產生常數，勿手寫 asset 路徑字串。
-- `test/`：目前僅 `widget_test.dart`。
+- `test/`：目前僅 `widget_test.dart`（現況見「測試與 lint 現況」）。
 
 ## WebView 整合（前端 ↔ App）
 
 - Vue3 前端以 `flutter_inappwebview` 整合進 app；app 內開網頁一律用 `TPWebView`（`Get.toNamed(TPRoute.webView, arguments: WebViewArgument(url: ...))`），勿自建 InAppWebView。
-- JS→Flutter bridge：`window.flutterObject.postMessage(JSON.stringify({name, data}))`；handler 在 `lib/util/web_message_handler/`（userinfo、location、qr_code_scan、phone_call、notify、open_link、deviceinfo 等），新增能力須 extends `TPWebMessageHandler` 並註冊於 `TPWebMessageListener`。
+- JS→Flutter bridge：`window.flutterObject.postMessage(JSON.stringify({name, data}))`；新增能力須 extends `TPWebMessageHandler` 並註冊於 `TPWebMessageListener`。
+  - `TPInAppWebView`（`lib/util/tp_web_view.dart`）在 `onWebViewCreated` 掛上 `TPWebMessageListener`，注入的 JS 物件名為 `flutterObject`。
+  - 所有 handler 都寫在同一檔 `lib/util/web_message_handler/tp_web_message_handler.dart`；listener 依訊息的 `name` 找 `_cachedMessageHandlers` 中同名的 handler，對不到就不會回覆。
+  - 現有 `name` 以 `TPWebMessageListener._cachedMessageHandlers`（`lib/util/web_message_handler/tp_web_message_listener.dart`）的清單為準，不在文件重複列舉；前端可用的 `name` 對應 `frontend/src/lib/bridge.ts` 的 `BridgeName`。
+  - 回覆由 `replyWebMessage()` 包成 `{"name", "data"}` JSON 字串，網頁端從 `flutterObject` 的 `message` 事件（`event.data`）收到。
 - Vue 端必須偵測 `window.flutterObject` 是否存在，瀏覽器獨立執行時走 mock fallback（參與者不裝 Flutter 也能純瀏覽器開發）。
 - 開發聯調：`pnpm dev --host`，app 內開 `http://<開發機IP>:5173`（模擬器 `http://10.0.2.2:5173`）；cleartext HTTP 需 AndroidManifest debug 設定（`usesCleartextTraffic` 或 networkSecurityConfig）。
 - 正式整合：SPA 部署為 https 靜態站；不將 `dist/` 打包進 Flutter assets。
@@ -76,6 +95,31 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 - **個資**：`userinfo` 只取需要的欄位；身分證字號等敏感欄位顯示時遮罩、不寫入前端儲存；不蒐集病歷、障別等健康資料，改問使用偏好（大字、語音）。
 - **開放資料**：畫面依《政府資料開放授權條款》附件格式標示顯名聲明，未標示視同未取得授權。
 - PR 須附設計自檢結果（axe-core／vitest-axe、TalkBack 等，見 CONTRIBUTING.md）。
+
+## 競賽限制（來源：附件1_2026臺北秋季程式設計節選手須知手冊）
+
+- **時程**：2026/11/7（六）10:30 起 Hacking；**11/8（日）09:00 前要在上傳系統完成作品提交**；10:00–13:30 初選，14:10–16:40 決選。
+- **題目**：「用不了」（主辦方指定；對象與方向見上節「設計規範」）。
+- **提交欄位**：
+
+  | 欄位 | 限制 |
+  | --- | --- |
+  | 專案名稱 | ≤ 20 字 |
+  | 提案方向與簡介 | ≤ 50 字 |
+  | 作品介紹 | ≤ 200 字，含專案介紹、服務使用技術 |
+  | 使用開放資料名稱及連結 | 資料集名稱＋連結 |
+  | 程式碼連結 | GitHub 網址（http/https） |
+  | 服務畫面截圖連結 | 截圖或簡報檔放個人雲端的分享連結 |
+
+- **發表只能現場電腦 Demo，不得使用任何形式簡報（PPT、Canva 等）**。初選為評審輪桌，每隊 2 分鐘發表＋1 分鐘 Q&A；決選 15 隊、順序電腦抽籤，每隊 5 分鐘發表＋5 分鐘 Q&A。Demo 電腦自備，控台只提供 HDMI 線，轉接器自備。
+- **評分**：
+
+  | 階段 | 項目（配分） |
+  | --- | --- |
+  | 初選 | 服務應用 40（創意、與題目相符）、視覺呈現 30、技術完整度 30（架構清楚、資料來源正確、運行流暢） |
+  | 決選 | 服務應用 25、服務完整度 30（落地可能性與難易度）、技術穩定度 20（操作流暢、系統穩定）、視覺呈現 15、創意及公益性 10（活用開源技術、公共利益） |
+
+- **作品簡介建議涵蓋**：城市通微服務的理念與受眾、符合主題的應用場景、開發項目與引用技術、資料來源與服務應用方式。
 
 ## 相關資源（競賽）
 
@@ -98,6 +142,8 @@ fvm flutter test test/widget_test.dart   # 單一測試檔
 - Commit message 用 Conventional Commits（英文，subject ≤72 字元、祈使句、無句號）；一個 commit／PR 一件事。
 - 生成檔（`*.g.dart`、`lib/gen/`）已被 gitignore、不進 commit；勿手動編輯，改來源後跑 `build_runner` 於本地產生。
 - API key 等機密不進 commit：`.env` 已 gitignore，key 名稱登記 `.env.example`，source code 不硬編碼。
+- 個人開發環境不進 git：IDE 設定、SDK／本機路徑、建置快取、agent 工具目錄（`.claude/`、`.pi/`）、個人工具設定等一律不 commit；團隊共用且可重現的設定才進 git（如 `frontend/mise.toml`、`pnpm-lock.yaml`、`pubspec.lock`、`.fvmrc`）。
+- 內部文件不進 git：會議紀錄、個人筆記、內部草稿／簡報、主辦方附件與尚未公開的資料放團隊雲端或本機（本機可放已 gitignore 的 `research/`）；repo 只放可公開的專案文件（`README.md`、`AGENTS.md`、`CONTRIBUTING.md`、`LICENSE` 等）。不確定可否公開先問維護者。
 - 新增相依套件須為開源且與 **AGPL-3.0** 相容（MIT／BSD／Apache-2.0 可），PR 內說明選用理由。
 
 ## 已知 gotchas
