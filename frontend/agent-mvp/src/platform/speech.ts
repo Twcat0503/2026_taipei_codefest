@@ -2,14 +2,31 @@ import { hasNativeBridge, listenNative, newNativeRequestId, postNative } from '.
 
 /** The native side must confirm with a `start` event within this time, or the reading fails. */
 const NATIVE_START_TIMEOUT_MS = 5000;
+/**
+ * A started native reading must report its end (`done`, `stopped` or `error`) within this time at
+ * normal speed (the rate divides it): a fixed part plus an allowance per character. It only
+ * catches a lost end event, so it is far longer than any real reading.
+ */
+const NATIVE_END_BASE_MS = 15000;
+const NATIVE_END_PER_CHAR_MS = 400;
+/** `setTimeout` runs a longer delay at once. */
+const MAX_TIMER_MS = 2 ** 31 - 1;
 
-type NativeReading = {
+type Reading = {
+  /** What the caller hears when the reading is stopped or replaced. */
+  finished: () => void;
   startTimer?: ReturnType<typeof setTimeout>;
+  endTimer?: ReturnType<typeof setTimeout>;
   unlisten: () => void;
 };
 
-/** The one native `tts` speak request whose events still matter; events of any other are stale. */
-let nativeReading: NativeReading | undefined;
+/**
+ * The one reading, native or in a browser, whose events still matter; events of any other are
+ * stale. Every reading ends exactly once and its caller hears about it exactly once: `finished` or
+ * `failed` when it ends by itself, `finished` when `stopReading()` or the next `readAloud()` ends
+ * it. Callers can rely on that to reset their "speaking" state.
+ */
+let reading: Reading | undefined;
 
 function hasBrowserSpeech() {
   return (
@@ -19,12 +36,22 @@ function hasBrowserSpeech() {
   );
 }
 
-function forgetNativeReading() {
-  const current = nativeReading;
-  nativeReading = undefined;
-  if (!current) return;
+/** Forgets the current reading with its timers and listener, without telling its caller. */
+function forgetReading() {
+  const current = reading;
+  reading = undefined;
+  if (!current) return undefined;
   clearTimeout(current.startTimer);
+  clearTimeout(current.endTimer);
   current.unlisten();
+  return current;
+}
+
+/** Ends `current` and calls `callback`, unless it was already stopped, replaced or ended. */
+function end(current: Reading, callback: () => void) {
+  if (reading !== current) return;
+  forgetReading();
+  callback();
 }
 
 function sendNativeStop() {
@@ -36,14 +63,15 @@ export function canReadAloud() {
   return hasNativeBridge() || hasBrowserSpeech();
 }
 export function stopReading() {
-  // Only an active native reading needs a stop. Posting one while idle would put unrelated
-  // traffic on the bridge, and the native side already stops before every new reading.
-  const reading = nativeReading !== undefined;
-  forgetNativeReading();
+  const stopped = forgetReading();
   if (hasNativeBridge()) {
-    if (reading) sendNativeStop();
+    // Only an active native reading needs a stop. Posting one while idle would put unrelated
+    // traffic on the bridge, and the native side already stops before every new reading.
+    if (stopped) sendNativeStop();
   } else if (typeof window !== 'undefined' && 'speechSynthesis' in window)
     window.speechSynthesis.cancel();
+  // A stopped reading still ends: whoever waits for it must be able to reset.
+  stopped?.finished();
 }
 export function readAloud(
   text: string,
@@ -63,35 +91,43 @@ function readAloudNative(
   finished: () => void,
   failed: () => void,
 ) {
+  // Ends the reading this one replaces, so its caller is not left waiting.
   stopReading();
   const requestId = newNativeRequestId();
-  const current: NativeReading = { unlisten: () => {} };
-  // Settles the reading at most once; stopped, replaced or already settled readings stay silent.
-  const settle = (callback: () => void) => {
-    if (nativeReading !== current) return;
-    forgetNativeReading();
-    callback();
-  };
+  const speed = Number.isFinite(rate) && rate > 0 ? rate : 1;
+  const current: Reading = { finished, unlisten: () => {} };
   current.unlisten = listenNative('tts', requestId, (reply) => {
-    if (reply.event === 'start') clearTimeout(current.startTimer);
-    else if (reply.event === 'done' || reply.event === 'stopped') settle(finished);
-    else if (reply.event === 'error') settle(failed);
+    if (reply.event === 'start') {
+      if (reading !== current) return;
+      clearTimeout(current.startTimer);
+      clearTimeout(current.endTimer);
+      current.endTimer = setTimeout(
+        () => {
+          if (reading !== current) return;
+          // The end was never reported: stop the native side so it cannot go on talking.
+          sendNativeStop();
+          end(current, finished);
+        },
+        Math.min((NATIVE_END_BASE_MS + NATIVE_END_PER_CHAR_MS * text.length) / speed, MAX_TIMER_MS),
+      );
+    } else if (reply.event === 'done' || reply.event === 'stopped') end(current, finished);
+    else if (reply.event === 'error') end(current, failed);
   });
   current.startTimer = setTimeout(() => {
-    if (nativeReading !== current) return;
+    if (reading !== current) return;
     // Never confirmed: give up, and make sure the request cannot start speaking late.
     sendNativeStop();
-    settle(failed);
+    end(current, failed);
   }, NATIVE_START_TIMEOUT_MS);
-  nativeReading = current;
+  reading = current;
   const sent = postNative('tts', {
     requestId,
     action: 'speak',
     text,
     lang: lang === 'en' ? 'en-US' : 'zh-TW',
-    rate: Number.isFinite(rate) && rate > 0 ? rate : 1,
+    rate: speed,
   });
-  if (!sent) settle(failed);
+  if (!sent) end(current, failed);
 }
 
 function readAloudInBrowser(
@@ -105,7 +141,9 @@ function readAloudInBrowser(
     failed();
     return;
   }
+  // Ends the reading this one replaces, so its caller is not left waiting.
   stopReading();
+  const current: Reading = { finished, unlisten: () => {} };
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = lang === 'en' ? 'en-US' : 'zh-TW';
   utterance.rate = rate;
@@ -114,7 +152,11 @@ function readAloudInBrowser(
     .getVoices()
     .find((v) => v.localService && v.lang.toLowerCase() === utterance.lang.toLowerCase());
   if (voice) utterance.voice = voice;
-  utterance.onend = finished;
-  utterance.onerror = failed;
+  utterance.onend = () => end(current, finished);
+  // `speechSynthesis.cancel()`, ours or anyone else's, ends an utterance with one of these two
+  // errors. That is a stop, not a failure.
+  utterance.onerror = (event) =>
+    end(current, event?.error === 'interrupted' || event?.error === 'canceled' ? finished : failed);
+  reading = current;
   window.speechSynthesis.speak(utterance);
 }

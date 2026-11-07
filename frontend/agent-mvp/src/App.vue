@@ -9,7 +9,9 @@ import UiIcon from './components/UiIcon.vue';
 import NavigationPanel from './components/NavigationPanel.vue';
 import EmergencyCard from './components/EmergencyCard.vue';
 import ProfilePanel from './components/ProfilePanel.vue';
+import { shouldReadAnswerAloud } from './agent/auto-read';
 import { followUps } from './agent/follow-ups';
+import { outcomeFeedback } from './agent/outcome-feedback';
 import { serviceOrigin } from './platform/service-navigation';
 import {
   forgetWaterNumber,
@@ -46,6 +48,9 @@ import {
   setPreference,
 } from './platform/storage';
 import { canReadAloud, readAloud, stopReading } from './platform/speech';
+import { a11yState } from './platform/a11y';
+import { feedback, setVoiceFeedbackEnabled, voiceFeedbackEnabled } from './platform/feedback';
+import { hapticsEnabled, setHapticsEnabled } from './platform/haptics';
 import { getLocation, openLink } from './platform/location';
 import { createVoiceInput, type VoiceStatus } from './platform/voice-input';
 
@@ -188,6 +193,20 @@ const speechSupported = ref(canReadAloud());
 const speaking = ref(false);
 const speechFailed = ref(false);
 const rate = ref('0.9');
+// 震動與語音回饋的開關：偏好存在這支手機；勾選狀態以實際存下的值為準。
+const hapticsOn = ref(hapticsEnabled());
+const voiceFeedbackOn = ref(voiceFeedbackEnabled());
+function setHaptics(event: Event) {
+  const box = event.target as HTMLInputElement;
+  setHapticsEnabled(box.checked);
+  // 儲存被瀏覽器擋住時存不下來，勾選就退回實際生效的值。
+  box.checked = hapticsOn.value = hapticsEnabled();
+}
+function setVoiceFeedback(event: Event) {
+  const box = event.target as HTMLInputElement;
+  setVoiceFeedbackEnabled(box.checked);
+  box.checked = voiceFeedbackOn.value = voiceFeedbackEnabled();
+}
 const shownBooks = computed(() => state.bookResults);
 const activeBook = computed(() =>
   state.bookResults.find((book) => book.id === (state.draft?.bookId ?? state.receipt?.bookId)),
@@ -435,6 +454,7 @@ async function searchParking(
     }
   } finally {
     busy.value = false;
+    feedbackForAnswer();
     persistConversation();
     await focusResult();
   }
@@ -445,6 +465,39 @@ function parkingPhone(record: TaskState['records'][number]) {
     'zh-Hant-TW'
   ];
   return phone && /^[+\d][\d\s()-]{5,24}$/.test(phone) ? phone.replace(/[^+\d]/g, '') : null;
+}
+// 一輪請求結束時的回饋。震動：有結果、出錯、緊急各一種（對照見 agent/outcome-feedback.ts），不帶
+// 文字，因為畫面上的 role="status" 已經會播報。朗讀：「語音回饋」開著、而且確定沒開螢幕閱讀器時，
+// 像按下「朗讀這段」一樣把回答唸出來（條件與哪些回答會唸見 agent/auto-read.ts）。只在剛結束時
+// 呼叫，還原上次的對話或草稿時不會。
+function feedbackForAnswer() {
+  const kind = outcomeFeedback(state.notice);
+  if (kind) feedback(kind);
+  const readIt = shouldReadAnswerAloud(state.notice, {
+    voiceFeedback: voiceFeedbackEnabled(),
+    screenReader: a11yState.screenReader,
+    speechSupported: speechSupported.value,
+  });
+  if (!readIt) return;
+  try {
+    startReading();
+  } catch {
+    // 朗讀只是額外的回饋，出錯也不能讓這一輪的收尾（存檔、移動焦點）做不完。
+    speaking.value = false;
+  }
+}
+// 點選建議或選項：馬上震動一下，因為回答可能還要等幾秒。
+function pick(request: string) {
+  feedback('selection');
+  void submit(request);
+}
+function pickBillCategory(category: BillSelection) {
+  feedback('selection');
+  void billAction(category);
+}
+function pickNearbyParking() {
+  feedback('selection');
+  void searchParking();
 }
 async function submit(text = input.value) {
   if (inputDisabled.value || !text.trim()) return;
@@ -458,6 +511,7 @@ async function submit(text = input.value) {
     Object.assign(state, initialState(), { notice: 'greeting' });
     saveTask(state);
     persistConversation();
+    feedbackForAnswer();
     await focusResult();
     return;
   }
@@ -481,6 +535,7 @@ async function submit(text = input.value) {
     /* Runner exposes a localized, non-sensitive error state. */
   } finally {
     busy.value = false;
+    feedbackForAnswer();
     saveTask(state);
     persistConversation();
     await focusResult();
@@ -497,6 +552,7 @@ async function showBookDetails(bookId: string) {
     /* Runner exposes a localized, non-sensitive error state. */
   } finally {
     busy.value = false;
+    feedbackForAnswer();
     await focusResult();
   }
 }
@@ -519,6 +575,7 @@ async function billAction(category?: BillSelection) {
     /* Runner exposes the error state. */
   } finally {
     busy.value = false;
+    feedbackForAnswer();
     await focusResult();
   }
 }
@@ -532,6 +589,7 @@ function updateBranch(event: Event) {
 function confirm() {
   if (state.draft) {
     confirmReservation(state, state.draft.id);
+    feedbackForAnswer();
     void focusResult();
   }
 }
@@ -642,12 +700,10 @@ async function refreshPhone() {
     /* Adapter exposes status errors. */
   }
 }
-function speak() {
-  if (speaking.value) {
-    stopReading();
-    speaking.value = false;
-    return;
-  }
+// 開始朗讀目前的回答，「朗讀這段」與自動朗讀共用。已經在朗讀的話，新的取代舊的。
+function startReading() {
+  // 先結束還在進行的朗讀：它的 finished 會同步把 speaking 設回 false，不能發生在下面設成 true 之後。
+  stopReading();
   speechFailed.value = false;
   speaking.value = true;
   const extra = state.draft
@@ -684,6 +740,15 @@ function speak() {
       speechFailed.value = true;
     },
   );
+}
+// 「朗讀這段」按鈕：朗讀中再按一次就停止。
+function speak() {
+  if (speaking.value) {
+    stopReading();
+    speaking.value = false;
+    return;
+  }
+  startReading();
 }
 onBeforeUnmount(() => {
   window.visualViewport?.removeEventListener('resize', updateKeyboardViewport);
@@ -738,8 +803,8 @@ onBeforeUnmount(() => {
           :model-status="
             phoneState.error ? t[`phoneError_${phoneState.error}`] : t[`phone_${phoneState.phase}`]
           "
-          @request="submit"
-          @nearby-parking="searchParking()"
+          @request="pick"
+          @nearby-parking="pickNearbyParking"
           @voice="startVoice"
           @start-model="startPhone"
           @resume="home = false"
@@ -837,7 +902,7 @@ onBeforeUnmount(() => {
                   v-if="state.domain === 'bills'"
                   :state="state"
                   :locale="locale"
-                  @select="billAction"
+                  @select="pickBillCategory"
                   @retry="billAction()"
                 />
                 <ul v-if="shownBooks.length && !state.draft && !state.receipt" class="result-list">
@@ -1099,7 +1164,7 @@ onBeforeUnmount(() => {
                       :key="choice.request"
                       class="outline-button"
                       :disabled="inputDisabled"
-                      @click="submit(choice.request)"
+                      @click="pick(choice.request)"
                     >
                       {{ choice.label[locale] }}
                     </button>
@@ -1117,7 +1182,7 @@ onBeforeUnmount(() => {
                     :key="suggestion"
                     class="outline-button"
                     :disabled="inputDisabled"
-                    @click="submit(suggestion)"
+                    @click="pick(suggestion)"
                   >
                     {{ suggestion }}
                   </button>
@@ -1175,17 +1240,13 @@ onBeforeUnmount(() => {
     </section>
     <footer v-else class="composer-dock">
       <div v-if="!home && !state.draft" class="quick-chips" role="group" :aria-label="t.quick">
-        <button
-          :disabled="inputDisabled"
-          :aria-label="t.browseBills"
-          @click="submit(t.browseBills)"
-        >
+        <button :disabled="inputDisabled" :aria-label="t.browseBills" @click="pick(t.browseBills)">
           <span aria-hidden="true"></span>{{ t.billShortcut }}
         </button>
-        <button :disabled="inputDisabled" @click="submit(t.reportRequest)">
+        <button :disabled="inputDisabled" @click="pick(t.reportRequest)">
           <span aria-hidden="true"></span>{{ t.reportShortcut }}
         </button>
-        <button :disabled="inputDisabled" :aria-label="t.counter" @click="submit(t.counter)">
+        <button :disabled="inputDisabled" :aria-label="t.counter" @click="pick(t.counter)">
           <span aria-hidden="true"></span>{{ t.counterShortcut }}
         </button>
       </div>
@@ -1294,6 +1355,16 @@ onBeforeUnmount(() => {
             </select></label
           >
           <p v-else class="small-note">{{ t.speechUnavailable }}</p>
+          <label class="check"
+            ><input type="checkbox" :checked="hapticsOn" @change="setHaptics" />{{
+              t.hapticFeedback
+            }}</label
+          >
+          <label class="check"
+            ><input type="checkbox" :checked="voiceFeedbackOn" @change="setVoiceFeedback" />{{
+              t.voiceFeedback
+            }}</label
+          >
         </section>
         <section class="settings-section remembered" aria-labelledby="remembered-title">
           <h3 id="remembered-title">{{ t.rememberedTitle }}</h3>

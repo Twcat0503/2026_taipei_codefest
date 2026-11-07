@@ -134,6 +134,8 @@ test('native bill navigation requests the registered route and reports bridge fa
   await page.evaluate(() => {
     window.flutterObject = {
       postMessage: (message: string) => {
+        // Haptic feedback uses the bridge too; this test only watches the page request.
+        if (JSON.parse(message).name === 'haptic') return;
         document.documentElement.dataset.bridgeRequest = message;
       },
     };
@@ -551,4 +553,204 @@ test('the plus shortcut only accepts photos when a model can describe them', asy
       .evaluate((input: HTMLInputElement) => input.files?.length),
   ).toBe(0);
   await expect(page.locator('.navigation-card')).toHaveCount(0);
+});
+
+test('haptic feedback follows live events only, never a restored conversation', async ({
+  page,
+}) => {
+  // Chromium cannot vibrate here, so record what the app asks for.
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'vibrate', {
+      configurable: true,
+      value: (pattern: number[]) => {
+        const seen: number[][] = JSON.parse(document.documentElement.dataset.vibrations ?? '[]');
+        document.documentElement.dataset.vibrations = JSON.stringify([...seen, pattern]);
+        return true;
+      },
+    });
+  });
+  const vibrations = async (): Promise<number[][]> =>
+    JSON.parse(await page.evaluate(() => document.documentElement.dataset.vibrations ?? '[]'));
+  const forget = () => page.evaluate(() => delete document.documentElement.dataset.vibrations);
+  const [selection, success, warning] = [[10], [30, 60, 30], [60, 80, 60]];
+  await page.reload();
+  expect(await vibrations()).toEqual([]);
+
+  // A usable answer buzzes once.
+  await chooseService(page, '幫我找圖書');
+  await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toBeVisible();
+  expect(await vibrations()).toEqual([success]);
+
+  // The saved conversation comes back silently.
+  await page.reload();
+  await expect(page.getByText('這是已保存的摘要，查詢結果未保存。')).toBeVisible();
+  expect(await vibrations()).toEqual([]);
+
+  // "Not supported" is neither good nor bad news. Tapping a suggestion ticks, then the answer buzzes.
+  await chooseService(page, '幫我寫一首詩');
+  await expect(page.getByText(/^我能查圖書/)).toBeVisible();
+  expect(await vibrations()).toEqual([]);
+  await page.getByRole('button', { name: '幫我找圖書', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toBeVisible();
+  expect(await vibrations()).toEqual([selection, success]);
+
+  // The emergency card warns.
+  await forget();
+  await chooseService(page, '失火了！');
+  await expect(page.getByRole('heading', { name: /119/ })).toBeVisible();
+  expect(await vibrations()).toEqual([warning]);
+});
+
+test('haptic and voice feedback can be switched in settings and are remembered', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: '設定', exact: true }).click();
+  const haptics = page.getByLabel('震動回饋', { exact: true });
+  const voice = page.getByLabel('語音回饋', { exact: true });
+  await expect(haptics).toBeChecked();
+  await expect(voice).not.toBeChecked();
+  // The whole labelled row is the touch target, not just the small box.
+  for (const toggle of [haptics, voice])
+    expect(
+      await toggle.evaluate((box) => box.closest('label')!.getBoundingClientRect().height),
+    ).toBeGreaterThanOrEqual(48);
+  await page.getByText('震動回饋', { exact: true }).click();
+  await voice.check();
+  await page.reload();
+  await page.getByRole('button', { name: '設定', exact: true }).click();
+  await expect(haptics).not.toBeChecked();
+  await expect(voice).toBeChecked();
+  await page.getByLabel('語言', { exact: true }).selectOption('en');
+  await expect(page.getByLabel('Vibration feedback', { exact: true })).not.toBeChecked();
+  await expect(page.getByLabel('Voice feedback', { exact: true })).toBeChecked();
+});
+
+// A stand-in for the app's bridge. It says whether a screen reader is on, lets a reading start
+// and go on until it is stopped, and keeps every `tts` message the page sends, so a test can see
+// what would have been spoken. It runs in the page, as a function so that it can be put there
+// before the app starts or after it has loaded.
+function speechBridge(screenReader: boolean | null) {
+  const listeners = new Set<(event: { data: string }) => void>();
+  const reply = (name: string, data: Record<string, unknown>) => {
+    for (const listener of listeners) listener({ data: JSON.stringify({ name, data }) });
+  };
+  const sent: unknown[] = [];
+  window.flutterObject = {
+    addEventListener: (_name, listener) => {
+      listeners.add(listener);
+    },
+    removeEventListener: (_name, listener) => {
+      listeners.delete(listener);
+    },
+    postMessage: (raw) => {
+      const { name, data } = JSON.parse(raw);
+      // `boldText` is a harmless marker: the page mirrors it onto <html> right after it has
+      // taken over the rest of this reply, `screenReader` included.
+      if (name === 'a11y_state')
+        reply(name, { requestId: data.requestId, screenReader, boldText: true });
+      if (name !== 'tts') return;
+      sent.push(data);
+      document.documentElement.dataset.tts = JSON.stringify(sent);
+      if (data.action === 'speak') reply(name, { requestId: data.requestId, event: 'start' });
+    },
+  };
+}
+async function installSpeechBridge(page: Page, screenReader: boolean | null) {
+  await page.evaluate(speechBridge, screenReader);
+  // What the page does when it comes back from the system settings: ask for the state again.
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await expect(page.locator('html')).toHaveAttribute('data-a11y-bold', 'true');
+}
+type TtsMessage = { action: 'speak' | 'stop'; text?: string; lang?: string; rate?: number };
+const ttsMessages = async (page: Page): Promise<TtsMessage[]> =>
+  JSON.parse(await page.evaluate(() => document.documentElement.dataset.tts ?? '[]'));
+async function turnOnVoiceFeedback(page: Page) {
+  await page.getByRole('button', { name: '設定', exact: true }).click();
+  await page.getByLabel('語音回饋', { exact: true }).check();
+  await page.getByRole('button', { name: '關閉設定', exact: true }).click();
+}
+
+test('voice feedback reads a finished answer aloud, the way the read button does', async ({
+  page,
+}) => {
+  await installSpeechBridge(page, false);
+  await turnOnVoiceFeedback(page);
+  await chooseService(page, '幫我找圖書');
+  await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toBeVisible();
+
+  // One reading starts by itself, with the reply and what was found.
+  const reply = await page.locator('section.assistant-message .reply-bubble').innerText();
+  const [first, ...others] = await ttsMessages(page);
+  expect(others).toEqual([]);
+  expect(first).toMatchObject({ action: 'speak', lang: 'zh-TW', rate: 0.9 });
+  expect(first.text).toContain(reply);
+  expect(first.text).toContain('一起慢慢走');
+
+  // It is the reading the button controls: the button offers to stop it, and that stops it.
+  await page.getByRole('button', { name: '停止朗讀', exact: true }).click();
+  await expect(page.getByRole('button', { name: '朗讀這段', exact: true })).toBeVisible();
+  expect((await ttsMessages(page)).map((message) => message.action)).toEqual(['speak', 'stop']);
+
+  // Pressing the button reads exactly what was read by itself.
+  await page.getByRole('button', { name: '朗讀這段', exact: true }).click();
+  expect((await ttsMessages(page)).at(-1)?.text).toBe(first.text);
+
+  // A new answer replaces a reading that is still going, and the button still says stop.
+  await page.getByRole('button', { name: '預約這本書', exact: true }).first().click();
+  await page.getByRole('button', { name: '確認示範預約', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '已完成示範預約' })).toBeVisible();
+  const messages = await ttsMessages(page);
+  expect(messages.slice(-2).map((message) => message.action)).toEqual(['stop', 'speak']);
+  expect(messages.at(-1)?.text).toContain('DEMO-');
+  await expect(page.getByRole('button', { name: '停止朗讀', exact: true })).toBeVisible();
+});
+
+for (const { why, screenReader, voiceFeedback } of [
+  { why: 'a screen reader is on', screenReader: true, voiceFeedback: true },
+  { why: 'the app cannot tell if a screen reader is on', screenReader: null, voiceFeedback: true },
+  { why: 'it is turned off', screenReader: false, voiceFeedback: false },
+])
+  test(`voice feedback does not read an answer aloud when ${why}`, async ({ page }) => {
+    await installSpeechBridge(page, screenReader);
+    if (voiceFeedback) await turnOnVoiceFeedback(page);
+    await chooseService(page, '幫我找圖書');
+    await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toBeVisible();
+    // The decision is made when the request ends, before the answer is drawn.
+    expect(await ttsMessages(page)).toEqual([]);
+    await expect(page.getByRole('button', { name: '朗讀這段', exact: true })).toBeVisible();
+  });
+
+test('voice feedback also reads the reply to a greeting and the emergency notice', async ({
+  page,
+}) => {
+  await installSpeechBridge(page, false);
+  await turnOnVoiceFeedback(page);
+  const reply = page.locator('section.assistant-message .reply-bubble');
+  const spoken = async () =>
+    (await ttsMessages(page)).filter((message) => message.action === 'speak');
+
+  await chooseService(page, '你好');
+  await expect(reply).toContainText('你好！');
+  const [greeting, ...others] = await spoken();
+  expect(others).toEqual([]);
+  expect(greeting.text).toContain(await reply.innerText());
+
+  await chooseService(page, '失火了！');
+  await expect(page.getByRole('heading', { name: /119/ })).toBeVisible();
+  const [, emergency, ...more] = await spoken();
+  expect(more).toEqual([]);
+  expect(emergency.text).toContain(await reply.innerText());
+});
+
+test('voice feedback does not read a restored conversation', async ({ page }) => {
+  await turnOnVoiceFeedback(page);
+  await chooseService(page, '幫我找圖書');
+  await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toBeVisible();
+
+  // This time the app is there from the start and reports that no screen reader is on.
+  await page.addInitScript(speechBridge, false);
+  await page.reload();
+  await expect(page.getByText('這是已保存的摘要，查詢結果未保存。')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-a11y-bold', 'true');
+  expect(await ttsMessages(page)).toEqual([]);
 });

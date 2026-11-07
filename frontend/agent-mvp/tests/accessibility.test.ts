@@ -438,9 +438,11 @@ describe('native text-to-speech lifecycle', () => {
     speech.readAloud('second', 'en', 1, two.finished, two.failed);
     const currentId = lastSpeakId();
     expect(currentId).not.toBe(staleId);
+    // The replaced reading ended once, right when it was replaced; its late events add nothing.
+    expect(one.finished).toHaveBeenCalledTimes(1);
     for (const event of ['start', 'stopped', 'error', 'done'])
       emit('tts', { requestId: staleId, event });
-    expect(one.finished).not.toHaveBeenCalled();
+    expect(one.finished).toHaveBeenCalledTimes(1);
     expect(one.failed).not.toHaveBeenCalled();
     expect(two.finished).not.toHaveBeenCalled();
     expect(two.failed).not.toHaveBeenCalled();
@@ -450,8 +452,33 @@ describe('native text-to-speech lifecycle', () => {
     expect(two.failed).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(10000);
     expect(one.failed).not.toHaveBeenCalled();
-    expect(one.finished).not.toHaveBeenCalled();
+    expect(one.finished).toHaveBeenCalledTimes(1);
   });
+
+  it.each([
+    ['before', false],
+    ['after', true],
+  ])(
+    'finishes a reading, once, that a new readAloud replaces %s its start event',
+    async (_, started) => {
+      const { speech, sent, emit, lastSpeakId, callbacks } = await setup();
+      const one = callbacks();
+      const two = callbacks();
+      speech.readAloud('first', 'en', 1, one.finished, one.failed);
+      if (started) emit('tts', { requestId: lastSpeakId(), event: 'start' });
+      expect(one.finished).not.toHaveBeenCalled();
+      speech.readAloud('second', 'en', 1, two.finished, two.failed);
+      expect(one.finished).toHaveBeenCalledTimes(1);
+      expect(one.failed).not.toHaveBeenCalled();
+      // The new reading is untouched and nothing is left over from the old one.
+      expect(two.finished).not.toHaveBeenCalled();
+      expect(two.failed).not.toHaveBeenCalled();
+      expect(sent().map((message) => message.data.action)).toEqual(['speak', 'stop', 'speak']);
+      await vi.advanceTimersByTimeAsync(10000);
+      expect(one.finished).toHaveBeenCalledTimes(1);
+      expect(one.failed).not.toHaveBeenCalled();
+    },
+  );
 
   it('fails and sends a stop when no start event arrives within 5 seconds', async () => {
     const { speech, sent, emit, lastSpeakId, callbacks } = await setup();
@@ -475,36 +502,138 @@ describe('native text-to-speech lifecycle', () => {
     expect(finished).not.toHaveBeenCalled();
   });
 
-  it('does not time out once the reading has started', async () => {
+  it('does not fail the start once the reading has started, and lets it take its time', async () => {
     const { speech, emit, lastSpeakId, callbacks } = await setup();
     const { finished, failed } = callbacks();
     speech.readAloud('a long text', 'en', 1, finished, failed);
     const requestId = lastSpeakId();
     await vi.advanceTimersByTimeAsync(4000);
     emit('tts', { requestId, event: 'start' });
-    await vi.advanceTimersByTimeAsync(120000);
+    // Well past the 5 s start timeout, still inside the allowance for this text.
+    await vi.advanceTimersByTimeAsync(15000);
     expect(failed).not.toHaveBeenCalled();
     expect(finished).not.toHaveBeenCalled();
     emit('tts', { requestId, event: 'done' });
     expect(finished).toHaveBeenCalledTimes(1);
+    expect(failed).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('sends a stop and silences the request when stopReading is called', async () => {
+  it('stops the native side and finishes a started reading whose end never arrives', async () => {
     const { speech, sent, emit, lastSpeakId, callbacks } = await setup();
     const { finished, failed } = callbacks();
-    speech.readAloud('hello', 'en', 1, finished, failed);
+    const text = 'a'.repeat(50);
+    speech.readAloud(text, 'en', 1, finished, failed);
     const requestId = lastSpeakId();
+    await vi.advanceTimersByTimeAsync(1000);
     emit('tts', { requestId, event: 'start' });
-    speech.stopReading();
-    const stop = sent().at(-1)!;
-    expect(stop).toEqual({ name: 'tts', data: { requestId: expect.any(String), action: 'stop' } });
-    expect(stop.data.requestId).not.toBe(requestId);
-    emit('tts', { requestId, event: 'stopped' });
-    emit('tts', { requestId, event: 'done' });
-    emit('tts', { requestId, event: 'error' });
-    await vi.advanceTimersByTimeAsync(10000);
+    const before = sent().length;
+    // 15 s plus 400 ms per character at normal speed, counted from the start event.
+    const allowance = 15000 + 400 * text.length;
+    await vi.advanceTimersByTimeAsync(allowance - 1);
     expect(finished).not.toHaveBeenCalled();
+    expect(sent()).toHaveLength(before);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(finished).toHaveBeenCalledTimes(1);
     expect(failed).not.toHaveBeenCalled();
+    expect(sent().slice(before)).toEqual([
+      { name: 'tts', data: { requestId: expect.any(String), action: 'stop' } },
+    ]);
+    expect(sent().at(-1)!.data.requestId).not.toBe(requestId);
+    // A late end event of the abandoned request changes nothing.
+    for (const event of ['start', 'stopped', 'done', 'error']) emit('tts', { requestId, event });
+    await vi.advanceTimersByTimeAsync(600000);
+    expect(finished).toHaveBeenCalledTimes(1);
+    expect(failed).not.toHaveBeenCalled();
+    expect(sent()).toHaveLength(before + 1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each([
+    ['slower speech', 100, 0.5, 110000],
+    ['faster speech', 100, 2, 27500],
+    ['an unusable rate as normal speed', 100, Number.NaN, 55000],
+    ['an empty text', 0, 1, 15000],
+  ])('scales the end allowance for %s', async (_, length, rate, allowance) => {
+    const { speech, emit, lastSpeakId, callbacks } = await setup();
+    const { finished, failed } = callbacks();
+    speech.readAloud('x'.repeat(length), 'en', rate, finished, failed);
+    emit('tts', { requestId: lastSpeakId(), event: 'start' });
+    await vi.advanceTimersByTimeAsync(allowance - 1);
+    expect(finished).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(finished).toHaveBeenCalledTimes(1);
+    expect(failed).not.toHaveBeenCalled();
+  });
+
+  it('does not run the end watchdog before the start event', async () => {
+    const { speech, callbacks } = await setup();
+    const { finished, failed } = callbacks();
+    speech.readAloud('hello', 'en', 1, finished, failed);
+    // Only the 5 s start timeout is armed: it fails the reading, the watchdog never finishes it.
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(failed).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(600000);
+    expect(finished).not.toHaveBeenCalled();
+    expect(failed).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['before', false],
+    ['after', true],
+  ])(
+    'sends a stop, finishes once and silences the request when stopReading is called %s its start event',
+    async (_, started) => {
+      const { speech, sent, emit, lastSpeakId, callbacks } = await setup();
+      const { finished, failed } = callbacks();
+      speech.readAloud('hello', 'en', 1, finished, failed);
+      const requestId = lastSpeakId();
+      if (started) emit('tts', { requestId, event: 'start' });
+      expect(finished).not.toHaveBeenCalled();
+      speech.stopReading();
+      const stop = sent().at(-1)!;
+      expect(stop).toEqual({
+        name: 'tts',
+        data: { requestId: expect.any(String), action: 'stop' },
+      });
+      expect(stop.data.requestId).not.toBe(requestId);
+      // The caller heard about the stop right away, and nothing is left running.
+      expect(finished).toHaveBeenCalledTimes(1);
+      expect(failed).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+      // The native confirmation and any other late event of that request are ignored.
+      emit('tts', { requestId, event: 'stopped' });
+      emit('tts', { requestId, event: 'done' });
+      emit('tts', { requestId, event: 'error' });
+      await vi.advanceTimersByTimeAsync(600000);
+      expect(finished).toHaveBeenCalledTimes(1);
+      expect(failed).not.toHaveBeenCalled();
+      expect(sent().filter((message) => message.data.action === 'stop')).toHaveLength(1);
+    },
+  );
+
+  it('does not call a reading back again when it already ended before it was stopped', async () => {
+    const { speech, sent, emit, lastSpeakId, callbacks } = await setup();
+    const done = callbacks();
+    speech.readAloud('hello', 'en', 1, done.finished, done.failed);
+    emit('tts', { requestId: lastSpeakId(), event: 'start' });
+    emit('tts', { requestId: lastSpeakId(), event: 'done' });
+    const failing = callbacks();
+    speech.readAloud('again', 'en', 1, failing.finished, failing.failed);
+    emit('tts', { requestId: lastSpeakId(), event: 'error' });
+    const before = sent().length;
+    speech.stopReading();
+    speech.readAloud('next', 'en', 1, vi.fn(), vi.fn());
+    expect(done.finished).toHaveBeenCalledTimes(1);
+    expect(done.failed).not.toHaveBeenCalled();
+    expect(failing.failed).toHaveBeenCalledTimes(1);
+    expect(failing.finished).not.toHaveBeenCalled();
+    // Nothing was reading, so nothing needed a stop either.
+    expect(
+      sent()
+        .slice(before)
+        .map((message) => message.data.action),
+    ).toEqual(['speak']);
   });
 
   it('posts nothing to the bridge when stopReading is called while idle', async () => {
@@ -533,7 +662,7 @@ describe('browser text-to-speech', () => {
     rate = 1;
     voice: unknown = null;
     onend: (() => void) | null = null;
-    onerror: (() => void) | null = null;
+    onerror: ((event?: { error?: string }) => void) | null = null;
     constructor(text: string) {
       this.text = text;
     }
@@ -595,6 +724,91 @@ describe('browser text-to-speech', () => {
     expect(failed).toHaveBeenCalledTimes(1);
     expect(finished).not.toHaveBeenCalled();
     expect(() => speech.stopReading()).not.toThrow();
+  });
+
+  it.each(['interrupted', 'canceled'])(
+    'finishes, not fails, a reading that speechSynthesis ends as %s',
+    async (error) => {
+      const { spoken } = browserWith();
+      const speech = await fresh(() => import('../src/platform/speech'));
+      const finished = vi.fn();
+      const failed = vi.fn();
+      speech.readAloud('hello', 'en', 1, finished, failed);
+      spoken[0]!.onerror!({ error });
+      expect(finished).toHaveBeenCalledTimes(1);
+      expect(failed).not.toHaveBeenCalled();
+      // Nothing more can come from that utterance.
+      spoken[0]!.onerror!({ error });
+      spoken[0]!.onend!();
+      expect(finished).toHaveBeenCalledTimes(1);
+      expect(failed).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['synthesis-failed', 'audio-busy', 'not-allowed', undefined])(
+    'still fails a reading that ends with the speech error %s',
+    async (error) => {
+      const { spoken } = browserWith();
+      const speech = await fresh(() => import('../src/platform/speech'));
+      const finished = vi.fn();
+      const failed = vi.fn();
+      speech.readAloud('hello', 'en', 1, finished, failed);
+      spoken[0]!.onerror!({ error });
+      spoken[0]!.onerror!({ error: 'interrupted' });
+      expect(failed).toHaveBeenCalledTimes(1);
+      expect(finished).not.toHaveBeenCalled();
+    },
+  );
+
+  it('finishes a reading when stopReading is called and ignores the late events of its utterance', async () => {
+    const { synth, spoken } = browserWith();
+    const speech = await fresh(() => import('../src/platform/speech'));
+    const finished = vi.fn();
+    const failed = vi.fn();
+    speech.readAloud('hello', 'en', 1, finished, failed);
+    synth.cancel.mockClear();
+    speech.stopReading();
+    expect(synth.cancel).toHaveBeenCalledTimes(1);
+    expect(finished).toHaveBeenCalledTimes(1);
+    // The browser reports the cancelled utterance a moment later; that must not look like a failure.
+    spoken[0]!.onerror!({ error: 'interrupted' });
+    spoken[0]!.onend!();
+    expect(finished).toHaveBeenCalledTimes(1);
+    expect(failed).not.toHaveBeenCalled();
+  });
+
+  it('finishes a reading that a new readAloud replaces without touching the new one', async () => {
+    const { spoken } = browserWith();
+    const speech = await fresh(() => import('../src/platform/speech'));
+    const one = { finished: vi.fn(), failed: vi.fn() };
+    const two = { finished: vi.fn(), failed: vi.fn() };
+    speech.readAloud('first', 'en', 1, one.finished, one.failed);
+    speech.readAloud('second', 'en', 1, two.finished, two.failed);
+    expect(one.finished).toHaveBeenCalledTimes(1);
+    expect(two.finished).not.toHaveBeenCalled();
+    // The first utterance reports its interruption after the second one has started.
+    spoken[0]!.onerror!({ error: 'interrupted' });
+    spoken[0]!.onend!();
+    expect(one.finished).toHaveBeenCalledTimes(1);
+    expect(one.failed).not.toHaveBeenCalled();
+    expect(two.finished).not.toHaveBeenCalled();
+    expect(two.failed).not.toHaveBeenCalled();
+    spoken[1]!.onend!();
+    expect(two.finished).toHaveBeenCalledTimes(1);
+    expect(two.failed).not.toHaveBeenCalled();
+  });
+
+  it('does not call a reading back when it ended before it was stopped', async () => {
+    const { spoken } = browserWith();
+    const speech = await fresh(() => import('../src/platform/speech'));
+    const finished = vi.fn();
+    const failed = vi.fn();
+    speech.readAloud('hello', 'en', 1, finished, failed);
+    spoken[0]!.onend!();
+    speech.stopReading();
+    speech.readAloud('next', 'en', 1, vi.fn(), vi.fn());
+    expect(finished).toHaveBeenCalledTimes(1);
+    expect(failed).not.toHaveBeenCalled();
   });
 
   it('prefers the native bridge over speechSynthesis in the app', async () => {
