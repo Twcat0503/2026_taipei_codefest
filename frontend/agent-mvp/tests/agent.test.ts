@@ -442,7 +442,7 @@ describe('generic tool results and decision state', () => {
     expect(state.notice).toBe('results');
     expect(callTool.mock.calls[0]?.[0]).toEqual({
       name: 'find_nearby_parking',
-      arguments: { near_me: true, accessible: true },
+      arguments: { near_me: true, accessible: true, parking_space: 'disabled' },
     });
     expect(callTool.mock.calls[0]?.[0].arguments).not.toHaveProperty('area');
   });
