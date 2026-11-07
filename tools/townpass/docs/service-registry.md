@@ -64,10 +64,20 @@ PARSER_MODEL_ENDPOINT=http://127.0.0.1:8088/v1 PARSER_MODEL_NAME=local-parser pn
 | `TOOL_REGISTRY_HOST` | 預設 `127.0.0.1` |
 | `TOOL_REGISTRY_PORT` | 預設 `7331` |
 | `TOOL_REGISTRY_FILE` | 預設 `data/services.json`，相對於程序工作目錄 |
+| `TOOL_REGISTRY_ALLOWED_ORIGINS` | 以逗號分隔的網頁來源，例如 `http://127.0.0.1:5173`；只有列入的來源可以跨來源呼叫工具庫。預設不允許任何跨來源呼叫 |
 
 手機連線時，將工具庫監聽位址改成主機的 LAN 位址或 `0.0.0.0`，客戶端使用主機實際 IP；手機的 `127.0.0.1` 不是這台主機。解析模型仍可只監聽主機 loopback。HTTPS 客戶端連工具庫時，工具庫也需使用可存取的 HTTPS 入口，避免 mixed content。
 
 目前是單一程序的 JSON 持久化工具庫，未包含帳號或公開網路部署的存取控制；請在受控的開發網路使用。不要讓多個程序共用寫入同一份資料檔。
+
+### 網路與安全限制
+
+- 服務網址只接受 http 與 https。網域名稱會先解析，任一解析結果指向本機、內網或連結本地位址（例如 `169.254.169.254`）就拒絕；字面位址同樣檢查。
+- 頁面的每個請求（含子資源與重新導向）都經過同一檢查；JSON 文件的重新導向逐跳檢查，超過 5 次即失敗。
+- 連線有時限：JSON 抓取 20 秒、頁面載入 30 秒、模型呼叫 120 秒。同網址的解析請求共用一次結果，因此上限可避免一個卡住的網站拖住其他請求。
+- 請求內容上限 16 KB，只接受 `application/json`。錯誤訊息只回傳通用文字，細節寫入伺服器 log。
+- 跨來源呼叫只允許 `TOOL_REGISTRY_ALLOWED_ORIGINS` 列出的來源。手機 App 或其他前端來源要使用工具庫時，需要把實際來源加入這個清單。
+- 只有測試與本機開發才可以允許本機或內網位址（`allowPrivateHosts`），正式啟動預設關閉。
 
 ### 3. 客戶端
 
@@ -168,7 +178,7 @@ pnpm lint
 pnpm build
 ```
 
-從 `tools/townpass` 執行真實模型驗收（先設定上面的 `PARSER_MODEL_*`）：
+從 `tools/townpass` 執行真實模型驗收（先設定上面的 `PARSER_MODEL_*`；此腳本位於前端 PR，前端 PR 合併後才存在）：
 
 ```sh
 pnpm exec tsx ../../frontend/agent-mvp/scripts/verify-service-registry.ts

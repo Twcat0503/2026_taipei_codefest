@@ -52,6 +52,8 @@ export function createServiceParser(options: {
     const response = await fetchFn(`${options.endpoint.replace(/\/$/, "")}/chat/completions`, {
       method: "POST",
       headers: { "content-type": "application/json" },
+      // 模型服務若卡住，同網址的解析請求會一起等待；設定上限後失敗即回報。
+      signal: AbortSignal.timeout(120_000),
       body: JSON.stringify({
         model: options.model,
         temperature: 0,

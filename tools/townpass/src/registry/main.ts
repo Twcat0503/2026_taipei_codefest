@@ -12,7 +12,9 @@ const parser = createServiceParser({
   inspect: (url) => inspectService(url, { channel: process.env.PARSER_BROWSER_CHANNEL || undefined }),
 });
 const registry = new ServiceRegistry(resolve(process.env.TOOL_REGISTRY_FILE || "data/services.json"), parser);
-const server = createRegistryServer(registry);
+// 只有列在這裡的網頁來源可以跨來源呼叫工具庫，例如 http://127.0.0.1:5173。
+const allowedOrigins = (process.env.TOOL_REGISTRY_ALLOWED_ORIGINS || "").split(",").map((origin) => origin.trim()).filter(Boolean);
+const server = createRegistryServer(registry, { allowedOrigins });
 const host = process.env.TOOL_REGISTRY_HOST || "127.0.0.1";
 const port = Number(process.env.TOOL_REGISTRY_PORT || 7331);
 server.listen(port, host, () => console.log(`工具庫：http://${host}:${port}`));

@@ -1,14 +1,21 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { chromium } from "playwright";
 import { inspectService } from "../src/registry/inspect.js";
 import { planService } from "../src/registry/plan.js";
+
+// 本機測試伺服器位於 127.0.0.1；只有測試明確允許本機位址。
+const local = { allowPrivateHosts: true };
 
 let server: Server;
 let base: string;
 beforeAll(async () => {
   server = createServer((req, res) => {
+    if (req.url === "/redirect-openapi") {
+      res.writeHead(302, { location: "/openapi.json" }).end();
+      return;
+    }
     if (req.url === "/openapi.json") {
       res.setHeader("content-type", "application/json");
       res.end(JSON.stringify({ openapi: "3.1.0", info: { title: "場地", version: "1" }, paths: {} }));
@@ -43,17 +50,51 @@ afterAll(async () => { await new Promise<void>((resolve) => server.close(() => r
 
 describe("微服務觀測", () => {
   it("取得 API 規格，不把 JSON 當網頁標題", async () => {
-    const result = await inspectService(`${base}/openapi.json`);
+    const result = await inspectService(`${base}/openapi.json`, local);
     expect(result).toMatchObject({ kind: "openapi", document: { openapi: "3.1.0" } });
   });
 
   it("非 OpenAPI JSON 明確回報不支援，不把資料當成 API 規格", async () => {
-    await expect(inspectService(`${base}/data.json`)).rejects.toThrow(/OpenAPI/);
+    await expect(inspectService(`${base}/data.json`, local)).rejects.toThrow(/OpenAPI/);
+  });
+
+  it("同來源的重新導向會被跟隨，結果使用最終網址", async () => {
+    const result = await inspectService(`${base}/redirect-openapi`, local);
+    expect(result).toMatchObject({ kind: "openapi", url: `${base}/openapi.json` });
+  });
+
+  it("內網字面位址在連線前就拒絕，不發出任何請求", async () => {
+    const requested = vi.fn();
+    vi.stubGlobal("fetch", async (input: string | URL | Request) => {
+      requested(String(input));
+      return new Response("", { status: 200 });
+    });
+    try {
+      await expect(inspectService("http://169.254.169.254/latest/meta-data/")).rejects.toThrow(/內網/);
+      expect(requested).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("重新導向到內網位址時拒絕，且不送出第二次請求", async () => {
+    const requested: string[] = [];
+    vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
+      requested.push(String(input));
+      expect(init?.signal).toBeDefined();
+      return new Response(null, { status: 302, headers: { location: "http://10.0.0.9/admin" } });
+    });
+    try {
+      await expect(inspectService("https://public.example/start", { resolveHost: async () => ["93.184.216.34"] })).rejects.toThrow(/內網/);
+      expect(requested).toEqual(["https://public.example/start"]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("DOM 正規化大寫 input type：checkbox 與 text 可作為輸入，submit、button、reset 可送出，radio 不列入", async () => {
     const url = `${base}/uppercase-inputs`;
-    const observed = await inspectService(url, { channel: process.platform === "win32" ? "msedge" : undefined });
+    const observed = await inspectService(url, { ...local, channel: process.platform === "win32" ? "msedge" : undefined });
     const schema = planService(observed).schema;
     const accepts = (controls: string[], submit: string) => schema.safeParse({ tools: [{
       name: "submit_form", description: "送出表單",
@@ -67,9 +108,9 @@ describe("微服務觀測", () => {
       expect.objectContaining({ selector: "#button", type: "submit" }),
     ]));
     expect(accepts(["#agree", "#text"], "#send")).toBe(true);
-    for (const submit of ["#send", "#next", "#reset", "#button"]) expect(accepts(["#agree"], submit)).toBe(true);
+    for (const submit of ["#send", "#next", "#reset", "#button"]) expect(accepts(["#agree", "#text"], submit)).toBe(true);
     for (const selector of ["#send", "#next", "#reset", "#choice", "#button"]) expect(accepts([selector], "#send")).toBe(false);
-    expect(accepts(["#agree"], "#choice")).toBe(false);
+    expect(accepts(["#agree", "#text"], "#choice")).toBe(false);
     const service = planService(observed).assemble({ tools: [{
       name: "submit_form", description: "送出表單",
       controls: { "#agree": "agree", "#text": "text" },
@@ -85,7 +126,7 @@ describe("微服務觀測", () => {
   it.each(["/body-status", "/body-live"])("無 id 的 body 結果 selector 在真實 DOM 指向原元素：%s", async (path) => {
     const url = `${base}${path}`;
     const channel = process.platform === "win32" ? "msedge" : undefined;
-    const observed = await inspectService(url, { channel });
+    const observed = await inspectService(url, { ...local, channel });
     const body = (observed.elements as { tag: string; selector: string }[]).find(element => element.tag === "body");
     expect(body).toBeDefined();
     const browser = await chromium.launch({ channel });
@@ -102,7 +143,7 @@ describe("微服務觀測", () => {
   }, 30000);
 
   it("觀測 JavaScript 渲染後的欄位與 form 外的操作按鈕", async () => {
-    const result = await inspectService(base, { channel: process.platform === "win32" ? "msedge" : undefined });
+    const result = await inspectService(base, { ...local, channel: process.platform === "win32" ? "msedge" : undefined });
     expect(result).toMatchObject({ kind: "page", title: "場地查詢" });
     expect(result.elements).toEqual(expect.arrayContaining([
       expect.objectContaining({ selector: "#date", tag: "input", type: "date", label: "日期", required: true }),
