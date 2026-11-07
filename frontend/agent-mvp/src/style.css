@@ -209,20 +209,6 @@ a {
   min-width: 0;
   container-type: inline-size;
 }
-.assistant-navigation {
-  flex-shrink: 0;
-  padding-inline: 1rem;
-  padding-right: 4rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--paper);
-}
-.assistant-navigation button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 48px;
-  padding-inline: 0.25rem;
-}
 .voice-input-button {
   display: inline-flex;
   flex-shrink: 0;
