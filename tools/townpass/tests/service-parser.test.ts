@@ -135,7 +135,7 @@ describe("本機服務解析：模型只提供計畫，工具由程式組出", (
   it("API 文件：模型只能選擇文件中的操作，body 欄位由程式綁定到同名參數", async () => {
     const key = "POST http://127.0.0.1:5173/test-data/applications";
     const { parse, requests } = makeParser(applicationApi, reply({
-      tools: [{ name: "submit_test_application", description: "送出測試申請", operation: key }],
+      operations: { [key]: { name: "submit_test_application", description: "送出測試申請" } },
     }));
     const service = await parse(applicationUrl);
     expect(service).toEqual({
@@ -167,7 +167,7 @@ describe("本機服務解析：模型只提供計畫，工具由程式組出", (
 
   it("API 文件：模型選擇未列出的操作時拒絕", async () => {
     const { parse } = makeParser(applicationApi, reply({
-      tools: [{ name: "remove_all", description: "刪除", operation: "DELETE http://127.0.0.1:5173/test-data/applications" }],
+      operations: { "DELETE http://127.0.0.1:5173/test-data/applications": { name: "remove_all", description: "刪除" } },
     }));
     await expect(parse(applicationUrl)).rejects.toThrow();
   });

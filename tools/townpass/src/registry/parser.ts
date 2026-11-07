@@ -13,8 +13,8 @@ submit: the single button or link that starts the operation. Its id or text neve
 resultSelector: the element that shows the response.
 name: English snake_case. description: one short sentence about what the operation does.`;
 
-const apiInstructions = `The source is an API document. Choose the operations to expose from the listed operation keys, and give each tool an English snake_case name and a description.
-Methods, URLs, inputs and body fields are fixed by the chosen operation key; do not write them yourself.`;
+const apiInstructions = `The source is an API document. In "operations", list the operations to expose by their keys (only the listed keys are allowed). For each chosen operation give a tool name in English snake_case and a short description.
+Methods, URLs, inputs and body fields are fixed by the operation key; do not write them yourself.`;
 
 function checkReferences(service: ServiceDefinition) {
   for (const tool of service.tools) {

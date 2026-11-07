@@ -170,16 +170,30 @@ describe("頁面計畫：模型只選擇觀測到的控制項", () => {
 describe("API 計畫：模型只選擇文件中的操作", () => {
   const key = "POST http://127.0.0.1:5173/test-data/applications";
 
-  it("工具名稱重複時拒絕", () => {
+  it("兩個不同操作使用相同工具名稱時拒絕", () => {
+    const twoOperations: ServiceObservation = { kind: "openapi", url: "https://rooms.example/search", document: {
+      openapi: "3.1.0", servers: [{ url: "https://rooms.example" }],
+      paths: {
+        "/a": { get: { responses: { "200": { description: "結果" } } } },
+        "/b": { post: { responses: { "200": { description: "結果" } } } },
+      },
+    } };
+    const { assemble } = planService(twoOperations);
+    expect(() => assemble({ operations: {
+      "GET https://rooms.example/a": { name: "same_name", description: "甲" },
+      "POST https://rooms.example/b": { name: "same_name", description: "乙" },
+    } })).toThrow(/工具名稱重複/);
+  });
+
+  it("沒有選擇任何操作時拒絕", () => {
     const { assemble } = planService(applicationApi);
-    const tool = { name: "submit_test_application", description: "送出申請", operation: key };
-    expect(() => assemble({ tools: [tool, tool] })).toThrow(/工具名稱重複/);
+    expect(() => assemble({ operations: {} })).toThrow(/沒有選擇任何 OpenAPI 操作/);
   });
 
   it("JSON body 欄位綁定到同名參數，OpenAPI 結構字不成為欄位", () => {
     const { schema, assemble } = planService(applicationApi);
-    expect(schema.safeParse({ tools: [{ name: "submit_test_application", description: "送出申請", operation: key }] }).success).toBe(true);
-    const service = assemble({ tools: [{ name: "submit_test_application", description: "送出申請", operation: key }] });
+    expect(schema.safeParse({ operations: { [key]: { name: "submit_test_application", description: "送出申請" } } }).success).toBe(true);
+    const service = assemble({ operations: { [key]: { name: "submit_test_application", description: "送出申請" } } });
     expect(service).toEqual({
       url: applicationUrl,
       title: "測試申請 API",
@@ -218,7 +232,7 @@ describe("API 計畫：模型只選擇文件中的操作", () => {
       } } },
     } };
     const operation = "GET https://rooms.example/rooms/{id}";
-    const service = planService(observed).assemble({ tools: [{ name: "find_room", description: "查詢場地", operation }] });
+    const service = planService(observed).assemble({ operations: { [operation]: { name: "find_room", description: "查詢場地" } } });
     expect(service.tools[0]).toEqual({
       name: "find_room",
       description: "查詢場地",
@@ -243,7 +257,7 @@ describe("API 計畫：模型只選擇文件中的操作", () => {
         responses: { "200": { description: "結果" } },
       } } },
     } };
-    const service = planService(observed).assemble({ tools: [{ name: "room", description: "房間", operation: `POST ${endpoint}` }] });
+    const service = planService(observed).assemble({ operations: { [`POST ${endpoint}`]: { name: "room", description: "房間" } } });
     expect(service.tools[0]!.execution).toMatchObject({ kind: "http", url: endpoint, method: "POST" });
   });
 
@@ -259,6 +273,6 @@ describe("API 計畫：模型只選擇文件中的操作", () => {
 
   it("模型只能選擇文件中已列出的操作", () => {
     const { schema } = planService(applicationApi);
-    expect(schema.safeParse({ tools: [{ name: "x", description: "x", operation: "GET https://rooms.example/admin" }] }).success).toBe(false);
+    expect(schema.safeParse({ operations: { "GET https://rooms.example/admin": { name: "x", description: "x" } } }).success).toBe(false);
   });
 });

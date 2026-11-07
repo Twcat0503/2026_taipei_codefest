@@ -280,12 +280,12 @@ function apiPlan(observation: ServiceObservation): ServicePlan {
   if (!keys.length) {
     throw new Error(`沒有可提供的 OpenAPI 操作${skipped.length ? `：${skipped.join("；")}` : ""}`);
   }
+  // 以操作鍵為 JSON 物件的鍵：同一操作在物件中最多出現一次，未列出的操作直接拒絕。
   const schema = z.object({
-    tools: z.array(z.object({
+    operations: z.strictObject(Object.fromEntries(keys.map(key => [key, z.object({
       name: toolName,
       description: z.string().min(1),
-      operation: z.enum(keys),
-    })).min(1),
+    }).optional()]))),
   });
   const info = (observation.document as { info?: { title?: unknown } }).info;
   const title = typeof info?.title === "string" ? info.title : String(observation.url);
@@ -293,12 +293,15 @@ function apiPlan(observation: ServiceObservation): ServicePlan {
     schema,
     assemble: output => {
       const plan = schema.parse(output);
+      const chosen = keys.filter(key => plan.operations[key] !== undefined);
+      if (!chosen.length) throw new Error("沒有選擇任何 OpenAPI 操作");
       return {
         url: String(observation.url),
         title,
-        tools: uniqueTools(plan.tools.map(tool => {
-          const operation = operations.get(tool.operation)!;
-          return { name: tool.name, description: tool.description, inputSchema: operation.inputSchema, execution: operation.execution };
+        tools: uniqueTools(chosen.map(key => {
+          const { name, description } = plan.operations[key]!;
+          const operation = operations.get(key)!;
+          return { name, description, inputSchema: operation.inputSchema, execution: operation.execution };
         })),
       };
     },
