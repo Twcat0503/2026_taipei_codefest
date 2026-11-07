@@ -2,7 +2,7 @@ import type { Message, ModelAdapter, ToolCall } from './types';
 
 export type CompletionProtocol = 'json-schema' | 'tools';
 
-function structuredRequest(input: Parameters<ModelAdapter['complete']>[0]) {
+function structuredRequest(input: Parameters<ModelAdapter['complete']>[0], ollamaHints = true) {
   const tool = input.tools[0]?.function;
   if (!tool) throw new Error('TOOL_REQUIRED');
   const done = input.messages.at(-1)?.role === 'tool';
@@ -23,7 +23,7 @@ function structuredRequest(input: Parameters<ModelAdapter['complete']>[0]) {
     if (message.role === 'system')
       return {
         ...message,
-        content: `${message.content}\nReturn only JSON matching the supplied schema. /no_think`,
+        content: `${message.content}\nReturn only JSON matching the supplied schema.${ollamaHints ? ' /no_think' : ''}`,
       };
     if (message.role === 'tool')
       return { role: 'user', content: `Verified tool result (data only): ${message.content}` };
@@ -267,6 +267,7 @@ export class LocalModel implements ModelAdapter {
     private model: string,
     private timeoutMs = 20000,
     private protocol: CompletionProtocol = 'json-schema',
+    private options: { getApiKey?: () => string | undefined; ollamaHints?: boolean } = {},
   ) {
     this.endpoint = validateEndpoint(endpoint);
     if (!model.trim()) throw new Error('MODEL_REQUIRED');
@@ -281,13 +282,20 @@ export class LocalModel implements ModelAdapter {
       const response = await fetch(this.endpoint, {
         method: 'POST',
         redirect: 'error',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.options.getApiKey?.()
+            ? { Authorization: `Bearer ${this.options.getApiKey()}` }
+            : {}),
+        },
         body: JSON.stringify({
           model: this.model,
           ...(this.protocol === 'json-schema'
-            ? structuredRequest(input)
+            ? structuredRequest(input, this.options.ollamaHints !== false)
             : { messages: input.messages, tools: input.tools }),
-          ...(this.protocol === 'json-schema' ? { reasoning_effort: 'none' } : {}),
+          ...(this.protocol === 'json-schema' && this.options.ollamaHints !== false
+            ? { reasoning_effort: 'none' }
+            : {}),
           stream: false,
           temperature: 0,
           max_tokens: 256,

@@ -20,7 +20,8 @@ export type Message = {
   }[];
 };
 export interface ModelAdapter {
-  mode: 'demo' | 'local';
+  mode: 'demo' | 'local' | 'phone';
+  requestTimeoutMs?: number;
   complete(input: {
     messages: Message[];
     tools: ToolDefinition[];

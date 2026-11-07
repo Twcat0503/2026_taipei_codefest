@@ -117,10 +117,14 @@ x86 模擬器幾乎線性擴展，但手機的大核數與小核差異大，**�
 
 - **效能尚未在手機上驗證。** 目前只做過 x86_64 模擬器的功能測試與調校量測，上述數字**不代表手機**。
   執行緒自動偵測、KV 與 flash attention 的預設，都要在實機上用上面的步驟確認。
-- 最低支援 Android 9（API 28）。Flutter 專案的 `minSdk` 目前是 Flutter 預設值，尚未與此對齊。
+- 最低支援 Android 9（API 28）。Flutter 專案的 `minSdk` 已對齊 28。
 - **授權未決。** 模型標示為 `lfm1.0`；二手說明為 LFM Open License v1.0（年營收 1,000 萬美元以下可免費商用，超過需付費授權）。
   打包進 APK 或對外散布前，需要確認官方授權全文與 AGPL-3.0 的相容性。目前模型只在執行時下載。
-- 橋接白名單目前只有開發環境 `http://10.0.2.2:5173` 與 `http://localhost:5173`。正式網域要加入 `kLlmAllowedOrigins` 前需經審查，因為 API key 會交給白名單來源。
+- 橋接白名單目前只有開發環境 `http://10.0.2.2:5173` 、`http://localhost:5173` 與 `http://127.0.0.1:5173`。正式網域要加入 `kLlmAllowedOrigins` 前需經審查，因為 API key 會交給白名單來源。
 - 其他既有的橋接 handler 仍未做來源檢查，這是專案原本就存在的問題，不屬於本模組。
 - WebView 中的 https 頁面請求 `http://127.0.0.1` 會遇到混合內容限制，尚未驗證。目前的測試都是 Dart 直接呼叫。
-- 下載模型時呼叫 `stop()` 會等到下載結束（操作鎖），還沒實作取消。
+- 下載／啟動取消已接入：stop 會使啟動 ticket 失效、斷開下載並清理子行程；前端收到 idle 前不宣稱已停止。
+
+## Agent 整合
+
+Vue 端已新增 PhoneModel；橋接使用 data.requestId 對應回覆，並限制主框架與來源。見 [手機模型契約](../../frontend/agent-mvp/docs/phone-model.md)。原有無 requestId 的 Dart／橋接用法仍可呼叫；新的 adapter 需要回覆包含 requestId。

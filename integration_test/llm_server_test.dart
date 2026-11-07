@@ -14,6 +14,21 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('啟動 → OpenAI 格式 API → 停止', (tester) async {
+    final warming = LlmService.start();
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    final beforeCancel = await LlmService.status();
+    expect([
+      'downloading',
+      'starting',
+      'running',
+    ], contains(beforeCancel.phase));
+    final cancelled = await LlmService.stop().timeout(
+      const Duration(seconds: 15),
+    );
+    expect(cancelled.phase, 'idle');
+    await warming;
+    expect((await LlmService.status()).running, isFalse);
+
     final started = await LlmService.start();
     expect(started.error, isNull, reason: started.error);
     expect(started.running, isTrue);
@@ -22,8 +37,10 @@ void main() {
     expect(started.contextSize, 4096);
     expect(started.kvCacheType, 'q8_0');
     expect(started.flashAttention, isTrue);
-    debugPrint('llm round1 settings: threads=${started.threads} ctx=${started.contextSize} '
-        'kv=${started.kvCacheType} fa=${started.flashAttention}');
+    debugPrint(
+      'llm round1 settings: threads=${started.threads} ctx=${started.contextSize} '
+      'kv=${started.kvCacheType} fa=${started.flashAttention}',
+    );
     final baseUrl = started.baseUrl!;
     final apiKey = started.apiKey!;
     final model = started.model!;
@@ -36,7 +53,12 @@ void main() {
     expect(unauthorized.status, 401);
 
     // 模型列表
-    final models = await _send(client, 'GET', '$baseUrl/models', apiKey: apiKey);
+    final models = await _send(
+      client,
+      'GET',
+      '$baseUrl/models',
+      apiKey: apiKey,
+    );
     expect(models.status, 200);
     expect(models.body, contains(model));
 
@@ -56,9 +78,55 @@ void main() {
       },
     );
     expect(chat.status, 200);
-    final choice = (jsonDecode(chat.body)['choices'] as List).first as Map<String, dynamic>;
-    final content = (choice['message'] as Map<String, dynamic>)['content'] as String;
+    final choice =
+        (jsonDecode(chat.body)['choices'] as List).first
+            as Map<String, dynamic>;
+    final content =
+        (choice['message'] as Map<String, dynamic>)['content'] as String;
     expect(content.trim(), isNotEmpty);
+
+    // Agent requires a structured tool decision, not just non-empty prose.
+    final decision = await _send(
+      client,
+      'POST',
+      '$baseUrl/chat/completions',
+      apiKey: apiKey,
+      body: {
+        'model': model,
+        'messages': [
+          {
+            'role': 'system',
+            'content': 'Route municipal user requests. Bills or payment status use bills. Books use library. Return only JSON.',
+          },
+          {'role': 'user', 'content': '我想看到我這期的帳單與繳費狀態'},
+        ],
+        'response_format': {
+          'type': 'json_schema',
+          'json_schema': {
+            'name': 'route',
+            'strict': true,
+            'schema': {
+              'type': 'object',
+              'properties': {
+                'domain': {
+                  'type': 'string',
+                  'enum': ['bills', 'library'],
+                },
+              },
+              'required': ['domain'],
+              'additionalProperties': false,
+            },
+          },
+        },
+        'temperature': 0,
+        'max_tokens': 64,
+        'stream': false,
+      },
+    );
+    expect(decision.status, 200);
+    final decisionMessage =
+        jsonDecode(decision.body)['choices'][0]['message']['content'] as String;
+    expect(jsonDecode(decisionMessage)['domain'], 'bills');
 
     // 重複 start 應回傳同一個服務，不會另外啟動一個
     final again = await LlmService.start();
@@ -69,7 +137,11 @@ void main() {
     expect(await _isPortOpen(baseUrl), isFalse);
 
     // 第二輪：f16 KV、關閉 flash attention、較短上下文，確認替代參數也能正常服務
-    final second = await LlmService.start(kvCacheType: 'f16', flashAttention: false, contextSize: 2048);
+    final second = await LlmService.start(
+      kvCacheType: 'f16',
+      flashAttention: false,
+      contextSize: 2048,
+    );
     expect(second.error, isNull, reason: second.error);
     expect(second.running, isTrue);
     expect(second.contextSize, 2048);
@@ -92,7 +164,9 @@ void main() {
       },
     );
     expect(secondChat.status, 200);
-    final secondChoice = (jsonDecode(secondChat.body)['choices'] as List).first as Map<String, dynamic>;
+    final secondChoice =
+        (jsonDecode(secondChat.body)['choices'] as List).first
+            as Map<String, dynamic>;
     final secondMessage = secondChoice['message'] as Map<String, dynamic>;
     expect((secondMessage['content'] as String).trim(), isNotEmpty);
     await LlmService.stop();
@@ -126,7 +200,11 @@ Future<_Response> _send(
 Future<bool> _isPortOpen(String baseUrl) async {
   final uri = Uri.parse(baseUrl);
   try {
-    final socket = await Socket.connect(uri.host, uri.port, timeout: const Duration(seconds: 2));
+    final socket = await Socket.connect(
+      uri.host,
+      uri.port,
+      timeout: const Duration(seconds: 2),
+    );
     socket.destroy();
     return true;
   } on SocketException {

@@ -6,6 +6,8 @@ import UiIcon from './components/UiIcon.vue';
 import { messages } from './i18n';
 import { branches } from './agent/catalog';
 import { initialState, type Locale, type ModelAdapter } from './agent/types';
+import PhoneModelPanel from './components/PhoneModelPanel.vue';
+import { PhoneModel, type PhoneState } from './agent/phone-model';
 import { AgentRunner } from './agent/runner';
 import { DemoModel, LocalModel } from './agent/model';
 import { cancelDraft, changeBranch, confirmReservation, prepareReservation } from './agent/tools';
@@ -28,7 +30,14 @@ const lastRequest = ref('');
 const busy = ref(false);
 const stage = ref<'routing' | 'searching'>('routing');
 const resultHeading = ref<HTMLElement>();
-const mode = ref<'demo' | 'local'>(import.meta.env.VITE_MODEL_ENDPOINT ? 'local' : 'demo');
+const phoneState = ref<PhoneState>({ phase: 'idle', ready: false, error: null });
+const phone = new PhoneModel((value) => {
+  phoneState.value = value;
+});
+const phoneStarting = ref(false);
+const mode = ref<ModelAdapter['mode']>(
+  window.flutterObject ? 'phone' : import.meta.env.VITE_MODEL_ENDPOINT ? 'local' : 'demo',
+);
 const selectedMode = ref(mode.value);
 const endpoint = ref(
   import.meta.env.VITE_MODEL_ENDPOINT || 'http://127.0.0.1:11434/v1/chat/completions',
@@ -36,14 +45,16 @@ const endpoint = ref(
 const modelName = ref(import.meta.env.VITE_MODEL_NAME || 'qwen3:1.7b');
 const configStatus = ref<'applied' | 'configError' | null>(null);
 let adapter: ModelAdapter =
-  mode.value === 'local'
-    ? new LocalModel(
-        endpoint.value,
-        modelName.value,
-        20000,
-        import.meta.env.VITE_MODEL_PROTOCOL === 'tools' ? 'tools' : 'json-schema',
-      )
-    : new DemoModel();
+  mode.value === 'phone'
+    ? phone
+    : mode.value === 'local'
+      ? new LocalModel(
+          endpoint.value,
+          modelName.value,
+          20000,
+          import.meta.env.VITE_MODEL_PROTOCOL === 'tools' ? 'tools' : 'json-schema',
+        )
+      : new DemoModel();
 let runner = new AgentRunner(adapter, state);
 const speechSupported = ref(canReadAloud());
 const speaking = ref(false);
@@ -61,7 +72,9 @@ const step = computed(() =>
   state.draft || state.receipt ? 3 : state.domain && state.notice !== 'welcome' ? 2 : 1,
 );
 const reply = computed(() => t.value[state.notice]);
-const inputDisabled = computed(() => busy.value || !!state.draft);
+const inputDisabled = computed(
+  () => busy.value || !!state.draft || (mode.value === 'phone' && !phoneState.value.ready),
+);
 
 watch(
   [locale, fontSize],
@@ -143,23 +156,52 @@ function reset() {
   lastRequest.value = '';
   input.value = '';
 }
-function applyConfig() {
+async function applyConfig() {
   if (busy.value) return;
   try {
+    if (mode.value === 'phone' && selectedMode.value !== 'phone') await phone.stop();
     adapter =
-      selectedMode.value === 'local'
-        ? new LocalModel(
-            endpoint.value,
-            modelName.value,
-            20000,
-            import.meta.env.VITE_MODEL_PROTOCOL === 'tools' ? 'tools' : 'json-schema',
-          )
-        : new DemoModel();
+      selectedMode.value === 'phone'
+        ? phone
+        : selectedMode.value === 'local'
+          ? new LocalModel(
+              endpoint.value,
+              modelName.value,
+              20000,
+              import.meta.env.VITE_MODEL_PROTOCOL === 'tools' ? 'tools' : 'json-schema',
+            )
+          : new DemoModel();
     runner = new AgentRunner(adapter, state);
     mode.value = selectedMode.value;
     configStatus.value = 'applied';
   } catch {
     configStatus.value = 'configError';
+  }
+}
+async function startPhone() {
+  if (phoneStarting.value || busy.value) return;
+  phoneStarting.value = true;
+  try {
+    await phone.start();
+  } catch {
+    /* Adapter publishes a redacted error state. */
+  } finally {
+    phoneStarting.value = false;
+  }
+}
+async function stopPhone() {
+  runner.cancel();
+  try {
+    await phone.stop();
+  } catch {
+    /* Keep the visible error and retry control. */
+  }
+}
+async function refreshPhone() {
+  try {
+    await phone.refresh();
+  } catch {
+    /* Adapter exposes status errors. */
   }
 }
 function speak() {
@@ -197,6 +239,12 @@ function speak() {
 }
 onBeforeUnmount(() => {
   runner.cancel();
+  if (mode.value === 'phone')
+    void phone
+      .stop()
+      .catch(() => {})
+      .finally(() => phone.dispose());
+  else phone.dispose();
   stopReading();
 });
 </script>
@@ -239,6 +287,17 @@ onBeforeUnmount(() => {
         ><span>{{ t.demo }}</span>
       </div>
     </section>
+
+    <PhoneModelPanel
+      v-if="mode === 'phone'"
+      :state="phoneState"
+      :locale="locale"
+      :starting="phoneStarting"
+      :busy="busy"
+      @start="startPhone"
+      @stop="stopPhone"
+      @refresh="refreshPhone"
+    />
 
     <div class="workspace">
       <div class="conversation">
@@ -432,7 +491,7 @@ onBeforeUnmount(() => {
     <details class="developer-panel">
       <summary>{{ t.developer }}</summary>
       <div class="developer-content">
-        <p>{{ mode === 'local' ? t.local : t.fixture }}</p>
+        <p>{{ mode === 'phone' ? t.phoneMode : mode === 'local' ? t.local : t.fixture }}</p>
         <p class="small-note">{{ t.connectionHint }}</p>
         <form class="settings-form" @submit.prevent="applyConfig">
           <label
@@ -440,6 +499,7 @@ onBeforeUnmount(() => {
             }}<select v-model="selectedMode" :disabled="busy">
               <option value="demo">{{ t.demoMode }}</option>
               <option value="local">{{ t.localMode }}</option>
+              <option value="phone">{{ t.phoneMode }}</option>
             </select></label
           ><template v-if="selectedMode === 'local'"
             ><label

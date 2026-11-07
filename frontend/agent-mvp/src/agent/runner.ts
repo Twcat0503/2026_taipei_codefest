@@ -121,7 +121,12 @@ export class AgentRunner {
     const complete = (
       messages: Message[],
       tools: Parameters<ModelAdapter['complete']>[0]['tools'],
-    ) => bounded((child) => this.model.complete({ messages, tools, signal: child }), signal, 20000);
+    ) =>
+      bounded(
+        (child) => this.model.complete({ messages, tools, signal: child }),
+        signal,
+        Math.min(120000, Math.max(1000, this.model.requestTimeoutMs ?? 20000)),
+      );
     try {
       onProgress('routing');
       let domain: Domain = 'bills';

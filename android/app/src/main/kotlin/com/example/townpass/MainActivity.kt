@@ -12,7 +12,7 @@ import java.util.concurrent.Executors
 
 class MainActivity : FlutterActivity() {
     // 模型下載與子行程啟動很慢，放在背景執行緒；結果回到主執行緒再交給 Flutter。
-    private val worker: ExecutorService = Executors.newSingleThreadExecutor()
+    private val worker: ExecutorService = Executors.newCachedThreadPool()
     private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -28,14 +28,18 @@ class MainActivity : FlutterActivity() {
                         kvCacheType = call.argument<String>("kvCacheType") ?: defaults.kvCacheType,
                         flashAttention = call.argument<Boolean>("flashAttention") ?: defaults.flashAttention,
                     )
+                    val ticket = LlmServer.startTicket()
                     worker.execute {
-                        val status = LlmServer.start(applicationContext, config)
+                        val status = LlmServer.start(applicationContext, config, ticket)
                         mainHandler.post { result.success(status.toMap()) }
                     }
                 }
-                "stop" -> worker.execute {
-                    val status = LlmServer.stop(applicationContext)
-                    mainHandler.post { result.success(status.toMap()) }
+                "stop" -> {
+                    LlmServer.cancelPendingStart()
+                    worker.execute {
+                        val status = LlmServer.stop(applicationContext)
+                        mainHandler.post { result.success(status.toMap()) }
+                    }
                 }
                 else -> result.notImplemented()
             }

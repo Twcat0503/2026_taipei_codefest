@@ -1,9 +1,3 @@
-declare global {
-  interface Window {
-    flutterObject?: { postMessage: (message: string) => void };
-  }
-}
-
 export function canReadAloud() {
   // The MVP has not integrated the native TTS reply and completion lifecycle yet.
   return (

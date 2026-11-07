@@ -36,6 +36,10 @@ Agent 沒有呼叫位置、相機、電話或 userinfo，沒有讀取個資。�
 
 正式 API 需由服務維運方提供授權與文件。原有 App 中的 `taipei-pass-service.vercel.app` 網頁連結不能當成可供 agent 呼叫的正式 API；不能用模擬回執宣稱正式服務成功。
 
+## 手機模型增量
+
+已整合隊友 Android LFM3 runtime，新增 `PhoneModel` adapter；以 `llm_start/status/stop` 取得動態接點、暫存授權並取消／停止。讀取手機模型時不再需要 Mac Ollama。模型不自動下載，需按畫面啟動；實機驗證記錄另外列於 PR。細節見 [手機模型文件](phone-model.md)。MCP 與帳單仍是 demo。
+
 ## 帳單增量
 
 已提供本期帳單 skill、缺類型追問、四種繳費狀態、錯誤重試及固定開發範本導頁。仍是自製 demo 帳單；沒有查真實帳務、正式登入或付款。契約與分工見 [帳單 skill](skills/bills.md)。`open_link` 沒有成功回覆，所以只顯示已請求開頁，不能宣稱頁面載入或定位本期成功。

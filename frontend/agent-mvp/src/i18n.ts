@@ -1,6 +1,30 @@
 import type { Locale } from './agent/types';
 
 const zh = {
+  phoneTitle: '手機上的 AI',
+  phoneMode: '手機本機 LFM3 模型',
+  phoneStart: '啟動手機模型',
+  phoneStop: '停止並釋放模型',
+  phoneCancel: '取消啟動',
+  phoneRefresh: '更新模型狀態',
+  phoneDownloadHint:
+    '首次啟動會下載約 1 GB 模型，可能需要數分鐘。模型只在手機推論；查詢服務仍可能需要網路。',
+  phoneBrowserHint: '請在 Android 開發版 App 中使用手機模型；獨立瀏覽器可切換規則模擬或電腦模型。',
+  phone_idle: '模型尚未啟動。',
+  phone_downloading: '正在下載並驗證模型…',
+  phone_starting: '正在準備手機模型…',
+  phone_running: '模型服務已啟動。',
+  phone_stopping: '正在停止模型…',
+  phone_error: '模型目前無法使用。',
+  phoneReady: '已連接手機模型，可以提出需求。',
+  phoneReconnect: '服務可能已啟動，請按啟動按鈕取得本次連線。',
+  phoneError_unavailable: '此環境沒有手機模型橋接，請改在 Android App 中使用。',
+  phoneError_permission: '此網頁未獲准存取手機模型，請使用 App 指定的助手入口。',
+  phoneError_start: '啟動失敗。請確認網路、儲存空間與 App 模型模組後重試。',
+  phoneError_status: '無法確認模型狀態，請更新狀態或重新啟動。',
+  phoneError_stop: '尚未確認模型已停止，請再試一次。',
+  phoneError_auth: '本次模型連線授權已失效，請重新啟動連線。',
+
   browseBills: '我想看到我這期的帳單與繳費狀態',
   billTitle: '帳單與繳費狀態',
   billItem: '示範帳單',
@@ -124,6 +148,33 @@ const zh = {
   footer: '每一步，都由你掌握。',
 };
 const en: Record<keyof typeof zh, string> = {
+  phoneTitle: 'AI on this phone',
+  phoneMode: 'On-device LFM3 model',
+  phoneStart: 'Start phone model',
+  phoneStop: 'Stop and release model',
+  phoneCancel: 'Cancel startup',
+  phoneRefresh: 'Refresh model status',
+  phoneDownloadHint:
+    'First startup downloads about 1 GB and may take several minutes. Inference stays on the phone; service queries may still need the internet.',
+  phoneBrowserHint:
+    'Use the Android development app for the phone model. In a browser, choose simulation or the computer model.',
+  phone_idle: 'The model is not started.',
+  phone_downloading: 'Downloading and verifying the model…',
+  phone_starting: 'Preparing the phone model…',
+  phone_running: 'The model service is running.',
+  phone_stopping: 'Stopping the model…',
+  phone_error: 'The model is unavailable.',
+  phoneReady: 'Connected to the phone model. You can send a request.',
+  phoneReconnect: 'The service may be running. Press Start to establish this session.',
+  phoneError_unavailable: 'The phone model bridge is unavailable. Open this in the Android app.',
+  phoneError_permission:
+    'This page is not allowed to access the model. Use the assistant entry in the app.',
+  phoneError_start:
+    'Startup failed. Check connectivity, free storage and the app’s model module, then retry.',
+  phoneError_status: 'Could not confirm model status. Refresh or restart the connection.',
+  phoneError_stop: 'The model has not been confirmed stopped. Please retry.',
+  phoneError_auth: 'Model authorization expired. Restart the connection.',
+
   browseBills: 'Show my current bills and payment status',
   billTitle: 'Bills and payment status',
   billItem: 'Sample bill',

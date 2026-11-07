@@ -374,6 +374,11 @@ String? _originOf(WebUri? uri) {
   }
 }
 
+Map<String, Object?> _llmReply(Object? request, Map<String, Object?> response) {
+  final id = request is Map ? request['requestId'] : null;
+  return {...response, if (id is String && id.length <= 64) 'requestId': id};
+}
+
 /// 啟動本機 LLM 服務。只接受 [kLlmAllowedOrigins] 內的網頁來源；回覆中包含 apiKey。
 /// 不接受網頁端傳入 threads / contextSize，避免網頁改變資源用量。
 class LlmStartMessageHandler extends TPWebMessageHandler {
@@ -387,16 +392,24 @@ class LlmStartMessageHandler extends TPWebMessageHandler {
     required bool isMainFrame,
     required Function(WebMessage replyWebMessage)? onReply,
   }) async {
-    if (!isLlmOriginAllowed(_originOf(sourceOrigin))) {
+    if (!isMainFrame || !isLlmOriginAllowed(_originOf(sourceOrigin))) {
       onReply?.call(
         replyWebMessage(
-          data: {'running': false, 'error': 'origin_not_allowed'},
+          data: _llmReply(message, {
+            'phase': 'error',
+            'running': false,
+            'error': 'origin_not_allowed',
+          }),
         ),
       );
       return;
     }
     final status = await LlmService.start();
-    onReply?.call(replyWebMessage(data: status.toJson(includeKey: true)));
+    onReply?.call(
+      replyWebMessage(
+        data: _llmReply(message, status.toJson(includeKey: true)),
+      ),
+    );
   }
 }
 
@@ -412,16 +425,20 @@ class LlmStopMessageHandler extends TPWebMessageHandler {
     required bool isMainFrame,
     required Function(WebMessage replyWebMessage)? onReply,
   }) async {
-    if (!isLlmOriginAllowed(_originOf(sourceOrigin))) {
+    if (!isMainFrame || !isLlmOriginAllowed(_originOf(sourceOrigin))) {
       onReply?.call(
         replyWebMessage(
-          data: {'running': false, 'error': 'origin_not_allowed'},
+          data: _llmReply(message, {
+            'phase': 'error',
+            'running': false,
+            'error': 'origin_not_allowed',
+          }),
         ),
       );
       return;
     }
     final status = await LlmService.stop();
-    onReply?.call(replyWebMessage(data: status.toJson()));
+    onReply?.call(replyWebMessage(data: _llmReply(message, status.toJson())));
   }
 }
 
@@ -437,15 +454,19 @@ class LlmStatusMessageHandler extends TPWebMessageHandler {
     required bool isMainFrame,
     required Function(WebMessage replyWebMessage)? onReply,
   }) async {
-    if (!isLlmOriginAllowed(_originOf(sourceOrigin))) {
+    if (!isMainFrame || !isLlmOriginAllowed(_originOf(sourceOrigin))) {
       onReply?.call(
         replyWebMessage(
-          data: {'running': false, 'error': 'origin_not_allowed'},
+          data: _llmReply(message, {
+            'phase': 'error',
+            'running': false,
+            'error': 'origin_not_allowed',
+          }),
         ),
       );
       return;
     }
     final status = await LlmService.status();
-    onReply?.call(replyWebMessage(data: status.toJson()));
+    onReply?.call(replyWebMessage(data: _llmReply(message, status.toJson())));
   }
 }

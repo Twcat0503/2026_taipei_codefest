@@ -116,6 +116,8 @@ void main() {
   test('只允許開發環境的網頁來源', () {
     expect(isLlmOriginAllowed('http://10.0.2.2:5173'), isTrue);
     expect(isLlmOriginAllowed('http://localhost:5173'), isTrue);
+    expect(isLlmOriginAllowed('http://127.0.0.1:5173'), isTrue);
+    expect(isLlmOriginAllowed('http://127.0.0.1.evil.test:5173'), isFalse);
     expect(isLlmOriginAllowed('https://evil.example'), isFalse);
     expect(isLlmOriginAllowed(null), isFalse);
   });

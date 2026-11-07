@@ -134,3 +134,83 @@ test('native bill navigation requests the registered route and reports bridge fa
   await page.getByRole('link', { name: '開啟範本：水費', exact: true }).click();
   await expect(page.getByText(/無法請 App 開啟頁面/)).toBeVisible();
 });
+
+test('phone model startup, authenticated structured calls, and stop', async ({ page }) => {
+  const fixtureKey = 'b'.repeat(64);
+  await page.evaluate((key) => {
+    const listeners = new Set<(event: { data: string }) => void>();
+    let running = false;
+    window.flutterObject = {
+      addEventListener: (_name, fn) => {
+        listeners.add(fn);
+      },
+      removeEventListener: (_name, fn) => {
+        listeners.delete(fn);
+      },
+      postMessage: (raw) => {
+        const request = JSON.parse(raw);
+        if (request.name === 'llm_start') running = true;
+        if (request.name === 'llm_stop') running = false;
+        const data = {
+          requestId: request.data.requestId,
+          phase: running ? 'running' : 'idle',
+          running,
+          ...(running ? { baseUrl: 'http://127.0.0.1:5555/v1', model: 'phone-fixture' } : {}),
+          ...(request.name === 'llm_start' ? { apiKey: key } : {}),
+        };
+        for (const fn of listeners) fn({ data: JSON.stringify({ name: request.name, data }) });
+      },
+    };
+  }, fixtureKey);
+  const calls: string[] = [];
+  await page.route('http://127.0.0.1:5555/v1/chat/completions', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'authorization,content-type',
+          'Access-Control-Allow-Methods': 'POST,OPTIONS',
+        },
+      });
+      return;
+    }
+    expect(route.request().headers().authorization).toBe(`Bearer ${fixtureKey}`);
+    const body = route.request().postDataJSON();
+    expect(body.model).toBe('phone-fixture');
+    expect(body.reasoning_effort).toBeUndefined();
+    const name = body.response_format.json_schema.schema.properties.name.const;
+    calls.push(name);
+    const arguments_ =
+      name === 'select_agent'
+        ? { domain: 'bills' }
+        : { category: 'water', period: 'current', action: 'read' };
+    await route.fulfill({
+      contentType: 'application/json',
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({
+        choices: [{ message: { content: JSON.stringify({ name, arguments: arguments_ }) } }],
+      }),
+    });
+  });
+  await page.getByText('開發者檢視與接點設定', { exact: true }).click();
+  await page.getByLabel('模型來源').selectOption('phone');
+  await page.getByRole('button', { name: '套用接點', exact: true }).click();
+  await page.getByText('開發者檢視與接點設定', { exact: true }).click();
+  await expect(page.getByRole('button', { name: '送出需求', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: '啟動手機模型', exact: true }).click();
+  await expect(page.getByText('已連接手機模型，可以提出需求。', { exact: true })).toBeVisible();
+  await page.getByLabel('你想要做什麼？', { exact: true }).fill('查本期水費繳費狀態');
+  await page.getByRole('button', { name: '送出需求', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '水費 · 示範帳單 1' })).toBeVisible();
+  expect(calls).toEqual(['select_agent', 'select_bill_query']);
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain(fixtureKey);
+  expect(await page.locator('body').innerText()).not.toContain(fixtureKey);
+  expect(
+    (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
+      .violations,
+  ).toEqual([]);
+  await page.getByRole('button', { name: '停止並釋放模型', exact: true }).click();
+  await expect(page.getByText('模型尚未啟動。', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '送出需求', exact: true })).toBeDisabled();
+});

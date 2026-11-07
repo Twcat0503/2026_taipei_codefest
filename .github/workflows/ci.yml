@@ -51,7 +51,7 @@ jobs:
 
           flutter=false
           if [ "$workflow_changed" = true ] ||
-            grep -qE '^(lib|test|assets|fonts)/|^(pubspec\.(yaml|lock)|analysis_options\.yaml|\.fvmrc)$' <<<"$changed"; then
+            grep -qE '^(lib|test|integration_test|android|assets|fonts)/|^tools/llm-android/|^(pubspec\.(yaml|lock)|analysis_options\.yaml|\.fvmrc)$' <<<"$changed"; then
             flutter=true
           fi
 
@@ -107,9 +107,11 @@ jobs:
       - run: pnpm format:check
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
 
   flutter:
-    name: Flutter (format, analyze, test)
+    name: Flutter (format, analyze, test, APK)
     needs: changes
     if: needs.changes.outputs.flutter == 'true'
     runs-on: ubuntu-latest
@@ -134,6 +136,9 @@ jobs:
       - run: flutter analyze
 
       - run: flutter test
+
+      # Compile native Kotlin and merge manifests; model runtime is tested on a device.
+      - run: flutter build apk --debug --target-platform android-arm64
 
   # Single required check for branch protection; skipped jobs count as passing.
   result:

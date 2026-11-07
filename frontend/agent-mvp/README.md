@@ -1,5 +1,7 @@
 # 城市通 Agent MVP
 
+手機 LFM3 模型 adapter 已接入；啟動、授權、取消與測試方式見 [手機模型文件](docs/phone-model.md)。Android App 內預設選手機模型，需按啟動才下載／載入。
+
 UI／UX 隊友請先看 [交接文件與流程圖](docs/ui-ux-handoff.md)，可不用模型與 Flutter 直接修改介面。
 
 本工作區負責 **agent orchestration 與無障礙操作介面**。**LLM 推論與 MCP 由隊友實作**；這裡的 Ollama adapter 和 DemoMcpClient 是聯調替身，不是團隊的正式模型或 MCP server。
@@ -50,7 +52,7 @@ mise exec -- pnpm dev
 
 - `VITE_MODEL_PROTOCOL=json-schema`：目前實測模式，以 `response_format.json_schema` 限制輸出，再轉成內部 ToolCall。傳送 `reasoning_effort: none`，提示使用 `/no_think`；隊友的後端需支援這些功能，或自行提供 ModelAdapter。
 - `VITE_MODEL_PROTOCOL=tools`：傳送原生 `tools`，解析 `message.tool_calls`；不送 Ollama 的關閉思考設定。此模式有解析器測試，尚未對隊友模型驗證。
-- 每次模型呼叫限制 256 output tokens、20 秒 timeout，一個回應只接受一個工具；路由一次、專家一次。一般成功查詢是兩次模型呼叫，驗證工具結果後直接呈現。帳單按鈕補問與重試不再呼叫模型。MCP 發現與呼叫各有 10 秒 timeout；取消後的晚到結果不會更新畫面。
+- 每次模型呼叫限制 256 output tokens、20 秒 timeout，一個回應只接受一個工具；電腦模型預設 20 秒，手機 adapter 為 90 秒；啟動模型另外處理。路由一次、專家一次。一般成功查詢是兩次模型呼叫，驗證工具結果後直接呈現。帳單按鈕補問與重試不再呼叫模型。MCP 發現與呼叫各有 10 秒 timeout；取消後的晚到結果不會更新畫面。
 - 不是載入多份模型：同一模型以不同英文 system prompt 執行路由／專家角色，順序呼叫，專家取得新上下文。中文原始需求、書名及工具資料作為資料保留，避免翻譯破壞搜尋。UI 回答由字典與已驗證資料產生，不呈現模型思考過程。
 - 小模型 JSON 格式正確不代表分類一定正確；英文提示與少量範例只改善已測情境，仍需隊友模型的獨立評測。
 

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 const Set<String> kLlmAllowedOrigins = {
   'http://10.0.2.2:5173',
   'http://localhost:5173',
+  'http://127.0.0.1:5173',
 };
 
 bool isLlmOriginAllowed(String? origin) =>

@@ -12,6 +12,8 @@ import java.net.ServerSocket
 import java.net.URL
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.CancellationException
 
 /**
  * 本地 LLM 服務設定。模型不隨 APK 發佈，第一次啟動時從 [modelUrl] 下載並驗證大小與 SHA-256。
@@ -120,6 +122,14 @@ object LlmServer {
     private const val LOG_FILE = "llm/llama-server.log"
     private const val HEALTH_TIMEOUT_MS = 180_000L
 
+    private val generation = AtomicLong(0)
+    @Volatile private var downloadConnection: HttpURLConnection? = null
+    fun startTicket(): Long = generation.get()
+    fun cancelPendingStart() { generation.incrementAndGet() }
+    private fun checkActive(ticket: Long) {
+        if (generation.get() != ticket) throw CancellationException("LLM_START_CANCELLED")
+    }
+
     private val opLock = Any() // 串行化 start / stop
     @Volatile private var phase = LlmPhase.IDLE
     @Volatile private var lastError: String? = null
@@ -136,7 +146,8 @@ object LlmServer {
     fun status(): LlmStatus = snapshot(includeKey = false)
 
     /** 啟動服務。已在執行則直接回傳目前狀態（含 key）。失敗時 phase 為 ERROR，不拋例外。 */
-    fun start(context: Context, config: LlmConfig): LlmStatus = synchronized(opLock) {
+    fun start(context: Context, config: LlmConfig, ticket: Long = startTicket()): LlmStatus = synchronized(opLock) {
+        if (generation.get() != ticket) return@synchronized snapshot(includeKey = false)
         val current = process
         if (phase == LlmPhase.RUNNING && current != null && isAlive(current)) {
             return@synchronized snapshot(includeKey = true)
@@ -146,27 +157,37 @@ object LlmServer {
             config.validate()
             killLeftover(context)
             phase = LlmPhase.DOWNLOADING
-            val model = ensureModel(context, config)
+            val model = ensureModel(context, config, ticket)
+            checkActive(ticket)
             phase = LlmPhase.STARTING
-            launch(context, config, model)
+            launch(context, config, model, ticket)
+            checkActive(ticket)
             phase = LlmPhase.RUNNING
         } catch (e: Exception) {
-            lastError = e.message ?: e.javaClass.simpleName
-            phase = LlmPhase.ERROR
+            val cancelled = generation.get() != ticket
+            lastError = if (cancelled) null else (e.message ?: e.javaClass.simpleName)
+            phase = if (cancelled) LlmPhase.IDLE else LlmPhase.ERROR
             terminate(context)
         }
         snapshot(includeKey = true)
     }
 
     /** 停止服務並釋放記憶體。未在執行時也安全。 */
-    fun stop(context: Context): LlmStatus = synchronized(opLock) {
-        terminate(context)
-        phase = LlmPhase.IDLE
-        lastError = null
-        snapshot(includeKey = false)
+    fun stop(context: Context): LlmStatus {
+        downloadConnection?.disconnect()
+        return synchronized(opLock) {
+            terminate(context)
+            phase = LlmPhase.IDLE
+            lastError = null
+            snapshot(includeKey = false)
+        }
     }
 
     private fun snapshot(includeKey: Boolean): LlmStatus {
+        if (phase == LlmPhase.RUNNING && process?.let { !isAlive(it) } != false) {
+            phase = LlmPhase.ERROR
+            lastError = "LLM_PROCESS_EXITED"
+        }
         val running = phase == LlmPhase.RUNNING
         return LlmStatus(
             phase = phase,
@@ -181,7 +202,7 @@ object LlmServer {
         )
     }
 
-    private fun launch(context: Context, config: LlmConfig, model: File) {
+    private fun launch(context: Context, config: LlmConfig, model: File, ticket: Long) {
         val bin = File(context.applicationInfo.nativeLibraryDir, "libllama_server.so")
         if (!bin.exists()) {
             throw IOException("缺少 libllama_server.so，請先執行 tools/llm-android/build_llama_server.sh")
@@ -226,12 +247,13 @@ object LlmServer {
         usedKv = config.kvCacheType
         usedFlashAttn = flashAttn
         pidOf(child)?.let { File(context.filesDir, PID_FILE).writeText(it.toString()) }
-        waitHealthy(child, listenPort)
+        waitHealthy(child, listenPort, ticket)
     }
 
-    private fun waitHealthy(child: Process, listenPort: Int) {
+    private fun waitHealthy(child: Process, listenPort: Int, ticket: Long) {
         val deadline = System.currentTimeMillis() + HEALTH_TIMEOUT_MS
         while (System.currentTimeMillis() < deadline) {
+            checkActive(ticket)
             if (!isAlive(child)) {
                 throw IOException("llama-server 已結束（exit=${child.exitValue()}），請查看 llm/llama-server.log")
             }
@@ -285,14 +307,15 @@ object LlmServer {
         pidFile.delete()
     }
 
-    private fun ensureModel(context: Context, config: LlmConfig): File {
+    private fun ensureModel(context: Context, config: LlmConfig, ticket: Long): File {
         val dir = File(context.filesDir, "llm/models").apply { mkdirs() }
         val target = File(dir, config.modelFileName)
         if (target.exists() && target.length() == config.modelSizeBytes) return target
 
         val part = File(dir, config.modelFileName + ".part")
-        download(config.modelUrl, part)
-        val actual = sha256(part)
+        if (part.length() > config.modelSizeBytes) part.delete()
+        if (part.length() != config.modelSizeBytes) download(config.modelUrl, part, ticket)
+        val actual = sha256(part, ticket)
         if (part.length() != config.modelSizeBytes || !actual.equals(config.modelSha256, ignoreCase = true)) {
             part.delete()
             throw IOException("模型檔驗證失敗（大小或 SHA-256 不符）")
@@ -302,26 +325,59 @@ object LlmServer {
         return target
     }
 
-    private fun download(url: String, dest: File) {
+    private fun download(url: String, dest: File, ticket: Long) {
+        for (attempt in 0..2) {
+            checkActive(ticket)
+            try {
+                downloadAttempt(url, dest, ticket)
+                return
+            } catch (error: IOException) {
+                checkActive(ticket)
+                if (attempt == 2) throw error
+                Thread.sleep(500)
+            }
+        }
+    }
+
+    private fun downloadAttempt(url: String, dest: File, ticket: Long) {
+        val offset = if (dest.exists()) dest.length() else 0L
         val conn = URL(url).openConnection() as HttpURLConnection
+        downloadConnection = conn
         try {
+            checkActive(ticket)
             conn.instanceFollowRedirects = true
             conn.connectTimeout = 30_000
             conn.readTimeout = 60_000
-            if (conn.responseCode !in 200..299) {
-                throw IOException("下載模型失敗：HTTP ${conn.responseCode}")
+            if (offset > 0) conn.setRequestProperty("Range", "bytes=$offset-")
+            val code = conn.responseCode
+            if (code !in listOf(200, 206)) {
+                throw IOException("下載模型失敗：HTTP $code")
             }
-            conn.inputStream.use { input -> dest.outputStream().use { out -> input.copyTo(out, 1 shl 20) } }
+            val append = code == 206
+            if (append && conn.getHeaderField("Content-Range")?.startsWith("bytes $offset-") != true) {
+                throw IOException("模型續傳回應範圍不符")
+            }
+            conn.inputStream.use { input -> FileOutputStream(dest, append).use { out ->
+                val buffer = ByteArray(1 shl 20)
+                while (true) {
+                    checkActive(ticket)
+                    val size = input.read(buffer)
+                    if (size < 0) break
+                    out.write(buffer, 0, size)
+                }
+            } }
         } finally {
+            downloadConnection = null
             conn.disconnect()
         }
     }
 
-    private fun sha256(file: File): String {
+    private fun sha256(file: File, ticket: Long): String {
         val md = MessageDigest.getInstance("SHA-256")
         file.inputStream().use { input ->
             val buf = ByteArray(1 shl 20)
             while (true) {
+                checkActive(ticket)
                 val n = input.read(buf)
                 if (n <= 0) break
                 md.update(buf, 0, n)
