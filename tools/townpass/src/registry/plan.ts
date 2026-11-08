@@ -7,37 +7,40 @@ import type { Binding, BrowserExecution, ServiceDefinition, ServiceTool } from "
  * 步驟、參數型別與 HTTP 綁定由程式依固定規則組出；模型不能直接寫 execution。
  */
 
-type Element = {
+export type Element = {
   selector: string;
   tag: string;
   type?: string | null;
   role?: string | null;
+  name?: string | null;
   label?: string | null;
+  placeholder?: string | null;
+  text?: string | null;
   required?: boolean;
   options?: { value: string; label: string }[];
 };
 
 export type ServicePlan = {
-  /** 送給解析模型的輸出格式（JSON Schema 由此產生）。 */
+  /** 整體計畫的輸出格式；逐步生成的結果也會組成這個格式再驗證。 */
   schema: z.ZodType;
-  /** 解析模型的輸出經 schema 驗證後，組出工具定義。 */
+  /** 整體計畫經 schema 驗證後，組出工具定義。 */
   assemble: (output: unknown) => ServiceDefinition;
 };
 
 // 工具名稱與參數名稱會被對話模型當成函式與參數鍵使用，因此限制為識別字；
 // 限制寫在 schema 中，解析模型的輸出在生成時就受約束。
-const toolName = z.string().regex(/^[a-z][a-z0-9_]*$/).max(60);
-const parameterName = z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/).max(40);
+export const toolName = z.string().regex(/^[a-z][a-z0-9_]*$/).max(60);
+export const parameterName = z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/).max(40);
 
 const nonFillableInputs = ["hidden", "file", "checkbox", "radio", "button", "submit", "reset", "image"];
 const submitInputs = ["button", "submit", "reset", "image"];
 
-function isInputControl(element: Element) {
+export function isInputControl(element: Element) {
   if (element.tag === "select" || element.tag === "textarea") return true;
   return element.tag === "input" && (element.type === "checkbox" || !nonFillableInputs.includes(element.type ?? "text"));
 }
 
-function isSubmitControl(element: Element) {
+export function isSubmitControl(element: Element) {
   return element.tag === "button" || element.tag === "a" || element.role === "button" ||
     (element.tag === "input" && submitInputs.includes(element.type ?? ""));
 }
@@ -52,7 +55,8 @@ function controlSpec(element: Element): { action: "fill" | "select" | "check"; s
     case "number":
     case "range": return { action: "fill", schema: { type: "number" } };
     case "date": return { action: "fill", schema: { type: "string", format: "date" } };
-    case "time": return { action: "fill", schema: { type: "string", format: "time" } };
+    // HTML 的 time 欄位值是 HH:MM（或 HH:MM:SS），不是 RFC 3339 的 time 格式（必須含秒與時區）。
+    case "time": return { action: "fill", schema: { type: "string", pattern: "^([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$" } };
     case "email": return { action: "fill", schema: { type: "string", format: "email" } };
     case "url": return { action: "fill", schema: { type: "string", format: "uri" } };
     default: return { action: "fill", schema: { type: "string" } };
@@ -63,8 +67,8 @@ type PageOutput = {
   tools: {
     name: string;
     description: string;
-    /** 觀測到的輸入控制項選擇器 → 參數名稱；未列出者不是參數。 */
-    controls: Record<string, string | undefined>;
+    /** 每個觀測到的輸入控制項選擇器 → 參數名稱；缺漏的控制項無法通過 schema。 */
+    controls: Record<string, string>;
     submit: string;
     resultSelector: string;
   }[];
@@ -79,8 +83,8 @@ function pagePlan(observation: ServiceObservation): ServicePlan {
     tools: z.array(z.object({
       name: toolName,
       description: z.string().min(1),
-      // 以選擇器為鍵：JSON 物件中每個控制項最多出現一次，未知的選擇器直接拒絕。
-      controls: z.strictObject(Object.fromEntries(controls.map(selector => [selector, parameterName.optional()]))),
+      // 以選擇器為鍵：每個觀測到的輸入控制項都必須有參數名稱，缺漏與未知的選擇器都直接拒絕。
+      controls: z.strictObject(Object.fromEntries(controls.map(selector => [selector, parameterName]))),
       submit: z.enum(submits),
       resultSelector: z.enum(elements.map(element => element.selector)),
     })).length(1),
@@ -91,21 +95,18 @@ function pagePlan(observation: ServiceObservation): ServicePlan {
 function assemblePage(observation: ServiceObservation, plan: PageOutput): ServiceDefinition {
   const elements = observation.elements as Element[];
   const position = new Map(elements.map((element, index) => [element.selector, index]));
-  const byselector = new Map(elements.map(element => [element.selector, element]));
+  const bySelector = new Map(elements.map(element => [element.selector, element]));
   return {
     url: String(observation.url),
     title: String(observation.title ?? ""),
     tools: uniqueTools(plan.tools.map(tool => {
       // 步驟依觀測到的頁面順序排列，與模型列出的順序無關；描述取自觀測到的標籤。
-      const chosen = Object.entries(tool.controls)
-        .filter((entry): entry is [string, string] => entry[1] !== undefined)
-        .sort(([a], [b]) => position.get(a)! - position.get(b)!);
-      if (!chosen.length) throw new Error(`工具 ${tool.name} 至少需要一個輸入控制項`);
+      const chosen = Object.entries(tool.controls).sort(([a], [b]) => position.get(a)! - position.get(b)!);
       const properties = new Map<string, Record<string, unknown>>();
       const required: string[] = [];
       const steps: BrowserExecution["steps"] = [];
       for (const [selector, parameter] of chosen) {
-        const element = byselector.get(selector)!;
+        const element = bySelector.get(selector)!;
         if (properties.has(parameter)) throw new Error(`參數名稱重複：${parameter}`);
         const { action, schema } = controlSpec(element);
         properties.set(parameter, element.label ? { ...schema, description: element.label } : schema);
@@ -149,6 +150,9 @@ const methods: Method[] = ["get", "post", "put", "patch", "delete"];
 
 type HttpExecution = Extract<ServiceTool["execution"], { kind: "http" }>;
 type ApiOperation = { inputSchema: ServiceTool["inputSchema"]; execution: HttpExecution };
+
+/** 一個可提供給模型的 OpenAPI 操作；key 為「METHOD URL」，operation 為文件中的原始操作物件。 */
+export type ApiCatalogEntry = ApiOperation & { key: string; operation: unknown };
 
 const primitiveTypes = ["string", "number", "integer", "boolean"];
 const formats = ["date", "date-time", "time", "email", "uri"];
@@ -253,9 +257,11 @@ function buildOperation(
   });
 }
 
-function apiPlan(observation: ServiceObservation): ServicePlan {
+/** 列出可提供給模型的 OpenAPI 操作；同一個鍵只保留第一次出現，不支援的操作會說明原因。 */
+export function apiCatalog(observation: ServiceObservation): ApiCatalogEntry[] {
   const document = openApiDocumentSchema.parse(observation.document);
-  const operations = new Map<string, ApiOperation>();
+  const entries: ApiCatalogEntry[] = [];
+  const seen = new Set<string>();
   const skipped: string[] = [];
   for (const [path, item] of Object.entries(document.paths)) {
     if (!path.startsWith("/")) continue;
@@ -273,19 +279,27 @@ function apiPlan(observation: ServiceObservation): ServicePlan {
         skipped.push(`${label}：${built}`);
         continue;
       }
-      for (const [key, value] of built) if (!operations.has(key)) operations.set(key, value);
+      for (const [key, value] of built) {
+        if (seen.has(key)) continue;
+        seen.add(key);
+        entries.push({ key, operation: item[method], ...value });
+      }
     }
   }
-  const keys = [...operations.keys()];
-  if (!keys.length) {
+  if (!entries.length) {
     throw new Error(`沒有可提供的 OpenAPI 操作${skipped.length ? `：${skipped.join("；")}` : ""}`);
   }
+  return entries;
+}
+
+function apiPlan(observation: ServiceObservation): ServicePlan {
+  const entries = apiCatalog(observation);
+  // 以操作鍵為 JSON 物件的鍵：同一操作在物件中最多出現一次，未列出的操作直接拒絕。
   const schema = z.object({
-    tools: z.array(z.object({
+    operations: z.strictObject(Object.fromEntries(entries.map(entry => [entry.key, z.object({
       name: toolName,
       description: z.string().min(1),
-      operation: z.enum(keys),
-    })).min(1),
+    }).optional()]))),
   });
   const info = (observation.document as { info?: { title?: unknown } }).info;
   const title = typeof info?.title === "string" ? info.title : String(observation.url);
@@ -293,12 +307,14 @@ function apiPlan(observation: ServiceObservation): ServicePlan {
     schema,
     assemble: output => {
       const plan = schema.parse(output);
+      const chosen = entries.filter(entry => plan.operations[entry.key] !== undefined);
+      if (!chosen.length) throw new Error("沒有選擇任何 OpenAPI 操作");
       return {
         url: String(observation.url),
         title,
-        tools: uniqueTools(plan.tools.map(tool => {
-          const operation = operations.get(tool.operation)!;
-          return { name: tool.name, description: tool.description, inputSchema: operation.inputSchema, execution: operation.execution };
+        tools: uniqueTools(chosen.map(entry => {
+          const { name, description } = plan.operations[entry.key]!;
+          return { name, description, inputSchema: entry.inputSchema, execution: entry.execution };
         })),
       };
     },
@@ -312,7 +328,7 @@ function uniqueTools(tools: ServiceTool[]) {
   return tools;
 }
 
-/** 依觀測來源建立生成計畫；來源不同，可選擇的內容也不同。 */
+/** 依觀測來源建立整體生成計畫；來源不同，可選擇的內容也不同。 */
 export function planService(observation: ServiceObservation): ServicePlan {
   return observation.kind === "openapi" ? apiPlan(observation) : pagePlan(observation);
 }

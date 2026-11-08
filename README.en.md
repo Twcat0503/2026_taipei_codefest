@@ -18,7 +18,7 @@ For everyone who finds city services "用不了" (*"I can't use it"*), so they c
 
 For people with disabilities, older adults, pregnant people, people with low vision and carers, the problem is rarely that a service does not exist. It is that they cannot use it: too many entry points, long forms, small text, and screens that have to be read carefully.
 
-The **Care Assistant** lives inside the Town Pass app (Taipei's city app). People describe what they need in one sentence or tap a suggestion. The assistant looks up Taipei open data to find the nearest accessible toilets or parking with disabled spaces. When something needs to be done, it opens the right Town Pass service with the details it already knows (water account number, phone, email) filled in, asks the person to confirm before leaving, and never submits anything on their behalf. The language model runs on the phone, so conversations are not sent to a cloud model.
+The **Care Assistant** lives inside the Town Pass app (Taipei's city app). People describe what they need in one sentence, by voice or by typing, or tap a suggestion. The assistant looks up Taipei open data to find the nearest accessible toilets or parking with disabled spaces. When something needs to be done, it opens the right Town Pass service with the details it already knows (water account number, phone, email) filled in, asks the person to confirm before leaving, and never submits anything on their behalf. The language model runs on the phone, so conversations are not sent to a cloud model.
 
 ## Screenshots
 
@@ -34,10 +34,11 @@ The **Care Assistant** lives inside the Town Pass app (Taipei's city app). Peopl
 
 - **Accessibility first**: built to WCAG 2.1 AA. Fixes TalkBack not being able to swipe into WebView content; text follows the system font size and reflows at 200% without horizontal scrolling; the system bold text, high contrast and reduce motion settings are mirrored into the page.
 - **Multi-sensory feedback**: haptics when an answer arrives, a lookup fails, an emergency card appears or a choice is tapped. With voice feedback on (and no screen reader running), answers are read aloud automatically. Read-aloud uses the system voice, or the optional on-device BlueMagpie natural voice.
-- **Find places**: accessible toilets, parking with disabled or pregnancy priority spaces, and live YouBike availability, near the current location or in a chosen district; every lookup shows its data source and time.
-- **Get things done**: Town Pass services such as bill payment, city reports, police reports and counter queue numbers. Leaving the assistant always asks for confirmation; known fields are filled in, and a city report is drafted from the person's own words as an editable draft that never adds details they did not say.
-- **Emergency help**: emergencies skip the model and show call buttons for 119, 110, 113 and 1925 straight away.
-- **On-device AI**: the LFM3-VL-2B multimodal language model runs on Android as a native child process, with optional whisper.cpp speech recognition and BlueMagpie speech synthesis. All three listen on loopback only, and no model ships with the app.
+- **Voice input**: a voice button on the home screen and a microphone next to the input box. Inside the app, speech is recognised on the phone and the recording stays in memory; in a plain browser, the browser's own speech recognition is used. The recognised text goes into the input box first, and the person decides when to send it.
+- **Find places**: accessible toilets, parking with disabled or pregnancy priority spaces, and live YouBike availability, near the current location (GPS), in a chosen district or around a well-known landmark; every lookup shows its data source and time.
+- **Get things done**: Town Pass services such as bill payment, city reports, disaster reports, police reports and counter queue numbers. Leaving the assistant always asks for confirmation; known fields are filled in, and any field that cannot be filled in is listed so the person can fill it in themselves. City reports and disaster reports are drafted from the person's own words as editable drafts that never add details they did not say.
+- **Emergency help**: when the rules detect an emergency, the assistant skips the model and shows call buttons for 119, 110, 113 and 1925 straight away; the router also has an emergency option for cases the rules miss. The buttons stay after a reload, and read-aloud explains how to call.
+- **On-device AI**: the LFM3-VL-2B multimodal language model runs on Android as a native child process, with optional whisper.cpp speech recognition (for voice input) and BlueMagpie speech synthesis. All three listen on loopback only, and no model ships with the app.
 - **Privacy**: location is only used to compute distances and never sent to the model; national ID numbers are read from the member profile each time, shown masked, and never stored.
 
 ## Architecture
@@ -52,7 +53,7 @@ flowchart LR
     end
   end
   WebView --> Agent["Care Assistant (Vue 3)<br/>routing, skills, tool validation, accessibility layer"]
-  Agent -- "read-aloud, haptics, accessibility state, open service, member data" --> Bridge
+  Agent -- "read-aloud, haptics, accessibility state, voice input, open service, member data" --> Bridge
   Bridge -- "MethodChannel" --> Native
   Agent -- "loopback HTTP + Bearer key" --> Native
   Agent --> Tools["tools/townpass<br/>read-only tools and data layer"]
@@ -62,11 +63,11 @@ flowchart LR
 
 | Part | What it does | Where |
 | --- | --- | --- |
-| App | Town Pass Flutter app, `TPWebView`, JS bridge (read-aloud, haptics, accessibility state, form prefill), TalkBack and system font size fixes | `lib/`, `android/` |
-| Care Assistant | Vue 3 web app: routing and skills, tap-to-answer choices, city report drafts, emergency calls, accessibility layer | `frontend/agent-mvp/` |
-| Tools | Wraps Town Pass services and open data as read-only tools, with timeouts, caching and validation in the data layer | `tools/townpass/` |
+| App | Town Pass Flutter app, `TPWebView`, JS bridge (read-aloud, haptics, accessibility state, voice input, form prefill), TalkBack and system font size fixes | `lib/`, `android/` |
+| Care Assistant | Vue 3 web app: routing and skills, tap-to-answer choices, city and disaster report drafts, emergency calls, voice input, accessibility layer | `frontend/agent-mvp/` |
+| Tools | Wraps Town Pass services and open data as read-only tools, with timeouts, caching and validation in the data layer; also a shared service tool registry, still in development, where a model on the host turns web pages or API documents into tools step by step | `tools/townpass/` |
 | On-device AI | Build and model tooling for LFM3-VL-2B (llama.cpp), whisper.cpp ASR and BlueMagpie TTS | `tools/llm-android/`, `tools/asr-android/`, `tools/tts-android/` |
-| Service template | Snapshot of TownPass-Services, kept for reference | `frontend/` |
+| Service template | Snapshot of TownPass-Services (for reference), plus the `/about` data sources page and an in-page text size control | `frontend/` |
 
 ## Tech stack
 
@@ -112,9 +113,9 @@ The Care Assistant entry on the app's home screen opens the assistant. The on-de
 
 | Scope | Commands | Status |
 | --- | --- | --- |
-| Flutter | `fvm flutter analyze`, `fvm flutter test` | no issues; 190 tests pass |
-| Care Assistant | `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm test:e2e` | 425 unit tests and 35 end-to-end tests (with axe scans) pass |
-| Tools | `pnpm typecheck`, `pnpm test` (in `tools/townpass`) | 34 tests pass |
+| Flutter | `fvm flutter analyze`, `fvm flutter test` | no issues; 204 tests pass |
+| Care Assistant | `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm test:e2e` | 541 unit tests and 47 end-to-end tests (with axe scans) pass |
+| Tools | `pnpm typecheck`, `pnpm test` (in `tools/townpass`) | 114 tests pass |
 
 CI only checks the parts affected by a change; see [CONTRIBUTING.md](CONTRIBUTING.md) (in Chinese).
 
@@ -124,11 +125,11 @@ CI only checks the parts affected by a change; see [CONTRIBUTING.md](CONTRIBUTIN
 lib/                  Flutter app (Town Pass snapshot, assistant entry, bridges)
 android/              Android native code (on-device AI services, TalkBack fix)
 frontend/agent-mvp/   Care Assistant web app
-tools/townpass/       Read-only tools and data layer
+tools/townpass/       Read-only tools, data layer and shared service tool registry
 tools/llm-android/    Build and install tooling for on-device LFM3
 tools/asr-android/    Build and model conversion tooling for whisper.cpp ASR
 tools/tts-android/    Build and model tooling for BlueMagpie TTS
-frontend/             TownPass-Services template (reference)
+frontend/             TownPass-Services template and the /about data sources page
 docs/screenshots/     README screenshots
 ```
 
@@ -141,6 +142,8 @@ By default the app only answers from the real data and official services below, 
 | YouBike 2.0 Taipei real-time availability | Department of Transportation, Taipei City Government | <https://data.taipei/dataset/detail?id=c6bc8aed-557d-41d5-bfb1-8da24f78f2fb> | Bikes and docks available at nearby stations (updated every minute) |
 | Taipei parking lots | Parking Management and Development Office, Department of Transportation | <https://data.taipei/dataset/detail?id=d5c0656b-5250-4179-a491-c94daa56ef2c> | Location, fees, disabled and pregnancy priority spaces (live free-space data is discontinued and not used) |
 | Taipei public toilets | Department of Environmental Protection, Taipei City Government | <https://data.taipei/dataset/detail?id=ca205b54-a06f-4d84-894c-d6ab5079ce79> | Accessible stalls, family stalls and changing beds (bundled official dated snapshot) |
+| Taipei petition system categories | Research, Development and Evaluation Commission, Taipei City Government | <https://data.taipei/dataset/detail?id=cb423c17-88eb-4231-a725-f1b93247d1bf> | Petition categories, subcategories and the agencies that handle them |
+| Taipei monthly report of area, districts, villages and neighbourhoods | Department of Civil Affairs, Taipei City Government | <https://data.taipei/dataset/detail?id=d1bb140b-733b-43cc-91ca-685a984d022a> | Names of Taipei's 12 districts |
 
 Open data is attributed under the [Open Government Data License, version 1.0](https://data.gov.tw/license); every lookup shows the provider, dataset and data time.
 
@@ -164,7 +167,7 @@ This project is licensed under the [GNU Affero General Public License v3.0](LICE
 ## Acknowledgements
 
 - The **Department of Information Technology, Taipei City Government**, for open-sourcing [Town Pass](https://github.com/taipei-doit/TownPass) and [TownPass-Services](https://github.com/taipei-doit/TownPass-Services) and providing the [Town Pass developer guide](https://tpe-guideline.web.app) and design resources.
-- **Open data providers**: the Department of Transportation, its Parking Management and Development Office, the Department of Environmental Protection, and the [Taipei Open Data platform](https://data.taipei).
+- **Open data providers**: the Department of Transportation, its Parking Management and Development Office, the Department of Environmental Protection, the Research, Development and Evaluation Commission, the Department of Civil Affairs, and the [Taipei Open Data platform](https://data.taipei).
 - **Open models and projects**: [Liquid AI](https://huggingface.co/LiquidAI) (LFM3), [OpenFormosa](https://huggingface.co/OpenFormosa) (BlueMagpie-TTS), [adi-gov-tw](https://huggingface.co/adi-gov-tw) (Taiwan-Tongues-ASR-CE), [ggml-org](https://github.com/ggml-org) (llama.cpp, whisper.cpp, ggml), [codec.cpp](https://github.com/mybigday/codec.cpp), and the Flutter, Vue, Vite, Playwright and axe-core communities.
 
 ### Contributors

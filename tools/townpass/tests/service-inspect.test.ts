@@ -108,6 +108,7 @@ describe("微服務觀測", () => {
       expect.objectContaining({ selector: "#button", type: "submit" }),
     ]));
     expect(accepts(["#agree", "#text"], "#send")).toBe(true);
+    expect(accepts(["#agree"], "#send")).toBe(false);
     for (const submit of ["#send", "#next", "#reset", "#button"]) expect(accepts(["#agree", "#text"], submit)).toBe(true);
     for (const selector of ["#send", "#next", "#reset", "#choice", "#button"]) expect(accepts([selector], "#send")).toBe(false);
     expect(accepts(["#agree", "#text"], "#choice")).toBe(false);
