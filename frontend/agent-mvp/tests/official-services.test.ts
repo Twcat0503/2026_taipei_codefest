@@ -28,7 +28,6 @@ describe('Town Pass in-app services and official destinations in real mode', () 
     ['有什麼優惠票券？', 'townpass_coupon', townpass('/coupon/')],
     ['我想訂閱市政訊息', 'townpass_subscription', townpass('/subscription')],
     ['我的東西被偷了要報案', 'townpass_police', townpass('/police-report')],
-    ['我想申請身障補助', 'services_disabled', 'classificationCode=Disabled'],
     ['我懷孕了可以申請什麼', 'services_maternity', 'classificationCode=Maternity'],
     ['我想打 1999', 'call_1999', 'tel:1999'],
   ])('%s → %s, shown for confirmation and never opened', async (request, id, url) => {

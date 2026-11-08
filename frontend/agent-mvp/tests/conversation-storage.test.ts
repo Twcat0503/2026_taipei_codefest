@@ -68,6 +68,65 @@ describe('conversation storage', () => {
     values.set('townpass-agent-conversation-v1', '{bad');
     expect(restoreConversation()).toEqual([]);
   });
+  it('restores public results and sources but never saves personal bill data', () => {
+    const title = { 'zh-Hant-TW': '測試站', en: 'Test station' };
+    const source = {
+      kind: 'live' as const,
+      label: '公開資料',
+      note: '即時',
+      url: 'https://example.org/',
+      total: 1,
+      truncated: false,
+    };
+    const time = Date.now() - 1000;
+    expect(
+      saveConversation([
+        {
+          request: '附近的 YouBike',
+          notice: 'results',
+          lastTool: 'find_nearby_youbike',
+          records: [{ id: 'station', title, fields: [{ label: title, value: title }] }],
+          source,
+          time,
+        },
+        {
+          request: '我的帳單',
+          notice: 'bills',
+          lastTool: 'list_bills',
+          records: [{ id: 'secret', title }],
+        },
+      ]),
+    ).toBe(true);
+    const restored = restoreConversation();
+    expect(restored[0]?.results).toMatchObject({
+      tool: 'find_nearby_youbike',
+      time,
+      source,
+      records: [{ id: 'station', title }],
+    });
+    expect(restored[1]?.results).toBeUndefined();
+    expect([...values.values()].join('')).not.toContain('secret');
+  });
+  it('rejects unsafe or unrecognized saved search results', () => {
+    values.set(
+      'townpass-agent-conversation-v1',
+      JSON.stringify([
+        {
+          notice: 'results',
+          results: {
+            tool: 'find_nearby_youbike',
+            time: Date.now(),
+            books: [],
+            records: [
+              { id: 'x', title: { 'zh-Hant-TW': '站', en: 'Station' }, url: 'javascript:alert(1)' },
+            ],
+            source: null,
+          },
+        },
+      ]),
+    );
+    expect(restoreConversation()[0]?.results).toBeUndefined();
+  });
   it('keeps official navigation, emergency and profile summaries on reload', () => {
     const notices = ['navigate', 'navigationDeclined', 'emergency', 'profile'] as const;
     expect(saveConversation(notices.map((notice) => ({ request: '我家門口淹水了', notice })))).toBe(

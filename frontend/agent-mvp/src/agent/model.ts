@@ -2,6 +2,7 @@ import { recordInference } from '../dev/hud';
 import { destinationFor } from './skills/navigation';
 import { VISION_IMAGE } from './skills/report-vision';
 import type { Message, ModelAdapter, ToolCall, VisionRequest } from './types';
+import { chatTextStream } from './text-stream';
 
 export type CompletionProtocol = 'json-schema' | 'tools';
 
@@ -483,6 +484,57 @@ export class LocalModel implements ModelAdapter {
       recordInference({ model: this.model, latencyMs: performance.now() - started, body });
       return parseCompletion(body);
     } finally {
+      clearTimeout(timer);
+      input.signal.removeEventListener('abort', cancel);
+    }
+  }
+  async *streamText(input: {
+    system: string;
+    instruction: string;
+    signal: AbortSignal;
+  }): AsyncGenerator<string> {
+    aborted(input.signal);
+    const controller = new AbortController();
+    const cancel = () => controller.abort();
+    input.signal.addEventListener('abort', cancel, { once: true });
+    const timer = setTimeout(cancel, this.timeoutMs);
+    try {
+      const response = await fetch(this.endpoint, {
+        method: 'POST',
+        redirect: 'error',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.options.getApiKey?.()
+            ? { Authorization: `Bearer ${this.options.getApiKey()}` }
+            : {}),
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages: [
+            {
+              role: 'system',
+              content: `${input.system}${this.options.ollamaHints !== false ? ' /no_think' : ''}`,
+            },
+            { role: 'user', content: input.instruction },
+          ],
+          stream: true,
+          temperature: 0,
+          max_tokens: 128,
+        }),
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`MODEL_HTTP_${response.status}`);
+      if (response.headers.get('content-type')?.includes('application/json')) {
+        const text = await response.text();
+        if (text.length > 100000) throw new Error('RESPONSE_TOO_LARGE');
+        yield visionContent(JSON.parse(text));
+      } else
+        for await (const text of chatTextStream(response)) {
+          aborted(input.signal);
+          yield text;
+        }
+    } finally {
+      controller.abort();
       clearTimeout(timer);
       input.signal.removeEventListener('abort', cancel);
     }

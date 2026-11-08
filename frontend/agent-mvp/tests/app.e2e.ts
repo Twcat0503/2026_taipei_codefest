@@ -7,6 +7,8 @@ async function chooseService(page: Page, name: string) {
 }
 
 test.beforeEach(async ({ page }) => {
+  // These flows cover the user's saved standard-tap preference.
+  await page.addInitScript(() => localStorage.setItem('tp-button-guidance', 'off'));
   await page.goto('/');
   await page.getByRole('button', { name: '設定', exact: true }).click();
   await page.getByText('開發者檢視與接點設定', { exact: true }).click();
@@ -14,6 +16,30 @@ test.beforeEach(async ({ page }) => {
   await page.getByRole('button', { name: '套用接點', exact: true }).click();
   await page.getByText('開發者檢視與接點設定', { exact: true }).click();
   await page.getByRole('button', { name: '關閉設定', exact: true }).click();
+});
+
+test('home and composer suggestions can be changed', async ({ page }) => {
+  const home = page.locator('.welcome-panel');
+  await expect(home.getByRole('button', { name: '附近的無障礙廁所' })).toBeVisible();
+  await home.getByRole('button', { name: '換一組建議' }).click();
+  await expect(home.getByRole('button', { name: '附近有孕婦車位的停車場' })).toBeVisible();
+  await home.getByRole('button', { name: '換一組建議' }).click();
+  await expect(home.getByRole('button', { name: '我要繳水費' })).toBeVisible();
+  await expect(home.getByRole('button', { name: '我要繳水費' })).toContainText(
+    '前往台北通服務，頁面內容為示範資料',
+  );
+  for (let i = 0; i < 3; i++) await home.getByRole('button', { name: '換一組建議' }).click();
+  await expect(home.getByRole('button', { name: '附近的無障礙廁所' })).toBeVisible();
+  await page.getByLabel('你想要做什麼？', { exact: true }).focus();
+  const chips = page.locator('.quick-chips');
+  await chips.getByRole('button', { name: '換一組建議' }).click();
+  await expect(chips.getByRole('button', { name: '附近有孕婦車位的停車場' })).toBeVisible();
+  await expect(chips.getByRole('button', { name: '附近的 YouBike' })).toBeVisible();
+  await chips.getByRole('button', { name: '換一組建議' }).click();
+  await expect(chips.getByRole('button', { name: '我要繳水費（示範）' })).toBeVisible();
+  for (let i = 0; i < 4; i++) await chips.getByRole('button', { name: '換一組建議' }).click();
+  await chips.getByRole('button', { name: '長輩可以申請什麼補助' }).click();
+  await expect(page.locator('.conversation-heading h1')).toHaveText('長輩可以申請什麼補助');
 });
 
 test('book search, editable confirmation, reload, receipt and reset', async ({ page }) => {
@@ -279,9 +305,8 @@ test('phone model startup, authenticated structured calls, and stop', async ({ p
   await page.getByText('開發者檢視與接點設定', { exact: true }).click();
   await page.getByRole('button', { name: '關閉設定', exact: true }).click();
   await expect(
-    page.getByRole('button', { name: '送出需求', exact: true, includeHidden: true }),
-  ).toBeDisabled();
-  await page.getByRole('button', { name: '啟動手機模型', exact: true }).click();
+    page.locator('.welcome-panel').getByRole('button', { name: '啟動手機模型' }),
+  ).toHaveCount(0);
   await expect(page.getByRole('button', { name: '開始語音輸入', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '設定', exact: true }).click();
   await expect(
@@ -336,15 +361,16 @@ test('unavailable voice input has a working text fallback', async ({ page }) => 
   });
   await page.getByRole('button', { name: '開始語音輸入', exact: true }).click();
   await expect(page.getByText(/^這個環境尚未提供語音輸入/)).toBeVisible();
-  await page.getByRole('button', { name: '改用文字輸入', exact: true }).click();
+  await page.getByRole('button', { name: '取消語音輸入', exact: true }).click();
   const input = page.getByLabel('你想要做什麼？', { exact: true });
-  await expect(input).toBeFocused();
   await input.fill('幫我找圖書');
   await input.press('Enter');
   await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toBeVisible();
 });
 
-test('recognized voice is editable and never submits automatically', async ({ page }) => {
+test('recognized voice waits through a thinking pause and submits automatically', async ({
+  page,
+}) => {
   await page.evaluate(() => {
     class RecognitionFixture {
       onstart: (() => void) | null = null;
@@ -353,11 +379,15 @@ test('recognized voice is editable and never submits automatically', async ({ pa
       start() {
         this.onstart?.();
         setTimeout(() => {
-          this.onresult?.({ results: [[{ transcript: '幫我找圖書' }]] });
-          this.onend?.();
+          this.onresult?.({ results: [[{ transcript: '幫我找' }]] });
         }, 50);
+        setTimeout(() => {
+          this.onresult?.({ results: [[{ transcript: '幫我找圖書' }]] });
+        }, 2500);
       }
-      stop() {}
+      stop() {
+        this.onend?.();
+      }
       abort() {}
     }
     Object.defineProperty(window, 'SpeechRecognition', {
@@ -366,13 +396,28 @@ test('recognized voice is editable and never submits automatically', async ({ pa
     });
   });
   await page.getByRole('button', { name: '開始語音輸入', exact: true }).click();
-  const input = page.getByLabel('你想要做什麼？', { exact: true });
-  await expect(input).toHaveValue('幫我找圖書');
-  await expect(input).toBeFocused();
+  await expect(page.locator('.voice-transcript')).toHaveText('幫我找');
   await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toHaveCount(0);
-  await input.fill('找「一起慢慢走」');
-  await page.getByRole('button', { name: '送出需求', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toBeVisible();
+  await expect(page.locator('.voice-transcript')).toHaveText('幫我找圖書');
+  await expect(page.getByRole('heading', { name: '一起慢慢走', exact: true })).toBeVisible({
+    timeout: 15000,
+  });
+});
+
+test('capability questions receive a preset answer without model or tool calls', async ({
+  page,
+}) => {
+  const calls: string[] = [];
+  page.on('request', (request) => {
+    if (['fetch', 'xhr'].includes(request.resourceType())) calls.push(request.url());
+  });
+  await chooseService(page, '你可以幹嘛？');
+  await expect(page.locator('section.assistant-message')).toContainText('我可以幫你找無障礙廁所');
+  await expect(page.locator('section.assistant-message')).toContainText('部分服務頁面是示範資料');
+  expect(calls).toEqual([]);
+  await page.reload();
+  await page.getByRole('button', { name: '繼續上次對話', exact: true }).click();
+  await expect(page.locator('.reply-bubble').last()).toContainText('我可以幫你找無障礙廁所');
 });
 
 test('microphone denial stays visible and cancellation keeps the conversation usable', async ({
@@ -401,7 +446,7 @@ test('microphone denial stays visible and cancellation keeps the conversation us
   await page.getByLabel('你想要做什麼？', { exact: true }).fill('幫我找圖書');
   await page.getByRole('button', { name: '送出需求', exact: true }).click();
   await page.getByRole('button', { name: '停止處理', exact: true }).click();
-  await expect(page.getByText('已停止這次操作。你可以重新開始。', { exact: true })).toBeVisible();
+  await expect(page.getByText('已停止這次操作，可重新開始。', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: '確認示範預約', exact: true })).toHaveCount(0);
 });
 
@@ -559,7 +604,20 @@ test('native model setup stays in settings and does not push the home off screen
   page,
 }) => {
   await page.addInitScript(() => {
-    window.flutterObject = { postMessage() {}, addEventListener() {}, removeEventListener() {} };
+    const listeners = new Set<(event: { data: string }) => void>();
+    window.flutterObject = {
+      postMessage(raw) {
+        const request = JSON.parse(raw);
+        if (request.name === 'llm_start') document.documentElement.dataset.autoStarted = 'yes';
+        if (!['llm_start', 'llm_stop'].includes(request.name)) return;
+        const data = { requestId: request.data.requestId, phase: 'idle', running: false };
+        queueMicrotask(() =>
+          listeners.forEach((fn) => fn({ data: JSON.stringify({ name: request.name, data }) })),
+        );
+      },
+      addEventListener: (_name, fn) => listeners.add(fn),
+      removeEventListener: (_name, fn) => listeners.delete(fn),
+    };
   });
   await page.setViewportSize({ width: 393, height: 727 });
   await page.reload();
@@ -571,7 +629,10 @@ test('native model setup stays in settings and does not push the home off screen
         .evaluate((element) => element.scrollHeight <= element.clientHeight + 1),
     )
     .toBe(true);
-  await expect(page.getByRole('button', { name: '啟動手機模型', exact: true })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-auto-started', 'yes');
+  await expect(
+    page.locator('.welcome-panel').getByRole('button', { name: '啟動手機模型' }),
+  ).toHaveCount(0);
   await expect(page.getByRole('button', { name: '開始語音輸入', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '用照片報案', exact: true }).click();
   await expect(page.getByText('請先啟動手機模型，再用照片辨識。', { exact: true })).toBeVisible();
@@ -640,7 +701,7 @@ test('haptic feedback follows live events only, never a restored conversation', 
   // The saved conversation comes back silently.
   await page.reload();
   await page.getByRole('button', { name: '繼續上次對話', exact: true }).click();
-  await expect(page.getByText('這是已保存的摘要，查詢結果未保存。')).toBeVisible();
+  await expect(page.getByText(/保存的查詢結果，資料可能已更新/)).toBeVisible();
   expect(await vibrations()).toEqual([]);
 
   // "Not supported" is neither good nor bad news. Tapping a suggestion ticks, then the answer buzzes.
@@ -874,7 +935,7 @@ test('voice feedback does not read a restored conversation', async ({ page }) =>
   await page.addInitScript(speechBridge, false);
   await page.reload();
   await page.getByRole('button', { name: '繼續上次對話', exact: true }).click();
-  await expect(page.getByText('這是已保存的摘要，查詢結果未保存。')).toBeVisible();
+  await expect(page.getByText(/保存的查詢結果，資料可能已更新/)).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-a11y-bold', 'true');
   expect(await ttsMessages(page)).toEqual([]);
 });

@@ -25,5 +25,8 @@ describe('data sources', () => {
     expect(text).toContain('政府資料開放授權條款－第1版');
     expect(wrapper.find(`a[href="${OPEN_DATA_LICENSE_URL}"]`).exists()).toBe(true);
     expect(DEMO_DATA_SOURCES.length).toBeGreaterThan(0);
+    expect(text).toContain('身心障礙者生活補助');
+    expect(text).toContain('小型復康巴士');
+    expect(text).toContain('2026-11-08');
   });
 });

@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:town_pass/page/main/main_view_controller.dart';
 import 'package:town_pass/util/tp_bottom_navigation_factory.dart';
 import 'package:town_pass/util/tp_colors.dart';
+import 'package:town_pass/util/tp_shake_to_agent.dart';
 
 class MainView extends GetView<MainViewController> {
   const MainView({super.key});
@@ -11,9 +12,15 @@ class MainView extends GetView<MainViewController> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Obx(
-        () => IndexedStack(
-          index: controller.currentIndex.value,
-          children: TPBottomNavigationFactory.viewList,
+        () => TPShakeToAgent(
+          enabled:
+              controller.currentIndex.value ==
+                  TPBottomNavigationFactory.defaultIndex &&
+              controller.shakeToAgentEnabled.value,
+          child: IndexedStack(
+            index: controller.currentIndex.value,
+            children: TPBottomNavigationFactory.viewList,
+          ),
         ),
       ),
       bottomNavigationBar: Container(

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import UiIcon from './UiIcon.vue';
 import { messages } from '../i18n';
 import type { Locale, Navigation, TaskState } from '../agent/types';
@@ -15,8 +15,19 @@ import { DISASTER_CATEGORIES, TOWNPASS_FORMS } from '../agent/skills/townpass-fo
 import type { ReportVision } from '../agent/skills/report-vision';
 import { DISTRICTS, DISTRICT_SOURCE, PETITION_SOURCE } from '../agent/open-data/taipei';
 import { pickReportPhoto } from '../platform/image';
-import { openLink, openWithPrefill, type PrefillOutcome } from '../platform/location';
+import {
+  getLocation,
+  reverseAddress,
+  openLink,
+  openWithPrefill,
+  type PrefillOutcome,
+} from '../platform/location';
 import { serviceOrigin } from '../platform/service-navigation';
+import { a11yState } from '../platform/a11y';
+import { announce } from '../platform/announcer';
+import { readAloud, stopReading } from '../platform/speech';
+import { createVoiceInput, type VoiceStatus } from '../platform/voice-input';
+import { waterNumberFromSpeech } from '../platform/water-voice';
 import { maskIdNo, maskPhone, readMember, type Member } from '../platform/member';
 import {
   formatWaterNumber,
@@ -100,6 +111,112 @@ const waterInput = ref('');
 const rememberWater = ref(true);
 const editingWater = ref(false);
 const waterError = ref(false);
+const waterConfirm = ref(false);
+const waterConfirmHeading = ref<HTMLElement>();
+const waterDigits = computed(() => waterInput.value.replace(/[\s-]/g, ''));
+const waterVoiceStatus = ref<VoiceStatus>('idle');
+const waterVoiceActive = ref(false);
+const waterVoiceText = ref('');
+const waterVoiceIssue = ref('');
+let waterVoiceVersion = 0;
+const waterVoice = createVoiceInput(
+  (status) => {
+    waterVoiceStatus.value = status;
+    if (status === 'error' || status === 'permission' || status === 'unavailable') {
+      waterVoiceActive.value = false;
+      waterVoiceIssue.value =
+        status === 'error'
+          ? t.value.voiceError
+          : status === 'permission'
+            ? t.value.voicePermission
+            : t.value.voiceUnavailable;
+      speakWater(waterVoiceIssue.value);
+    }
+  },
+  (text) => (waterVoiceText.value = text),
+  () => {
+    waterVoiceActive.value = false;
+    const digits = waterNumberFromSpeech(waterVoiceText.value);
+    if (!digits) {
+      waterVoiceIssue.value = t.value.waterVoiceInvalid;
+      speakWater(t.value.waterVoiceInvalid);
+      return;
+    }
+    waterInput.value = digits;
+    waterError.value = false;
+    speakWater(waterReadout(digits));
+  },
+);
+const waterToConfirm = computed(() =>
+  waterInput.value.trim()
+    ? normalizeWaterNumber(waterInput.value)
+    : !editingWater.value
+      ? profile.value.waterNumber
+      : null,
+);
+function speakWater(text: string) {
+  if (a11yState.screenReader === true) {
+    announce(text);
+    return;
+  }
+  readAloud(
+    text,
+    props.locale,
+    0.9,
+    () => {},
+    () => {},
+  );
+}
+function cancelWaterVoice() {
+  ++waterVoiceVersion;
+  waterVoice.cancel();
+  waterVoiceActive.value = false;
+  waterVoiceStatus.value = 'idle';
+  stopReading();
+}
+function startWaterVoice(withInstructions = false) {
+  cancelWaterVoice();
+  waterVoiceText.value = '';
+  waterVoiceIssue.value = '';
+  waterVoiceActive.value = true;
+  waterVoiceStatus.value = 'starting';
+  const version = ++waterVoiceVersion;
+  const start = () => {
+    if (version === waterVoiceVersion && waterVoiceActive.value) waterVoice.start(props.locale);
+  };
+  if (a11yState.screenReader === true) start();
+  else
+    readAloud(
+      withInstructions ? t.value.prefillWaterHint : t.value.voiceListeningCue,
+      props.locale,
+      0.9,
+      start,
+      start,
+    );
+}
+function waterReadout(digits: string) {
+  return digits
+    ? t.value.waterKeypadCurrent.replace('{digits}', digits.split('').join('、'))
+    : t.value.waterKeypadEmpty;
+}
+function confirmWater() {
+  cancelWaterVoice();
+  waterConfirm.value = true;
+  void nextTick(() => waterConfirmHeading.value?.focus());
+  speakWater(`${t.value.waterConfirmTitle}。${waterReadout(waterToConfirm.value ?? '')}`);
+}
+function editWater() {
+  const digits = waterToConfirm.value;
+  waterConfirm.value = false;
+  editingWater.value = true;
+  if (digits) waterInput.value = digits;
+  stopReading();
+  void nextTick(() => document.getElementById('water-number')?.focus());
+}
+function changeSavedWater() {
+  editingWater.value = true;
+  startWaterVoice(true);
+}
 
 // --- Report draft ---
 const draft = reactive<ReportDraft>({
@@ -110,6 +227,51 @@ const draft = reactive<ReportDraft>({
   category: null,
 });
 const draftError = ref(false);
+const locatingAddress = ref(false);
+const addressNotice = ref<
+  | 'draftLocationFound'
+  | 'draftLocationFailed'
+  | 'draftLocationBrowser'
+  | 'draftLocationEdited'
+  | null
+>(null);
+let addressController: AbortController | undefined;
+async function fillAddressFromLocation() {
+  if (locatingAddress.value) return;
+  if (!window.flutterObject) {
+    addressNotice.value = 'draftLocationBrowser';
+    return;
+  }
+  const controller = new AbortController();
+  addressController = controller;
+  const previousLocation = draft.location;
+  const previousDistrict = draft.district;
+  locatingAddress.value = true;
+  addressNotice.value = null;
+  try {
+    const position = await getLocation(controller.signal);
+    const address =
+      position && !controller.signal.aborted
+        ? await reverseAddress(position, controller.signal)
+        : null;
+    if (controller.signal.aborted) return;
+    if (!address) addressNotice.value = 'draftLocationFailed';
+    else if (draft.location !== previousLocation || draft.district !== previousDistrict)
+      addressNotice.value = 'draftLocationEdited';
+    else {
+      draft.location = address;
+      draft.district = DISTRICTS.find(([zh]) => address.includes(zh))?.[0] ?? draft.district;
+      addressNotice.value = 'draftLocationFound';
+    }
+  } catch {
+    if (!controller.signal.aborted) addressNotice.value = 'draftLocationFailed';
+  } finally {
+    if (addressController === controller) {
+      addressController = undefined;
+      locatingAddress.value = false;
+    }
+  }
+}
 
 // --- Disaster report draft ---
 const DISASTER_FORM = TOWNPASS_FORMS.find((form) => form.id === 'disaster_report')!;
@@ -270,7 +432,21 @@ const leftFor = ref(false);
 const prefillOutcome = ref<PrefillOutcome | null>(null);
 watch(
   () => props.navigation,
-  () => {
+  (_navigation, _previous, onCleanup) => {
+    if (waterVoiceActive.value) cancelWaterVoice();
+    let active = true;
+    onCleanup(() => {
+      active = false;
+      addressController?.abort();
+    });
+    if (slots.value.some((slot) => slot.field === 'water_number') && !profile.value.waterNumber)
+      void nextTick(() => {
+        if (active) startWaterVoice(true);
+      });
+    addressController?.abort();
+    addressController = undefined;
+    locatingAddress.value = false;
+    addressNotice.value = null;
     props.cancelFill?.();
     fillToken++;
     filling.value = false;
@@ -283,15 +459,25 @@ watch(
     resetPhoto();
     draftError.value = false;
     waterInput.value = '';
+    waterVoiceIssue.value = '';
     editingWater.value = false;
     waterError.value = false;
+    waterConfirm.value = false;
     leftFor.value = false;
     prefillOutcome.value = null;
     member.value = null;
     // 報案草稿的「我家」地址與電話／Email 都來自會員資料。
     memberLoad = isReport.value || isDisaster.value || needsMember.value ? loadMember() : null;
-    if (isReport.value) void fillFromModel(CITIZEN_REPORT_FORM, applyReport({ ...rule }));
-    else if (isDisaster.value) void fillFromModel(DISASTER_FORM, applyDisaster);
+    if (isReport.value) {
+      void fillFromModel(CITIZEN_REPORT_FORM, applyReport({ ...rule }));
+      if (window.flutterObject && !rule.location.trim()) {
+        void (async () => {
+          // 「我家」先等會員地址；其他需求不需要等待會員或模型。
+          if (/我家|my home/i.test(props.request)) await memberLoad;
+          if (active && isReport.value && !draft.location.trim()) void fillAddressFromLocation();
+        })();
+      }
+    } else if (isDisaster.value) void fillFromModel(DISASTER_FORM, applyDisaster);
   },
   { immediate: true },
 );
@@ -314,6 +500,8 @@ watch(
   { immediate: true },
 );
 onBeforeUnmount(() => {
+  if (waterVoiceActive.value) cancelWaterVoice();
+  addressController?.abort();
   props.cancelDescribe();
   props.cancelFill?.();
 });
@@ -384,13 +572,22 @@ function goNavigation() {
           waterError.value = true;
           return;
         }
+        if (!waterConfirm.value) {
+          confirmWater();
+          return;
+        }
         prefill.water_number = digits;
         if (rememberWater.value) {
           rememberWaterNumber(digits);
           profile.value = loadProfile();
         }
-      } else if (profile.value.waterNumber && !editingWater.value)
+      } else if (profile.value.waterNumber && !editingWater.value) {
+        if (!waterConfirm.value) {
+          confirmWater();
+          return;
+        }
         prefill.water_number = profile.value.waterNumber;
+      }
     } else if (slot.source === 'draft') {
       if (slot.field === 'location') {
         const detail = draft.location.trim();
@@ -458,9 +655,14 @@ function goNavigation() {
           :disabled="photoBusy"
           @change="onPhotoPicked"
         />
-        <label v-if="!photo" class="outline-button photo-button" for="report-photo-input">
+        <button
+          v-if="!photo"
+          type="button"
+          class="outline-button photo-button"
+          @click="photoInput?.click()"
+        >
           <UiIcon name="camera" />{{ t.photoAdd }}
-        </label>
+        </button>
         <img v-else :src="photo" :alt="t.photoAlt" class="photo-preview" />
         <button
           v-if="photo"
@@ -513,6 +715,17 @@ function goNavigation() {
         autocomplete="off"
         :placeholder="t.draftLocationHint"
       />
+      <button
+        type="button"
+        class="outline-button"
+        :disabled="locatingAddress"
+        @click="fillAddressFromLocation"
+      >
+        {{ t.draftUseLocation }}
+      </button>
+      <p v-if="locatingAddress || addressNotice" role="status" class="small-note">
+        {{ locatingAddress ? t.draftLocating : addressNotice ? t[addressNotice] : '' }}
+      </p>
       <p v-if="draftError" role="alert" class="field-error">{{ t.draftIncomplete }}</p>
       <p class="small-note draft-sources">
         {{ t.dataSource }}：<a :href="PETITION_SOURCE.url" target="_blank" rel="noopener">{{
@@ -560,7 +773,7 @@ function goNavigation() {
         rows="3"
       ></textarea>
     </form>
-    <div v-else-if="slots.length" class="prefill">
+    <div v-else-if="slots.length && !waterConfirm" class="prefill">
       <template v-for="slot in slots" :key="slot.field">
         <template v-if="slot.field === 'water_number'">
           <template v-if="profile.waterNumber && !editingWater">
@@ -568,7 +781,7 @@ function goNavigation() {
               <dt>{{ t.prefillWater }}</dt>
               <dd>{{ formatWaterNumber(profile.waterNumber) }}</dd>
             </dl>
-            <button type="button" class="text-button" @click="editingWater = true">
+            <button type="button" class="text-button" @click="changeSavedWater">
               {{ t.prefillWaterChange }}
             </button>
           </template>
@@ -581,11 +794,37 @@ function goNavigation() {
               inputmode="numeric"
               autocomplete="off"
               maxlength="14"
+              :disabled="waterVoiceActive"
               aria-describedby="water-hint"
               :aria-invalid="waterError"
-              @input="waterError = false"
+              @input="
+                waterError = false;
+                waterVoiceIssue = '';
+              "
             />
             <p v-if="waterError" role="alert" class="field-error">{{ t.prefillWaterInvalid }}</p>
+            <p v-if="waterVoiceIssue" role="alert" class="field-error">{{ waterVoiceIssue }}</p>
+            <button
+              v-if="!waterVoiceActive"
+              type="button"
+              class="outline-button"
+              @click="startWaterVoice()"
+            >
+              {{ t.waterVoiceStart }}
+            </button>
+            <button v-else type="button" class="text-button" @click="cancelWaterVoice">
+              {{ t.voiceCancel }}
+            </button>
+            <p v-if="waterVoiceActive" role="status" class="small-note">
+              {{ waterVoiceStatus === 'listening' ? t.voiceListening : t.voiceStarting }}
+            </p>
+            <button
+              type="button"
+              class="text-button"
+              @click="speakWater(waterReadout(waterDigits))"
+            >
+              {{ t.waterKeypadRead }}
+            </button>
             <label class="check"
               ><input v-model="rememberWater" type="checkbox" />{{ t.prefillRemember }}</label
             >
@@ -601,8 +840,36 @@ function goNavigation() {
       </template>
     </div>
     <p class="small-note">{{ source?.note || t.leaveNote }}</p>
-    <div class="action-row">
-      <button type="button" class="primary-button" @click="goNavigation">
+    <section v-if="waterConfirm" class="water-confirm" aria-labelledby="water-confirm-title">
+      <h2 id="water-confirm-title" ref="waterConfirmHeading" tabindex="-1">
+        {{ t.waterConfirmTitle }}
+      </h2>
+      <p :aria-label="waterReadout(waterToConfirm ?? '')">
+        {{ formatWaterNumber(waterToConfirm ?? '') }}
+      </p>
+      <button
+        type="button"
+        class="text-button"
+        @click="speakWater(waterReadout(waterToConfirm ?? ''))"
+      >
+        {{ t.waterKeypadRead }}
+      </button>
+      <div class="action-row">
+        <button type="button" class="primary-button" @click="goNavigation">
+          {{ t.waterConfirmGo }}
+        </button>
+        <button type="button" class="text-button" @click="editWater">
+          {{ t.waterConfirmEdit }}
+        </button>
+      </div>
+    </section>
+    <div v-else class="action-row">
+      <button
+        type="button"
+        class="primary-button"
+        :disabled="waterVoiceActive"
+        @click="goNavigation"
+      >
         {{ navigation.url.startsWith('tel:') ? t.leaveDial : t.leaveGo }}
       </button>
       <button type="button" class="text-button" @click="emit('stay')">{{ t.leaveStay }}</button>

@@ -1,3 +1,5 @@
+import { requestNativeWindow } from './native-bridge';
+
 export type LatLng = { lat: number; lng: number };
 
 const TIMEOUT_MS = 8000;
@@ -45,6 +47,29 @@ export function getLocation(signal: AbortSignal): Promise<LatLng | null> {
       { timeout: TIMEOUT_MS, maximumAge: 60000 },
     );
   });
+}
+
+/** Android's system geocoder; browser-only sessions can enter the address manually. */
+export async function reverseAddress(
+  position: LatLng,
+  signal: AbortSignal,
+): Promise<string | null> {
+  if (!window.flutterObject) return null;
+  try {
+    const result = await requestNativeWindow(
+      'reverse_geocode',
+      {
+        latitude: position.lat,
+        longitude: position.lng,
+      },
+      signal,
+    );
+    return typeof result.address === 'string' && result.address.trim()
+      ? result.address.trim().slice(0, 100)
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Inside the app, pages open through the existing open_link bridge so the chat is kept. */

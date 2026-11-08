@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:town_pass/gen/assets.gen.dart';
+import 'package:town_pass/page/main/main_view_controller.dart';
 import 'package:town_pass/page/home/widget/activity_info/activity_info_widget.dart';
 import 'package:town_pass/page/home/widget/city_news/city_news_widget.dart';
 import 'package:town_pass/page/home/widget/news/news_banner_widget.dart';
@@ -10,7 +11,9 @@ import 'package:town_pass/util/tp_agent_entry.dart';
 import 'package:town_pass/util/tp_colors.dart';
 import 'package:town_pass/util/tp_route.dart';
 
-class HomeView extends StatelessWidget {
+const _shakeCopy = {'zh': '搖一搖開啟安心助手', 'en': 'Shake to open Care Assistant'};
+
+class HomeView extends GetView<MainViewController> {
   const HomeView({super.key});
 
   @override
@@ -25,18 +28,30 @@ class HomeView extends StatelessWidget {
         ),
         backgroundColor: TPColors.white,
       ),
-      body: const CustomScrollView(
+      body: CustomScrollView(
         slivers: [
-          SliverToBoxAdapter(child: TPAgentEntry()),
-          _SliverGap(20),
-          SliverToBoxAdapter(child: NewsBannerWidget()),
-          _SliverGap(20),
-          SliverToBoxAdapter(child: ActivityInfoWidget()),
-          _SliverGap(8),
-          SliverToBoxAdapter(child: CityNewsWidget()),
-          _SliverGap(16),
-          SliverToBoxAdapter(child: SubscriptionWidget()),
-          _SliverGap(32),
+          const SliverToBoxAdapter(child: TPAgentEntry()),
+          if (TPAgentConfig.enabled)
+            SliverToBoxAdapter(
+              child: Obx(
+                () => SwitchListTile.adaptive(
+                  title: Text(
+                    _shakeCopy[Get.locale?.languageCode == 'en' ? 'en' : 'zh']!,
+                  ),
+                  value: controller.shakeToAgentEnabled.value,
+                  onChanged: controller.setShakeToAgent,
+                ),
+              ),
+            ),
+          const _SliverGap(20),
+          const SliverToBoxAdapter(child: NewsBannerWidget()),
+          const _SliverGap(20),
+          const SliverToBoxAdapter(child: ActivityInfoWidget()),
+          const _SliverGap(8),
+          const SliverToBoxAdapter(child: CityNewsWidget()),
+          const _SliverGap(16),
+          const SliverToBoxAdapter(child: SubscriptionWidget()),
+          const _SliverGap(32),
         ],
       ),
     );

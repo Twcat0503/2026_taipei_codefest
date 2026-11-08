@@ -37,6 +37,7 @@ export function visionSystemPrompt(locale: Locale): string {
     'names, or vehicle plate numbers, and do NOT read or transcribe faces or private details.',
     'If the photo shows no clear public problem, or you are unsure, return empty strings for both fields.',
     `Write both fields in ${LANGUAGE[locale]}.`,
+    'Be brief and direct: describe the main visible issue in one short sentence, without introductions or repetition.',
     'Return ONLY JSON of the form {"subject": string, "description": string}.',
     `"subject" is a short case title (<= ${SUBJECT_MAX} characters). "description" states plainly what is`,
     `visible and what seems wrong (<= ${DESCRIPTION_MAX} characters), with no location unless a readable`,

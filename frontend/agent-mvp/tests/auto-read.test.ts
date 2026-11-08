@@ -30,6 +30,7 @@ describe('reading an answer aloud when voice feedback is on', () => {
     unsupported: true,
     billUnsupported: true,
     greeting: true,
+    capabilities: true,
     welcome: false,
     cancelled: false,
     navigationDeclined: false,

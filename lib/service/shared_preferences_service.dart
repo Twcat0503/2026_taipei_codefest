@@ -7,6 +7,7 @@ class SharedPreferencesService extends GetxService {
   SharedPreferences get instance => _sharedPreferences!;
 
   static String keyHomeIndex = 'home_index';
+  static const keyShakeToAgent = 'shake_to_agent';
   static String keyPhoneCallUserAgreement = 'phone_call_user_agreement';
 
   Future<SharedPreferencesService> init() async {

@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+[data-button-guidance] :is(button, a, summary, input, textarea, select, [role='button']) {
+  touch-action: manipulation;
+}
+[data-button-selected] {
+  outline: 3px solid #22545d;
+  outline-offset: -3px;
+}
+
 @layer base {
   @font-face {
     font-family: '"PingFang TC", Roboto';

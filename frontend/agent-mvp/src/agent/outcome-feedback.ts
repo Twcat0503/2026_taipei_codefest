@@ -32,6 +32,7 @@ const byNotice: Record<TaskState['notice'], FeedbackKind | null> = {
   // Not the end of a request.
   welcome: null,
   greeting: null,
+  capabilities: null,
   navigationDeclined: null,
   review: null,
   cancelled: null,

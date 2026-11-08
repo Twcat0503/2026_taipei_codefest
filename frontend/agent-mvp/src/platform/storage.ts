@@ -1,5 +1,6 @@
 import { books, branches } from '../agent/catalog';
-import type { Draft, TaskState } from '../agent/types';
+import type { Draft, Localized, ResultSource, TaskState, ToolRecord } from '../agent/types';
+import type { Book } from '../agent/catalog';
 import { messages } from '../i18n';
 import { isEmergencyKind, type EmergencyKind } from '../agent/skills/emergency';
 
@@ -28,6 +29,7 @@ const safeNotices: TaskState['notice'][] = [
   'billAuth',
   'billUnavailable',
   'greeting',
+  'capabilities',
   'navigate',
   'navigationDeclined',
   'emergency',
@@ -47,6 +49,12 @@ export type SavedTurn = {
   notice: TaskState['notice'];
   /** Kept so the call buttons come back with an emergency summary. */
   emergency?: EmergencyKind | null;
+  lastTool?: string | null;
+  books?: Book[];
+  records?: ToolRecord[];
+  source?: ResultSource | null;
+  time?: number;
+  parking?: 'disabled' | 'pregnancy';
 };
 export type RestoredTurn = {
   /** Dictionary key of a suggested request, so it follows the current language. */
@@ -56,7 +64,151 @@ export type RestoredTurn = {
   notice: TaskState['notice'];
   /** Which call buttons to show again; only on emergency turns. */
   emergency?: EmergencyKind;
+  results?: SavedResults;
 };
+type SavedResults = {
+  tool: string;
+  time: number;
+  books: Book[];
+  records: ToolRecord[];
+  source: ResultSource | null;
+  parking?: 'disabled' | 'pregnancy';
+};
+const publicTools = new Set([
+  'find_nearby_youbike',
+  'find_nearby_parking',
+  'find_nearby_toilets',
+  'search_library_books',
+  'get_library_book',
+  'get_library_ranking',
+  'list_library_branches',
+  'list_library_notices',
+  'search_application_services',
+  'list_townpass_services',
+]);
+const boundedText = (value: unknown, limit = 500): value is string =>
+  typeof value === 'string' && value.length <= limit;
+function localized(value: unknown): value is Localized {
+  if (!value || typeof value !== 'object') return false;
+  const text = value as Record<string, unknown>;
+  return boundedText(text['zh-Hant-TW']) && boundedText(text.en);
+}
+function safeUrl(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (!boundedText(value, 2048)) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+function publicResults(value: unknown): SavedResults | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const item = value as Record<string, unknown>;
+  if (
+    typeof item.tool !== 'string' ||
+    !publicTools.has(item.tool) ||
+    typeof item.time !== 'number' ||
+    !Number.isFinite(item.time) ||
+    item.time <= 0 ||
+    item.time > Date.now() ||
+    !Array.isArray(item.books) ||
+    !Array.isArray(item.records) ||
+    item.books.length > 20 ||
+    item.records.length > 20
+  )
+    return undefined;
+  const books = item.books as Book[];
+  if (
+    !books.every(
+      (book) =>
+        book &&
+        boundedText(book.id, 200) &&
+        localized(book.title) &&
+        localized(book.author) &&
+        localized(book.category) &&
+        safeUrl(book.url),
+    )
+  )
+    return undefined;
+  const records = item.records as ToolRecord[];
+  if (
+    !records.every(
+      (record) =>
+        record &&
+        boundedText(record.id, 200) &&
+        localized(record.title) &&
+        (record.description === undefined || localized(record.description)) &&
+        (record.category === undefined || localized(record.category)) &&
+        safeUrl(record.url) &&
+        (record.fields === undefined ||
+          (Array.isArray(record.fields) &&
+            record.fields.length <= 30 &&
+            record.fields.every(
+              (field) => field && localized(field.label) && localized(field.value),
+            ))),
+    )
+  )
+    return undefined;
+  const source = item.source as ResultSource | null;
+  if (
+    source !== null &&
+    (!source ||
+      !['demo', 'snapshot', 'live', 'link'].includes(source.kind) ||
+      !boundedText(source.label) ||
+      !boundedText(source.note) ||
+      !safeUrl(source.url || undefined) ||
+      typeof source.total !== 'number' ||
+      !Number.isFinite(source.total) ||
+      typeof source.truncated !== 'boolean')
+  )
+    return undefined;
+  const copyText = (text: Localized): Localized => ({
+    'zh-Hant-TW': text['zh-Hant-TW'],
+    en: text.en,
+  });
+  return {
+    tool: item.tool,
+    time: item.time,
+    books: books.map((book) => ({
+      id: book.id,
+      title: copyText(book.title),
+      author: copyText(book.author),
+      category: copyText(book.category),
+      ...(book.url ? { url: book.url } : {}),
+    })),
+    records: records.map((record) => ({
+      id: record.id,
+      title: copyText(record.title),
+      ...(record.description ? { description: copyText(record.description) } : {}),
+      ...(record.category ? { category: copyText(record.category) } : {}),
+      ...(record.url ? { url: record.url } : {}),
+      ...(record.fields
+        ? {
+            fields: record.fields.map((field) => ({
+              label: copyText(field.label),
+              value: copyText(field.value),
+            })),
+          }
+        : {}),
+    })),
+    source: source
+      ? {
+          kind: source.kind,
+          label: source.label,
+          note: source.note,
+          url: source.url,
+          total: source.total,
+          truncated: source.truncated,
+        }
+      : null,
+    ...(item.tool === 'find_nearby_parking' &&
+    (item.parking === 'disabled' || item.parking === 'pregnancy')
+      ? { parking: item.parking }
+      : {}),
+  };
+}
 const MASK = '＊＊＊';
 const MAX_TEXT = 200;
 /**
@@ -73,19 +225,33 @@ export function maskSensitive(text: string) {
 }
 export function saveConversation(turns: SavedTurn[]): boolean {
   try {
-    const safe = turns.map(({ request, notice, emergency }) => {
-      const key =
-        safeRequests.find((name) =>
-          Object.values(messages).some((dictionary) => dictionary[name] === request),
-        ) ?? null;
-      const text = key ? '' : maskSensitive(request);
-      return {
-        request: key,
-        ...(text ? { text } : {}),
-        notice: safeNotices.includes(notice) ? notice : 'unsupported',
-        ...(notice === 'emergency' && isEmergencyKind(emergency) ? { emergency } : {}),
-      };
-    });
+    const safe = turns.map(
+      ({ request, notice, emergency, lastTool, books, records, source, time, parking }) => {
+        const key =
+          safeRequests.find((name) =>
+            Object.values(messages).some((dictionary) => dictionary[name] === request),
+          ) ?? null;
+        const text = key ? '' : maskSensitive(request);
+        const results =
+          (notice === 'results' || notice === 'books') && lastTool
+            ? publicResults({
+                tool: lastTool,
+                time: time || Date.now(),
+                books: books ?? [],
+                records: records ?? [],
+                source: source ?? null,
+                parking,
+              })
+            : undefined;
+        return {
+          request: key,
+          ...(text ? { text } : {}),
+          notice: safeNotices.includes(notice) ? notice : 'unsupported',
+          ...(notice === 'emergency' && isEmergencyKind(emergency) ? { emergency } : {}),
+          ...(results ? { results } : {}),
+        };
+      },
+    );
     localStorage.setItem(conversationKey, JSON.stringify(safe.slice(-100)));
     return true;
   } catch {
@@ -98,11 +264,12 @@ export function restoreConversation(): RestoredTurn[] {
     if (!Array.isArray(data)) return [];
     return data.slice(-100).flatMap((entry: unknown) => {
       if (!entry || typeof entry !== 'object') return [];
-      const { request, text, notice, emergency } = entry as {
+      const { request, text, notice, emergency, results } = entry as {
         request?: unknown;
         text?: unknown;
         notice?: unknown;
         emergency?: unknown;
+        results?: unknown;
       };
       if (typeof notice !== 'string' || !safeNotices.includes(notice as TaskState['notice']))
         return [];
@@ -120,6 +287,9 @@ export function restoreConversation(): RestoredTurn[] {
           // Older saves have no kind; the general lines still give every number.
           ...(notice === 'emergency'
             ? { emergency: isEmergencyKind(emergency) ? emergency : 'general' }
+            : {}),
+          ...((notice === 'results' || notice === 'books') && publicResults(results)
+            ? { results: publicResults(results) }
             : {}),
         },
       ];

@@ -3,6 +3,11 @@ import { ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { Dialog, DialogPanel, DialogTitle, TransitionRoot, TransitionChild } from '@headlessui/vue';
 import { useFormStore } from '@/stores/form';
+import { guidanceMessages } from '@/data/buttonGuidance';
+const guideText = guidanceMessages['zh-Hant-TW'];
+function openUpload(event: KeyboardEvent) {
+  (event.currentTarget as HTMLLabelElement).control?.click();
+}
 
 const props = withDefaults(
   defineProps<{
@@ -95,8 +100,8 @@ watch(
           </span>
         </p>
       </div>
-      <button @click.prevent="isOpen = true">
-        <img src="@/assets/images/info-icon.svg" />
+      <button type="button" :aria-label="guideText.uploadInfo" @click.prevent="isOpen = true">
+        <img src="@/assets/images/info-icon.svg" alt="" />
       </button>
     </div>
 
@@ -110,6 +115,11 @@ watch(
           v-show="fileList.length === count - 1"
           :for="`upload-file-${count}`"
           class="upload-box"
+          role="button"
+          tabindex="0"
+          :aria-label="guideText.photo"
+          @keydown.enter.prevent="openUpload"
+          @keydown.space.prevent="openUpload"
           :class="{ 'upload-box--warn': required && !isValidate }"
         >
           <img src="@/assets/images/add-icon.svg" class="w-6 h-6" />
@@ -147,8 +157,13 @@ watch(
         </label>
 
         <div v-show="fileList.length >= count" class="preview-box">
-          <button class="absolute -top-3 -right-3" @click.prevent="onCancelClick(count)">
-            <img src="@/assets/images/cancel-icon.svg" />
+          <button
+            type="button"
+            class="absolute -top-3 -right-3"
+            :aria-label="guideText.removePhoto"
+            @click.prevent="onCancelClick(count)"
+          >
+            <img src="@/assets/images/cancel-icon.svg" alt="" />
           </button>
           <img
             v-if="fileList[count - 1]?.type.includes('image')"

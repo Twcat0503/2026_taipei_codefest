@@ -160,6 +160,13 @@ a {
   flex-direction: column;
   min-height: 0;
 }
+[data-button-guidance] :is(button, a, summary, [role='button']) {
+  touch-action: manipulation;
+}
+[data-button-selected] {
+  outline: 3px solid var(--teal);
+  outline-offset: -3px;
+}
 .assistant-body {
   display: flex;
   flex-direction: column;
@@ -695,6 +702,51 @@ a {
 .result-card p {
   font-size: 1rem;
 }
+.suggestion-refresh {
+  min-height: 48px;
+  padding: 0.5rem 0.75rem;
+  color: var(--deep);
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 0.5rem;
+}
+.parking-summary {
+  font-weight: 600;
+}
+.welfare-panel {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.welfare-list {
+  display: grid;
+  gap: 0.75rem;
+  padding-inline-start: 1.25rem;
+  list-style: disc;
+}
+.welfare-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-height: 48px;
+  padding-block: 0.5rem;
+  cursor: pointer;
+}
+.welfare-check input {
+  flex: 0 0 auto;
+  margin-top: 0.35rem;
+}
+.parking-details summary {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  color: var(--teal);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.parking-details[open] > summary {
+  margin-bottom: 0.5rem;
+}
 .category {
   color: var(--teal);
   font-size: 0.875rem;
@@ -960,6 +1012,7 @@ dd {
 }
 .quick-chips button {
   display: inline-flex;
+  min-height: 48px;
   flex: 1 1 auto;
   align-items: center;
   justify-content: center;
@@ -1194,6 +1247,13 @@ dd {
 .prefill .field-label {
   margin-top: 0.25rem;
   color: var(--deep);
+}
+.water-confirm {
+  display: grid;
+  gap: 0.5rem;
+}
+.water-confirm p {
+  overflow-wrap: anywhere;
 }
 .report-form textarea {
   width: 100%;

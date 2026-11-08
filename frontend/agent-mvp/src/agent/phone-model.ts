@@ -189,7 +189,7 @@ export class PhoneModel implements ModelAdapter {
     const generation = this.generation;
     const cancel = () => {
       controller.abort();
-      void this.stop().catch(() => {});
+      if (input.stopOnAbort !== false) void this.stop().catch(() => {});
     };
     input.signal.addEventListener('abort', cancel, { once: true });
     this.inference.add(controller);
@@ -209,6 +209,40 @@ export class PhoneModel implements ModelAdapter {
       }
       throw error;
     } finally {
+      this.inference.delete(controller);
+      input.signal.removeEventListener('abort', cancel);
+    }
+  }
+  async *streamText(input: {
+    system: string;
+    instruction: string;
+    signal: AbortSignal;
+  }): AsyncGenerator<string> {
+    input.signal.throwIfAborted();
+    if (!this.transport || !this.current.ready) throw new Error('PHONE_NOT_READY');
+    const controller = new AbortController();
+    const generation = this.generation;
+    const cancel = () => controller.abort();
+    input.signal.addEventListener('abort', cancel, { once: true });
+    this.inference.add(controller);
+    try {
+      for await (const text of this.transport.streamText({ ...input, signal: controller.signal })) {
+        controller.signal.throwIfAborted();
+        if (generation !== this.generation) throw new Error('PHONE_SESSION_CHANGED');
+        yield text;
+      }
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === 'MODEL_HTTP_401' &&
+        generation === this.generation
+      ) {
+        this.forget();
+        this.set({ phase: 'error', ready: false, error: 'auth' });
+      }
+      throw error;
+    } finally {
+      controller.abort();
       this.inference.delete(controller);
       input.signal.removeEventListener('abort', cancel);
     }

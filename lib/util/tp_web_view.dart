@@ -1,4 +1,5 @@
 import 'dart:collection';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -6,12 +7,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
 import 'package:town_pass/service/asr_service.dart';
+import 'package:town_pass/service/button_guidance_service.dart';
 import 'package:town_pass/util/tp_app_bar.dart';
 import 'package:town_pass/util/tp_colors.dart';
+import 'package:town_pass/util/tp_guided_icon_button.dart';
 import 'package:town_pass/util/tp_external_link.dart';
 import 'package:town_pass/util/tp_prefill.dart';
 import 'package:town_pass/util/web_message_handler/tp_web_message_listener.dart';
 import 'package:town_pass/util/web_message_handler/local_ai_origin.dart';
+import 'package:town_pass/util/web_message_handler/userinfo_access.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class WebViewArgument {
@@ -92,20 +96,16 @@ class TPWebView extends StatelessWidget {
       appBar: TPAppBar(
         backgroundColor: TPColors.primary500,
         foregroundColor: TPColors.white,
-        leading: BackButton(
+        leading: TPGuidedIconButton(
+          close: false,
           color: TPColors.white,
           onPressed: _goBack,
-          style: const ButtonStyle(
-            iconSize: WidgetStatePropertyAll<double>(24),
-          ),
         ),
         actions: [
-          CloseButton(
+          TPGuidedIconButton(
+            close: true,
             color: TPColors.white,
             onPressed: () => Get.back(),
-            style: const ButtonStyle(
-              iconSize: WidgetStatePropertyAll<double>(24),
-            ),
           ),
         ],
         title: appBarController.title.value,
@@ -114,6 +114,16 @@ class TPWebView extends StatelessWidget {
       body: Stack(
         children: [
           TPInAppWebView(
+            initialUserScripts: UnmodifiableListView([
+              if (Get.isRegistered<ButtonGuidanceService>() &&
+                  _guidanceOriginAllowed(url))
+                UserScript(
+                  source:
+                      'window.__tpButtonGuidance = ${jsonEncode(Get.find<ButtonGuidanceService>().state)};',
+                  injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+                  forMainFrameOnly: true,
+                ),
+            ]),
             initialSettings: InAppWebViewSettings(
               // flutter_inappwebview 預設會呼叫 setTextZoom(100)，把系統字級吃掉；
               // 這裡改傳系統字級，長輩放大字級時 WebView 內的網頁才會跟著放大。
@@ -243,6 +253,14 @@ bool canRequestAssistantMicrophone(
     return isLocalAiOriginAllowed(request.origin.origin) &&
         request.origin.origin == mainPage.origin;
   } on FormatException {
+    return false;
+  }
+}
+
+bool _guidanceOriginAllowed(String url) {
+  try {
+    return isUserinfoOriginAllowed(Uri.parse(url).origin);
+  } catch (_) {
     return false;
   }
 }

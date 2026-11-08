@@ -9,6 +9,7 @@ import {
   routingTool,
 } from './tools';
 import { CATALOG_TOOL, catalogKeyword, destinationFor } from './skills/navigation';
+import { welfareFor } from './skills/welfare';
 import { EMERGENCY_NUMBERS, JOKE, detectEmergency } from './skills/emergency';
 
 /** Words that make an exaggeration real again: 救命、快叫救護車. */
@@ -315,6 +316,7 @@ export class AgentRunner {
     const controller = new AbortController();
     this.controller = controller;
     this.state.records = [];
+    this.state.welfare = null;
     this.state.bookIds = [];
     this.state.bookResults = [];
     this.state.source = null;
@@ -376,6 +378,7 @@ export class AgentRunner {
     if (!request.trim() || request.length > 600) throw new Error('INVALID_INPUT');
     if (this.state.draft) throw new Error('DRAFT_PENDING');
     const pendingCategory = this.state.pendingBillCategory;
+    const previousWelfare = this.state.welfare;
     const controller = new AbortController();
     this.controller = controller;
     const signal = controller.signal;
@@ -386,6 +389,7 @@ export class AgentRunner {
     this.state.failure = null;
     this.state.pendingLocation = null;
     this.state.navigation = null;
+    this.state.welfare = null;
     this.state.lastTool = null;
     this.state.emergency = null;
     this.state.domain = null;
@@ -440,6 +444,20 @@ export class AgentRunner {
       if (!selectedCategory && PROFILE_QUESTION.test(ruleText)) {
         this.state.notice = 'profile';
         trace('profile', 'local', 'Answered from data on this phone; nothing sent to the model.');
+        return;
+      }
+      const welfare = selectedCategory ? null : welfareFor(ruleText, previousWelfare);
+      if (welfare) {
+        this.state.welfare = welfare;
+        this.state.domain = 'services';
+        this.state.notice = 'results';
+        this.state.lastTool = 'welfare_information';
+        this.state.lastDestination = null;
+        trace(
+          'welfare',
+          'verified_information',
+          `${welfare.topic}/${welfare.section}: curated official guidance, no model or external action.`,
+        );
         return;
       }
       onProgress('routing');

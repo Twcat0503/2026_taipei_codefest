@@ -1,3 +1,5 @@
+import { WELFARE_CHECKED_AT, WELFARE_SOURCES } from '../../shared/welfare-sources';
+
 /**
  * /about 頁列出的資料來源。
  * 規則：只放程式碼裡實際用到、且能指出出處的資料；查不到出處的欄位寫「未標示」，不推測。
@@ -28,6 +30,13 @@ export interface DemoDataSource {
 export const OPEN_DATA_LICENSE_URL = 'https://data.gov.tw/license';
 
 export const OPEN_DATA_SOURCES: OpenDataSource[] = [
+  ...WELFARE_SOURCES.map((source) => ({
+    name: source.name,
+    agency: source.agency,
+    url: source.url,
+    usedIn: '安心助手：補助與復康的條件、準備清單與辦理步驟（官方說明摘要）',
+    dataTime: `非即時資訊；最後查核 ${WELFARE_CHECKED_AT}；官方頁面更新日期：${source.updated ?? '未標示'}`
+  })),
   {
     name: '微笑單車 2.0',
     agency: '台北市政府交通局',

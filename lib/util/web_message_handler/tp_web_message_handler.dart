@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:town_pass/gen/assets.gen.dart';
 import 'package:town_pass/service/account_service.dart';
+import 'package:town_pass/service/button_guidance_service.dart';
 import 'package:town_pass/service/asr_service.dart';
 import 'package:town_pass/service/device_service.dart';
 import 'package:town_pass/service/geo_locator_service.dart';
@@ -40,6 +41,44 @@ abstract class TPWebMessageHandler {
 
   WebMessage replyWebMessage({required Object? data}) {
     return TPWebStringMessageReply(name: name, data: data).message;
+  }
+}
+
+/// 操作偏好只允許助手與已核准服務的主 frame 讀取或修改。
+class ButtonGuidanceMessageHandler extends TPWebMessageHandler {
+  @override
+  String get name => 'button_guidance';
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage reply)? onReply,
+  }) async {
+    void reply(Map<String, Object?> data) =>
+        onReply?.call(replyWebMessage(data: _withRequestId(message, data)));
+    if (!isMainFrame || !isUserinfoOriginAllowed(_originOf(sourceOrigin))) {
+      reply({'ok': false, 'error': 'origin_not_allowed'});
+      return;
+    }
+    final data = message is Map ? message : const {};
+    if ((data.containsKey('enabled') && data['enabled'] is! bool) ||
+        (data.containsKey('lang') &&
+            !['en', 'zh-Hant-TW'].contains(data['lang']))) {
+      reply({'ok': false, 'error': 'invalid_preference'});
+      return;
+    }
+    try {
+      final service = Get.find<ButtonGuidanceService>();
+      await service.update(
+        on: data['enabled'] as bool?,
+        lang: data['lang'] as String?,
+      );
+      reply({'ok': true, ...service.state});
+    } catch (_) {
+      reply({'ok': false, 'error': 'preference_unavailable'});
+    }
   }
 }
 
@@ -206,6 +245,59 @@ class LocationMessageHandler extends TPWebMessageHandler {
   }
 }
 
+bool isReverseGeocodeAllowed({
+  required WebUri? sourceOrigin,
+  required bool isMainFrame,
+}) => isMainFrame && isUserinfoOriginAllowed(_originOf(sourceOrigin));
+
+class ReverseGeocodeMessageHandler extends TPWebMessageHandler {
+  @override
+  String get name => 'reverse_geocode';
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage reply)? onReply,
+  }) async {
+    void reply(Map<String, Object?> data) =>
+        onReply?.call(replyWebMessage(data: _withRequestId(message, data)));
+    if (!isReverseGeocodeAllowed(
+      sourceOrigin: sourceOrigin,
+      isMainFrame: isMainFrame,
+    )) {
+      reply({'error': 'origin_not_allowed'});
+      return;
+    }
+    final data = message is Map ? message : const {};
+    final lat = data['latitude'];
+    final lng = data['longitude'];
+    if (lat is! num ||
+        lng is! num ||
+        !lat.isFinite ||
+        !lng.isFinite ||
+        lat < -90 ||
+        lat > 90 ||
+        lng < -180 ||
+        lng > 180) {
+      reply({'error': 'invalid_coordinates'});
+      return;
+    }
+    try {
+      final address = await const MethodChannel('town_pass/geocoding')
+          .invokeMethod<String>('reverse', {
+            'latitude': lat.toDouble(),
+            'longitude': lng.toDouble(),
+          })
+          .timeout(const Duration(seconds: 8));
+      reply({'address': address});
+    } catch (_) {
+      reply({'error': 'unavailable'});
+    }
+  }
+}
+
 class DeviceInfoMessageHandler extends TPWebMessageHandler {
   @override
   String get name => 'deviceinfo';
@@ -363,6 +455,9 @@ class TtsMessageHandler extends TPWebMessageHandler {
     required bool isMainFrame,
     required Function(WebMessage replyWebMessage)? onReply,
   }) async {
+    if (sourceOrigin != null && Get.isRegistered<ButtonGuidanceService>()) {
+      Get.find<ButtonGuidanceService>().clearArmed();
+    }
     final Map data = message is Map ? message : const {};
 
     if (data['requestId'] != null) {

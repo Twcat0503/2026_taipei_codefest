@@ -2,6 +2,7 @@ package com.example.townpass
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.location.Geocoder
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -13,6 +14,7 @@ import com.example.townpass.asr.AsrServer
 import com.example.townpass.llm.LlmConfig
 import com.example.townpass.llm.LlmServer
 import com.example.townpass.speech.SpeechInput
+import com.example.townpass.feedback.ShakeFeedback
 import com.example.townpass.tts.TtsConfig
 import com.example.townpass.tts.TtsOperations
 import com.example.townpass.tts.TtsPhase
@@ -23,6 +25,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.Locale
 
 class MainActivity : FlutterActivity() {
     // 模型下載與子行程啟動很慢，放在背景執行緒；結果回到主執行緒再交給 Flutter。
@@ -71,6 +74,29 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         configureAsrChannel(flutterEngine)
         configureSpeechChannel(flutterEngine)
+        val shakeFeedback = ShakeFeedback(applicationContext)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "town_pass/feedback").setMethodCallHandler { call, result ->
+            if (call.method == "shake") result.success(shakeFeedback.vibrate())
+            else result.notImplemented()
+        }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "town_pass/geocoding").setMethodCallHandler { call, result ->
+            val lat = call.argument<Double>("latitude")
+            val lon = call.argument<Double>("longitude")
+            if (call.method != "reverse" || lat == null || lon == null || !lat.isFinite() || !lon.isFinite() || lat !in -90.0..90.0 || lon !in -180.0..180.0) {
+                result.error("invalid_arguments", "Invalid coordinates", null)
+            } else {
+                worker.execute {
+                    try {
+                        @Suppress("DEPRECATION")
+                        val address = Geocoder(applicationContext, Locale.TRADITIONAL_CHINESE)
+                            .getFromLocation(lat, lon, 1)?.firstOrNull()?.getAddressLine(0)
+                        mainHandler.post { result.success(address) }
+                    } catch (_: Exception) {
+                        mainHandler.post { result.success(null) }
+                    }
+                }
+            }
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "town_pass/llm").setMethodCallHandler { call, result ->
             when (call.method) {
                 "status" -> result.success(LlmServer.status().toMap())

@@ -15,6 +15,7 @@ import 'package:get/get.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 import 'package:town_pass/main.dart';
 import 'package:town_pass/service/account_service.dart';
 import 'package:town_pass/service/device_service.dart';
@@ -23,6 +24,7 @@ import 'package:town_pass/service/notification_service.dart';
 import 'package:town_pass/service/package_service.dart';
 import 'package:town_pass/service/shared_preferences_service.dart';
 import 'package:town_pass/service/subscription_service.dart';
+import 'package:town_pass/util/tp_shake_to_agent.dart';
 
 /// A typical modern Android phone (412 x 915 dp) instead of the 800 x 600
 /// default test surface. It is tall enough for every tab's finder to sit on
@@ -59,6 +61,7 @@ void main() {
     // platform implementations the app relies on by hand.
     FlutterLocalNotificationsPlatform.instance = _FakeNotificationsPlatform();
     InAppWebViewPlatform.instance = _FakeInAppWebViewPlatform();
+    SensorsPlatform.instance = _FakeSensorsPlatform();
   });
 
   tearDown(() {
@@ -70,6 +73,30 @@ void main() {
   });
 
   group('Town Pass app shell', () {
+    testWidgets(
+      'shake entry follows the home tab and remembers being switched off',
+      (tester) async {
+        await _pumpApp(tester);
+        bool enabled() =>
+            tester.widget<TPShakeToAgent>(find.byType(TPShakeToAgent)).enabled;
+        expect(enabled(), isTrue);
+        await tester.tap(_navItem('服務'));
+        await tester.pump();
+        expect(enabled(), isFalse);
+        await tester.tap(_navItem('首頁'));
+        await tester.pump();
+        expect(enabled(), isTrue);
+        await tester.tap(find.byType(SwitchListTile));
+        await tester.pump();
+        expect(enabled(), isFalse);
+        expect(
+          Get.find<SharedPreferencesService>().instance.getBool(
+            SharedPreferencesService.keyShakeToAgent,
+          ),
+          isFalse,
+        );
+      },
+    );
     testWidgets('boots into the shell on the home tab', (tester) async {
       await _pumpApp(tester);
 
@@ -134,6 +161,13 @@ void main() {
       expect(_appBarTitle('首頁'), findsNothing);
     });
   });
+}
+
+class _FakeSensorsPlatform extends SensorsPlatform {
+  @override
+  Stream<UserAccelerometerEvent> userAccelerometerEventStream({
+    Duration samplingPeriod = SensorInterval.normalInterval,
+  }) => const Stream.empty();
 }
 
 /// Boots [MyApp] with the services registered and the startup timers run out.

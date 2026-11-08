@@ -26,6 +26,7 @@ describe('haptic feedback for a finished request', () => {
     billUnsupported: null,
     welcome: null,
     greeting: null,
+    capabilities: null,
     navigationDeclined: null,
     review: null,
     cancelled: null,

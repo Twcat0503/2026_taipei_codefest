@@ -1,4 +1,3 @@
-import { createNativeVoiceInput } from './native-voice-input';
 import { hasNativeBridge, newNativeRequestId, postNative } from './native-bridge';
 
 export type VoiceStatus =
@@ -29,6 +28,7 @@ type VoiceWindow = Window & {
 };
 
 type SpeechEvent = { type: string; text?: string; error?: string };
+const THINKING_PAUSE_MS = 4000;
 
 /**
  * Reads a `speech_start` reply for `requestId`. Like the TTS bridge, these arrive as `message`
@@ -55,8 +55,7 @@ function parseSpeechEvent(raw: unknown, requestId: string): SpeechEvent | undefi
 }
 
 /**
- * Local ASR in the WebView, with an explicit Android system-recognition alternative;
- * standalone browsers keep their Web Speech API input.
+ * Android system recognition in the WebView; standalone browsers use the Web Speech API.
  */
 export function createVoiceInput(
   onStatus: (status: VoiceStatus) => void,
@@ -67,7 +66,7 @@ export function createVoiceInput(
   let nativeSession:
     { requestId: string; receive: (event: { data?: unknown }) => void } | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const native = createNativeVoiceInput(onStatus, onText, onFinished);
+  let silenceTimer: ReturnType<typeof setTimeout> | undefined;
   const endNative = (notify: boolean) => {
     const session = nativeSession;
     if (!session) return;
@@ -89,6 +88,7 @@ export function createVoiceInput(
         onText(transcript.slice(0, 600));
       } else if (event.type === 'final') {
         clearTimeout(timer);
+        clearTimeout(silenceTimer);
         endNative(false);
         transcript = event.text ?? transcript;
         if (!transcript.trim()) onStatus('error');
@@ -99,6 +99,7 @@ export function createVoiceInput(
         }
       } else if (event.type === 'error') {
         clearTimeout(timer);
+        clearTimeout(silenceTimer);
         endNative(false);
         onStatus(
           event.error === 'permission'
@@ -125,8 +126,8 @@ export function createVoiceInput(
   };
   const cancel = () => {
     window.removeEventListener('pagehide', cancel);
-    native.cancel();
     clearTimeout(timer);
+    clearTimeout(silenceTimer);
     endNative(true);
     const previous = recognition;
     recognition = undefined;
@@ -143,7 +144,7 @@ export function createVoiceInput(
     start(locale: string) {
       cancel();
       if (hasNativeBridge()) {
-        native.start(locale);
+        startNative(locale);
         return;
       }
       const target = window as VoiceWindow;
@@ -161,7 +162,7 @@ export function createVoiceInput(
       }
       recognition = current;
       current.lang = locale === 'en' ? 'en-US' : 'zh-TW';
-      current.continuous = false;
+      current.continuous = true;
       current.interimResults = true;
       let transcript = '';
       let failed = false;
@@ -169,16 +170,20 @@ export function createVoiceInput(
       current.onresult = ({ results }) => {
         transcript = Array.from(results, (result) => result[0]?.transcript ?? '').join('');
         onText(transcript.slice(0, 600));
+        clearTimeout(silenceTimer);
+        if (transcript.trim()) silenceTimer = setTimeout(() => current.stop(), THINKING_PAUSE_MS);
       };
       current.onerror = ({ error }) => {
         failed = true;
         clearTimeout(timer);
+        clearTimeout(silenceTimer);
         onStatus(
           error === 'not-allowed' || error === 'service-not-allowed' ? 'permission' : 'error',
         );
       };
       current.onend = () => {
         clearTimeout(timer);
+        clearTimeout(silenceTimer);
         recognition = undefined;
         if (failed) return;
         if (!transcript.trim()) onStatus('error');
@@ -199,13 +204,7 @@ export function createVoiceInput(
         onStatus('error');
       }
     },
-    startSystem(locale: string) {
-      cancel();
-      if (hasNativeBridge()) startNative(locale);
-      else onStatus('unavailable');
-    },
     finish() {
-      native.finish();
       if (nativeSession) postNative('speech_stop', { requestId: nativeSession.requestId });
       recognition?.stop();
     },

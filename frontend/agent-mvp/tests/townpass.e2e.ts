@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
 test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('tp-button-guidance', 'off'));
   // This server uses the real tool adapter in its default real-data mode; only HTTP
   // responses and location are fixtures. Toilets come from the bundled official snapshot.
   await page.goto('/');
@@ -31,6 +32,76 @@ const posted = async (page: Page) => {
   const raw = await page.evaluate(() => document.documentElement.dataset.navigation);
   return raw ? JSON.parse(raw) : null;
 };
+
+test('benefit questions show verified information and a checklist without leaving the assistant', async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    window.speechSynthesis.speak = (utterance) => {
+      document.documentElement.dataset.welfareSpoken = utterance.text;
+      queueMicrotask(() => utterance.onend?.({} as SpeechSynthesisEvent));
+    };
+  });
+  await send(page, '身障生活補助要準備什麼文件');
+  const panel = page.getByRole('region', { name: '補助與復康資訊', exact: true });
+  await expect(panel.getByRole('heading', { name: '身障生活補助', exact: true })).toBeVisible();
+  await expect(panel.getByRole('checkbox')).toHaveCount(5);
+  await panel.getByRole('checkbox').first().check();
+  await expect(panel.getByRole('status')).toHaveText('已準備 1／5 項，尚未送出申請或訂車。');
+  expect(await posted(page)).toBeNull();
+  await page.getByRole('button', { name: '朗讀這段', exact: true }).click();
+  const spoken = await page.locator('html').getAttribute('data-welfare-spoken');
+  expect(spoken).toContain('先備妥申請表');
+  expect(spoken).not.toContain('https:');
+  expect(spoken!.length).toBeLessThanOrEqual(45);
+  await panel.getByRole('button', { name: '金額與費用', exact: true }).click();
+  await expect(panel).toContainText('9,485');
+  await expect(panel).toContainText('4,049');
+  await panel.getByText('官方來源與資料日期', { exact: true }).click();
+  await expect(panel).toContainText('2026-11-08');
+  await expect(panel).toContainText('2026-10-07');
+  await stubBridge(page);
+  await panel.getByRole('button', { name: '查看官方申請說明', exact: true }).click();
+  expect(await posted(page)).toBeNull();
+  await panel.getByRole('button', { name: '前往', exact: true }).click();
+  expect(await posted(page)).toMatchObject({
+    name: 'open_link',
+    data: 'https://dosw.gov.taipei/cp.aspx?n=C764A5808F9A3B08',
+  });
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('已準備');
+});
+
+test('benefits and rehab information work before the phone model starts and reflow in English', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 393, height: 915 });
+  await page.getByRole('button', { name: '設定', exact: true }).click();
+  await page.getByText('開發者檢視與接點設定', { exact: true }).click();
+  await page.getByLabel('模型來源').selectOption('phone');
+  await page.getByRole('button', { name: '套用接點', exact: true }).click();
+  await page.getByRole('button', { name: '關閉設定', exact: true }).click();
+  await page.getByRole('button', { name: '我想申請身障補助', exact: true }).click();
+  const panel = page.getByRole('region', { name: '補助與復康資訊', exact: true });
+  await expect(panel.getByRole('heading', { name: '你想先了解哪一項？' })).toBeVisible();
+  await panel.getByRole('button', { name: '查看復康巴士訂車準備', exact: true }).click();
+  await panel.getByRole('button', { name: '準備清單', exact: true }).click();
+  await expect(panel.getByRole('checkbox')).toHaveCount(4);
+  await expect(panel).toContainText('上車地點與下車地點');
+  await page.getByRole('button', { name: '設定', exact: true }).click();
+  await page.getByLabel('語言', { exact: true }).selectOption('en');
+  await page.getByRole('button', { name: 'Close settings', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Rehab-bus booking preparation', exact: true }),
+  ).toBeVisible();
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(
+    (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
+      .violations,
+  ).toEqual([]);
+});
 
 const parkingLot = (id: string, latitude: number, disabled: number, pregnancy: number) => ({
   id,
@@ -179,6 +250,65 @@ test('empty nearby parking can expand to 3 km; denied location offers a district
   await expect(page.getByText(/依行政區列出，沒有依距離排序/)).toBeVisible();
 });
 
+test('parking cards show three concise matches and speech only summarizes the first', async ({
+  page,
+}) => {
+  const fee = '測試用詳細費率與收費條件';
+  await stubParking(
+    page,
+    Array.from({ length: 5 }, (_, index) => ({
+      ...parkingLot(String(index + 1), 25.0305 + index * 0.0005, 2, 3),
+      payex: fee,
+      serviceTime: '測試用營業時間',
+    })),
+  );
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: (
+          success: (position: { coords: { latitude: number; longitude: number } }) => void,
+        ) => success({ coords: { latitude: 25.03, longitude: 121.56 } }),
+      },
+    });
+    window.speechSynthesis.speak = (utterance) => {
+      document.documentElement.dataset.parkingSpoken = utterance.text;
+      queueMicrotask(() => utterance.onend?.({} as SpeechSynthesisEvent));
+    };
+  });
+  await page.getByRole('button', { name: '找最近的身障車位' }).click();
+  const answer = page.locator('section.assistant-message');
+  await expect(answer.locator('.result-card h2')).toHaveText(['停車場1', '停車場2', '停車場3']);
+  const first = answer.locator('.result-card').first();
+  await expect(first.locator('.parking-summary')).toContainText('身障 2 格');
+  await expect(first.locator('.parking-summary')).not.toContainText('孕婦');
+  await expect(first.getByText(fee, { exact: true })).not.toBeVisible();
+  await first.getByText('詳細資料', { exact: true }).click();
+  await expect(first.getByText(fee, { exact: true })).toBeVisible();
+  await first.getByText('詳細資料', { exact: true }).click();
+  await answer.getByRole('button', { name: '顯示其他 2 處', exact: true }).click();
+  await expect(answer.locator('.result-card')).toHaveCount(5);
+  await answer.getByRole('button', { name: '朗讀這段', exact: true }).click();
+  const spoken = await page.locator('html').getAttribute('data-parking-spoken');
+  expect(spoken).toContain('最近是停車場1');
+  expect(spoken).toContain('非即時空位');
+  expect(spoken).not.toMatch(/停車場[2-5]|詳細費率|信義路|營業時間|孕婦/);
+  await answer.getByRole('button', { name: '只看前 3 處', exact: true }).click();
+  await expect(answer.locator('.result-card')).toHaveCount(3);
+  await page.getByRole('button', { name: '設定', exact: true }).click();
+  await page.getByLabel('語言', { exact: true }).selectOption('en');
+  await page.getByRole('button', { name: 'Close settings', exact: true }).click();
+  await expect(first.locator('.parking-summary')).toContainText('Disabled spaces: 2');
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(
+    (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
+      .violations,
+  ).toEqual([]);
+});
+
 test('official toilets resume with district and in-app services ask before leaving', async ({
   page,
 }) => {
@@ -216,7 +346,7 @@ test('official toilets resume with district and in-app services ask before leavi
       .violations,
   ).toEqual([]);
   await page.getByRole('button', { name: '先不要', exact: true }).click();
-  await expect(answer).toContainText('好的，先留在這裡');
+  await expect(answer).toContainText('先留在這裡，你可以提出其他需求。');
   expect(await posted(page)).toBeNull();
 
   await send(page, '路燈壞了我要陳情');
@@ -272,6 +402,189 @@ test('live YouBike results offer the Town Pass map instead of Google Maps', asyn
   });
 });
 
+test('public search results and their source remain visible after reload', async ({ page }) => {
+  await page.route('**/youbike_immediate.json', (route) =>
+    route.fulfill({
+      json: [
+        {
+          sno: 'fixture',
+          sna: '保存測試站',
+          sarea: '大安區',
+          ar: '測試地址',
+          act: '1',
+          updateTime: '2026-11-07 16:00:00',
+          Quantity: 20,
+          available_rent_bikes: 7,
+          available_return_bikes: 13,
+          latitude: 25.03,
+          longitude: 121.54,
+        },
+      ],
+    }),
+  );
+  await send(page, '大安區 YouBike');
+  await expect(page.getByRole('heading', { name: '保存測試站' })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: '繼續上次對話', exact: true }).click();
+  const past = page.locator('.past-message').last();
+  await expect(past).toContainText('保存測試站');
+  await expect(past).toContainText('7');
+  await expect(past).toContainText('資料可能已更新');
+  await expect(past.locator('.source-note')).toBeVisible();
+});
+
+test('report address can use the current location and remains editable', async ({ page }) => {
+  await send(page, '路燈壞了我要陳情');
+  await page.evaluate(() => {
+    const listeners = new Set<(event: { data: string }) => void>();
+    window.flutterObject = {
+      addEventListener: (_name, listener) => listeners.add(listener),
+      removeEventListener: (_name, listener) => listeners.delete(listener),
+      postMessage: (raw) => {
+        const request = JSON.parse(raw);
+        if (request.name === 'location') {
+          queueMicrotask(() =>
+            listeners.forEach((listener) =>
+              listener({
+                data: JSON.stringify({
+                  name: 'location',
+                  data: { latitude: 25.03, longitude: 121.54 },
+                }),
+              }),
+            ),
+          );
+        } else if (request.name === 'reverse_geocode') {
+          queueMicrotask(() =>
+            window.dispatchEvent(
+              new MessageEvent('message', {
+                data: JSON.stringify({
+                  name: 'reverse_geocode',
+                  data: { requestId: request.data.requestId, address: '臺北市大安區和平東路100號' },
+                }),
+              }),
+            ),
+          );
+        }
+      },
+    };
+  });
+  await page.getByRole('button', { name: '使用目前位置填入地址' }).click();
+  await expect(page.locator('#draft-location')).toHaveValue('臺北市大安區和平東路100號');
+  await expect(page.locator('#draft-district')).toHaveValue('大安區');
+  await expect(page.getByText('已填入附近地址，請確認並修改。')).toBeVisible();
+  await page.locator('#draft-location').fill('實際發生地點');
+  await expect(page.locator('#draft-location')).toHaveValue('實際發生地點');
+});
+
+test('report automatically fills an empty address from current location', async ({ page }) => {
+  await page.evaluate(() => {
+    const listeners = new Set<(event: { data: string }) => void>();
+    window.flutterObject = {
+      addEventListener: (_name, listener) => listeners.add(listener),
+      removeEventListener: (_name, listener) => listeners.delete(listener),
+      postMessage: (raw) => {
+        const request = JSON.parse(raw);
+        if (request.name === 'location') {
+          queueMicrotask(() =>
+            listeners.forEach((listener) =>
+              listener({
+                data: JSON.stringify({
+                  name: 'location',
+                  data: { latitude: 25.03, longitude: 121.54 },
+                }),
+              }),
+            ),
+          );
+        } else if (request.name === 'reverse_geocode') {
+          queueMicrotask(() =>
+            window.dispatchEvent(
+              new MessageEvent('message', {
+                data: JSON.stringify({
+                  name: 'reverse_geocode',
+                  data: { requestId: request.data.requestId, address: '臺北市大安區和平東路100號' },
+                }),
+              }),
+            ),
+          );
+        }
+      },
+    };
+  });
+  await send(page, '路燈壞了我要陳情');
+  await expect(page.locator('#draft-location')).toHaveValue('臺北市大安區和平東路100號');
+  await expect(page.locator('#draft-district')).toHaveValue('大安區');
+});
+
+test('report keeps an address already provided by the user', async ({ page }) => {
+  await page.evaluate(() => {
+    window.flutterObject = {
+      addEventListener() {},
+      removeEventListener() {},
+      postMessage(raw) {
+        if (JSON.parse(raw).name === 'location')
+          document.documentElement.dataset.locationAsked = 'yes';
+      },
+    };
+  });
+  await send(page, '大安區和平東路100號路燈壞了我要陳情');
+  await expect(page.locator('#draft-location')).not.toBeEmpty();
+  expect(await page.locator('html').getAttribute('data-location-asked')).toBeNull();
+});
+
+test('report location explains browser fallback without changing the address', async ({ page }) => {
+  await send(page, '路燈壞了我要陳情');
+  await page.locator('#draft-location').fill('我輸入的地點');
+  await page.getByRole('button', { name: '使用目前位置填入地址' }).click();
+  await expect(page.getByText('瀏覽器目前無法將位置轉成地址，請自行輸入。')).toBeVisible();
+  await expect(page.locator('#draft-location')).toHaveValue('我輸入的地點');
+});
+
+test('a late geocoder result does not overwrite edits', async ({ page }) => {
+  await send(page, '路燈壞了我要陳情');
+  await page.evaluate(() => {
+    const listeners = new Set<(event: { data: string }) => void>();
+    window.flutterObject = {
+      addEventListener: (_name, listener) => listeners.add(listener),
+      removeEventListener: (_name, listener) => listeners.delete(listener),
+      postMessage: (raw) => {
+        const request = JSON.parse(raw);
+        if (request.name === 'location') {
+          queueMicrotask(() =>
+            listeners.forEach((listener) =>
+              listener({
+                data: JSON.stringify({
+                  name: 'location',
+                  data: { latitude: 25.03, longitude: 121.54 },
+                }),
+              }),
+            ),
+          );
+        } else if (request.name === 'reverse_geocode') {
+          document.documentElement.dataset.geocodeRequest = request.data.requestId;
+        }
+      },
+    };
+  });
+  await page.getByRole('button', { name: '使用目前位置填入地址' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-geocode-request', /.+/);
+  await page.locator('#draft-location').fill('我修改的地點');
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: JSON.stringify({
+          name: 'reverse_geocode',
+          data: {
+            requestId: document.documentElement.dataset.geocodeRequest,
+            address: '臺北市大安區和平東路100號',
+          },
+        }),
+      }),
+    ),
+  );
+  await expect(page.getByText('地址已修改，未覆蓋你的輸入。')).toBeVisible();
+  await expect(page.locator('#draft-location')).toHaveValue('我修改的地點');
+});
+
 test('disaster requests consistently offer the official service and never a local mock', async ({
   page,
 }) => {
@@ -303,16 +616,24 @@ test('water fee asks for the account number once, then fills it in', async ({ pa
   await stubBridge(page);
   await send(page, '我要繳水費');
   await expect(page.getByRole('heading', { name: '繳水費', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '取消語音輸入' }).click();
   await page.getByLabel('你的水號是？').fill('1-23-456789');
   await page.getByRole('button', { name: '前往', exact: true }).click();
   await expect(page.locator('.navigation-card').getByRole('alert')).toContainText('10 碼');
-  expect(await posted(page)).toBeNull();
-  await page.getByLabel('你的水號是？').fill('1-23-456789-0');
+  expect((await posted(page))?.name).not.toBe('open_link');
+  await page.getByLabel('你的水號是？').fill('1234567890');
+  await expect(page.getByRole('group', { name: '水號數字鍵盤' })).toHaveCount(0);
   expect(
     (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
       .violations,
   ).toEqual([]);
   await page.getByRole('button', { name: '前往', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '請確認水號' })).toBeFocused();
+  expect((await posted(page))?.name).not.toBe('open_link');
+  await page.getByRole('button', { name: '修改水號' }).click();
+  await expect(page.getByLabel('你的水號是？')).toHaveValue('1234567890');
+  await page.getByRole('button', { name: '前往', exact: true }).click();
+  await page.getByRole('button', { name: '確認水號並前往' }).click();
   expect(await posted(page)).toEqual({
     name: 'open_link',
     data: {
@@ -337,6 +658,56 @@ test('water fee asks for the account number once, then fills it in', async ({ pa
   await expect(page.locator('.remembered')).toContainText('1-23-456789-0');
   await page.getByRole('button', { name: '刪除', exact: true }).click();
   await expect(page.locator('.remembered')).toContainText('目前沒有記住任何資料');
+});
+
+test('water number starts listening automatically and is confirmed before leaving', async ({ page }) => {
+  await page.evaluate(() => {
+    const listeners = new Set<(event: { data: string }) => void>();
+    window.flutterObject = {
+      addEventListener: (_name, listener) => listeners.add(listener),
+      removeEventListener: (_name, listener) => listeners.delete(listener),
+      postMessage: (raw) => {
+        const request = JSON.parse(raw);
+        if (request.name === 'tts' && request.data.action === 'speak') {
+          document.documentElement.dataset.waterPrompt = request.data.text;
+          queueMicrotask(() => {
+            for (const listener of listeners)
+              listener({
+                data: JSON.stringify({
+                  name: 'tts',
+                  data: { requestId: request.data.requestId, event: 'done' },
+                }),
+              });
+          });
+        }
+        if (request.name === 'speech_start') {
+          document.documentElement.dataset.waterPromptBeforeStart =
+            document.documentElement.dataset.waterPrompt;
+          queueMicrotask(() => {
+            window.dispatchEvent(
+              new MessageEvent('message', {
+                data: JSON.stringify({
+                  name: 'speech_start',
+                  data: {
+                    requestId: request.data.requestId,
+                    type: 'final',
+                    text: '一二三四五六七八九零',
+                  },
+                }),
+              }),
+            );
+          });
+        }
+      },
+    };
+  });
+  await send(page, '我要繳水費');
+  await expect(page.locator('#water-hint')).toContainText('逐位說出水號');
+  await expect(page.getByLabel('你的水號是？')).toHaveValue('1234567890');
+  await expect(page.locator('html')).toHaveAttribute('data-water-prompt-before-start', /逐位說出水號/);
+  await page.getByRole('button', { name: '前往', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '請確認水號' })).toBeVisible();
+  await expect(page.getByText('1-23-456789-0', { exact: true })).toBeVisible();
 });
 
 test('a citizen report is drafted from what was said and opens the form filled in', async ({

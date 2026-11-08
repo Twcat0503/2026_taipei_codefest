@@ -111,8 +111,11 @@ describe('native bridge', () => {
     emit('a11y_state', { requestId, boldText: false });
     emit('a11y_state', { requestId, boldText: true });
     await expect(pending).resolves.toEqual({ requestId, boldText: false });
-    void requestNative('a11y_state');
+    const next = requestNative('a11y_state');
     expect(listeners.size).toBe(1);
+    const nextId = sent().at(-1)!.data.requestId;
+    emit('a11y_state', { requestId: nextId });
+    await expect(next).resolves.toMatchObject({ requestId: nextId });
   });
 
   it('keeps concurrent requests apart', async () => {

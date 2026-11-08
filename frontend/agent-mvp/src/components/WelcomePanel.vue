@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { Locale } from '../agent/types';
+import { townpassSuggestionGroups } from '../agent/suggestion-groups';
 import { messages } from '../i18n';
 import UiIcon from './UiIcon.vue';
 import VoiceWave from './VoiceWave.vue';
@@ -15,14 +16,12 @@ const props = defineProps<{
   nearbyParkingDisabled: boolean;
   native: boolean;
   modelNeedsStart: boolean;
-  modelStarting: boolean;
   modelStatus: string;
 }>();
 defineEmits<{
   request: [text: string];
   voice: [];
   resume: [];
-  startModel: [];
   nearbyParking: [];
 }>();
 const t = computed(() => messages[props.locale]);
@@ -30,11 +29,10 @@ const panel = ref<HTMLElement>();
 const suggestionStage = ref<HTMLElement>();
 const measurement = ref<HTMLElement>();
 const voiceButton = ref<HTMLButtonElement>();
-const modelButton = ref<HTMLButtonElement>();
-const modelFontSize = ref(16);
 const voiceFontSize = ref(30);
 const compact = ref(false);
 const visibleCount = ref(3);
+const suggestionGroup = ref(0);
 const primaryLabel = computed(() => t.value.voiceButton);
 let observer: ResizeObserver | undefined;
 let frame = 0;
@@ -69,29 +67,6 @@ async function measure() {
     }
     await nextTick();
   }
-  if (modelButton.value) {
-    const button = modelButton.value;
-    const style = getComputedStyle(button);
-    const available =
-      button.clientWidth -
-      parseFloat(style.paddingLeft) -
-      parseFloat(style.paddingRight) -
-      (button.querySelector('svg')?.getBoundingClientRect().width ?? 0) -
-      (parseFloat(style.columnGap) || 0);
-    const maximum = Math.min(scale, 28);
-    canvas ??= document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    if (context) {
-      context.font = `700 ${maximum}px ${style.fontFamily}`;
-      modelFontSize.value = Math.max(
-        1,
-        Math.min(
-          maximum,
-          ((maximum * available) / context.measureText(t.value.phoneStart).width) * 0.97,
-        ),
-      );
-    }
-  }
   if (!suggestionStage.value || !measurement.value) return;
   const heights = Array.from(
     measurement.value.children,
@@ -114,7 +89,6 @@ onMounted(() => {
   if (panel.value) observer.observe(panel.value);
   if (suggestionStage.value) observer.observe(suggestionStage.value);
   if (voiceButton.value) observer.observe(voiceButton.value);
-  if (modelButton.value) observer.observe(modelButton.value);
   for (const child of measurement.value?.children ?? []) observer.observe(child);
   scheduleMeasure();
 });
@@ -134,7 +108,7 @@ const suggestions = computed(() => [
   ...(props.hasTask
     ? [{ title: t.value.continueConversation, hint: t.value.resumeHint, action: 'resume' as const }]
     : []),
-  ...(props.nearbyParking
+  ...(suggestionGroup.value === 0 && props.nearbyParking
     ? [
         {
           title: t.value.nearestParking,
@@ -143,11 +117,48 @@ const suggestions = computed(() => [
         },
       ]
     : []),
-  // 範例只放查得到真實資料的需求：開放資料的無障礙廁所，與臺北市官方身障服務頁。
-  { title: t.value.toiletSuggestion, hint: t.value.toiletHint, action: 'request' as const },
-  { title: t.value.disabledSuggestion, hint: t.value.disabledHint, action: 'request' as const },
+  ...(suggestionGroup.value === 0
+    ? [
+        { title: t.value.toiletSuggestion, hint: t.value.toiletHint, action: 'request' as const },
+        {
+          title: t.value.disabledSuggestion,
+          hint: t.value.disabledHint,
+          action: 'information' as const,
+        },
+      ]
+    : suggestionGroup.value === 1
+      ? [
+          {
+            title: t.value.pregnancyParkingSuggestion,
+            hint: t.value.pregnancyParkingHint,
+            action: 'request' as const,
+            request: '附近有孕婦車位的停車場',
+          },
+          {
+            title: t.value.youbikeSuggestion,
+            hint: t.value.youbikeHint,
+            action: 'request' as const,
+            request: '附近的 YouBike',
+          },
+          {
+            title: t.value.elderlySuggestion,
+            hint: t.value.elderlyHint,
+            action: 'request' as const,
+            request: '長輩可以申請什麼補助',
+          },
+        ]
+      : townpassSuggestionGroups[suggestionGroup.value - 2]!.map((item) => ({
+          title: t.value[item.key],
+          hint: item.demo ? t.value.suggestionDemoHint : t.value.suggestionServiceHint,
+          action: 'request' as const,
+          request: item.request,
+        }))),
 ]);
 const visibleSuggestions = computed(() => suggestions.value.slice(0, visibleCount.value));
+watch(suggestionGroup, async () => {
+  await nextTick();
+  scheduleMeasure();
+});
 </script>
 
 <template>
@@ -175,6 +186,14 @@ const visibleSuggestions = computed(() => suggestions.value.slice(0, visibleCoun
     </div>
     <div v-if="!compact" class="suggestions-header">
       <h2 class="suggestions-heading"><UiIcon name="help" />{{ t.welcomeSuggestions }}</h2>
+      <button
+        class="suggestion-refresh"
+        type="button"
+        data-suggestion-guide="refresh"
+        @click="suggestionGroup = (suggestionGroup + 1) % (2 + townpassSuggestionGroups.length)"
+      >
+        {{ t.moreSuggestions }}
+      </button>
     </div>
     <div ref="suggestionStage" class="suggestion-stage">
       <div ref="measurement" class="suggestion-measure" aria-hidden="true" inert>
@@ -197,17 +216,27 @@ const visibleSuggestions = computed(() => suggestions.value.slice(0, visibleCoun
           class="welcome-suggestion"
           :class="{ 'is-resume': suggestion.action === 'resume' }"
           :disabled="
-            suggestion.action === 'parking'
+            suggestion.action === 'parking' || suggestion.action === 'information'
               ? nearbyParkingDisabled
               : suggestion.action === 'request' && disabled
           "
           :aria-label="suggestion.title"
+          :data-suggestion-guide="
+            suggestion.action === 'request'
+              ? suggestionGroup >= 2
+                ? 'demo'
+                : 'request'
+              : undefined
+          "
           @click="
             suggestion.action === 'resume'
               ? $emit('resume')
               : suggestion.action === 'parking'
                 ? $emit('nearbyParking')
-                : $emit('request', suggestion.title)
+                : $emit(
+                    'request',
+                    ('request' in suggestion && suggestion.request) || suggestion.title,
+                  )
           "
         >
           <UiIcon :name="suggestion.action === 'resume' ? 'clock' : 'chat'" />
@@ -218,18 +247,7 @@ const visibleSuggestions = computed(() => suggestions.value.slice(0, visibleCoun
         </button>
       </div>
     </div>
-    <button
-      v-if="modelNeedsStart"
-      ref="modelButton"
-      class="outline-button model-launch"
-      :disabled="modelStarting"
-      :aria-label="t.phoneStart"
-      @click="$emit('startModel')"
-    >
-      <UiIcon name="settings" />
-      <span :style="{ fontSize: `${modelFontSize}px` }">{{ t.phoneStart }}</span>
-    </button>
-    <p v-if="modelNeedsStart" class="model-hint" :class="{ 'sr-only': hasTask }" role="status">
+    <p v-if="modelNeedsStart" class="model-hint" role="status">
       {{ modelStatus }}
     </p>
     <button

@@ -12,6 +12,7 @@ abstract class TPWebMessageListener {
     PhoneCallMessageHandler(),
     Agree1999MessageHandler(),
     LocationMessageHandler(),
+    ReverseGeocodeMessageHandler(),
     DeviceInfoMessageHandler(),
     OpenLinkMessageHandler(),
     NotifyMessageHandler(),
@@ -20,6 +21,7 @@ abstract class TPWebMessageListener {
     ShareMessageHandler(),
     HapticMessageHandler(),
     A11yStateMessageHandler(),
+    ButtonGuidanceMessageHandler(),
     LlmStartMessageHandler(),
     LlmStopMessageHandler(),
     LlmStatusMessageHandler(),
@@ -36,7 +38,7 @@ abstract class TPWebMessageListener {
 
   static List<TPWebMessageHandler> get messageHandler => _cachedMessageHandlers;
 
-  /// 授權主 frame 的 tts_* 回覆必須透過 [onTtsReply]，不可使用共享 replyProxy。
+  /// 授權主 frame 的敏感回覆透過 [onTtsReply]，不可使用共享 replyProxy。
   /// 呼叫端須以 controller.postWebMessage 送往指定 origin（window message 事件）。
   /// 未提供安全回覆通道時不執行 TTS 請求，亦不回退到 replyProxy。
   static WebMessageListener webMessageListener({
@@ -58,12 +60,18 @@ abstract class TPWebMessageListener {
                 handler is TtsStatusMessageHandler;
             // 語音輸入的辨識文字也走安全通道，而且會陸續送出多則，不能等 handle 結束。
             final isSpeech = handler is SpeechStartMessageHandler;
+            final isGeocode = handler is ReverseGeocodeMessageHandler;
             final useSafeReply =
-                (isTts || isSpeech) &&
-                isTtsRequestAllowed(
-                  sourceOrigin: sourceOrigin,
-                  isMainFrame: isMainFrame,
-                );
+                ((isTts || isSpeech) &&
+                    isTtsRequestAllowed(
+                      sourceOrigin: sourceOrigin,
+                      isMainFrame: isMainFrame,
+                    )) ||
+                (isGeocode &&
+                    isReverseGeocodeAllowed(
+                      sourceOrigin: sourceOrigin,
+                      isMainFrame: isMainFrame,
+                    ));
             if (useSafeReply && onTtsReply == null) return;
 
             // Android 1.1.3 的 replyProxy 會被下一則 incoming 覆寫。

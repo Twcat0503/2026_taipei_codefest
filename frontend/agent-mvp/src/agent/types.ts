@@ -34,12 +34,20 @@ export interface ModelAdapter {
     messages: Message[];
     tools: ToolDefinition[];
     signal: AbortSignal;
+    /** UI explanations cancel only their request; task cancellation still stops the phone service. */
+    stopOnAbort?: boolean;
   }): Promise<{ calls: ToolCall[]; content?: string }>;
   /**
    * Optional: look at one photo and return the model's raw text (the skill parses and validates
    * it). Only adapters whose model is multimodal implement this; callers check for it first.
    */
   vision?(input: VisionRequest): Promise<string>;
+  /** Read-only streamed UI narration; cancellation must not stop the shared model service. */
+  streamText?(input: {
+    system: string;
+    instruction: string;
+    signal: AbortSignal;
+  }): AsyncIterable<string>;
 }
 export type Trace = {
   id: number;
@@ -91,6 +99,8 @@ export type TaskState = {
   failure: ToolFailure | null;
   pendingLocation: { request: string } | null;
   navigation: Navigation | null;
+  /** Verified public information and a local preparation checklist; never an eligibility result. */
+  welfare: import('./skills/welfare').WelfareSelection | null;
   /** The last tool that produced this answer; drives the follow-up choices. */
   lastTool: string | null;
   /** The last place lookup, so 「那廁所呢」「換成大安區」 can follow it. Kept across turns. */
@@ -116,6 +126,7 @@ export type TaskState = {
     | 'billUnavailable'
     | 'welcome'
     | 'greeting'
+    | 'capabilities'
     | 'books'
     | 'results'
     | 'needLocation'
@@ -143,6 +154,7 @@ export const initialState = (): TaskState => ({
   failure: null,
   pendingLocation: null,
   navigation: null,
+  welfare: null,
   lastTool: null,
   lastPlace: null,
   lastDestination: null,

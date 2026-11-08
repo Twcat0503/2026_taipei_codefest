@@ -8,4 +8,24 @@ class MainViewController extends GetxController {
     int sharedPreferencesIndex => sharedPreferencesIndex,
     null => TPBottomNavigationFactory.defaultIndex,
   });
+  final shakeToAgentEnabled =
+      (SharedPreferencesService().instance.getBool(
+                SharedPreferencesService.keyShakeToAgent,
+              ) ??
+              true)
+          .obs;
+
+  Future<void> setShakeToAgent(bool enabled) async {
+    final previous = shakeToAgentEnabled.value;
+    shakeToAgentEnabled.value = enabled;
+    try {
+      final saved = await SharedPreferencesService().instance.setBool(
+        SharedPreferencesService.keyShakeToAgent,
+        enabled,
+      );
+      if (!saved) shakeToAgentEnabled.value = previous;
+    } catch (_) {
+      shakeToAgentEnabled.value = previous;
+    }
+  }
 }

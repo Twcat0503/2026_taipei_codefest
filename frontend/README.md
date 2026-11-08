@@ -51,6 +51,12 @@ pnpm test           # Vitest 單次執行；pnpm test:watch 為監看模式
 - 可用的 `name` 以 Flutter 端 `TPWebMessageListener._cachedMessageHandlers` 為準（見 AGENTS.md「WebView 整合」）。
 - 不在 app 內時不會有回覆，畫面仍要正常顯示（見 AGENTS.md「資料來源與穩定性」）。
 
+## 語音操作導覽
+
+`App.vue` 在頁面層啟動 `useButtonGuidance()`，與助手共用 `shared/interaction-guidance.ts`。它涵蓋輸入框、上傳標籤、下一步及彈窗中的按鈕；探索時只朗讀固定功能，第二次點擊才交給原本的表單或檔案選擇器，不略過既有驗證。
+
+新版 App 以 `button_guidance` bridge 同步助手設定的 `{ enabled, lang }`，並在頁面載入前注入初始偏好，因此換服務網域仍可沿用設定；沒有 bridge 時使用此網站已儲存的偏好。設定關閉時維持一般操作，TalkBack 與鍵盤啟用不增加額外點擊。這條跨頁能力需要同時更新 APK 與服務網頁；完整契約與測試範圍見 [無障礙文件](agent-mvp/docs/accessibility.md)。
+
 ## 已知事項
 
 - 地圖功能使用 Google Maps，key 由 `VITE_GOOGLE_MAPS_API_KEY` 提供（名稱登記在 `.env.example`，值放 `.env.local`，不進 git）；沒有 key 時地圖區塊顯示「地圖暫時無法使用」。

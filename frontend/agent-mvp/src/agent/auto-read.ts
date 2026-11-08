@@ -29,6 +29,7 @@ const byNotice: Record<TaskState['notice'], boolean> = {
   unsupported: true,
   billUnsupported: true,
   greeting: true,
+  capabilities: true,
   // Nothing was answered, or not the end of a request.
   welcome: false,
   cancelled: false,

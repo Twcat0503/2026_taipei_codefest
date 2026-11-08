@@ -20,6 +20,15 @@ abstract final class TPAgentConfig {
         uri.userInfo.isEmpty &&
         (uri.scheme == 'https' || (kDebugMode && uri.scheme == 'http'));
   }
+
+  static Future<void> open() async {
+    if (!enabled) return;
+    final copy = _copy[Get.locale?.languageCode == 'en' ? 'en' : 'zh']!;
+    await Get.toNamed<void>(
+      TPRoute.webView,
+      arguments: WebViewArgument(url: url, forceTitle: copy.$1),
+    );
+  }
 }
 
 const _copy = {
@@ -38,22 +47,16 @@ class TPAgentEntry extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!TPAgentConfig.enabled) return const SizedBox.shrink();
     final copy = _copy[Get.locale?.languageCode == 'en' ? 'en' : 'zh']!;
-    void openAgent() {
-      Get.toNamed(
-        TPRoute.webView,
-        arguments: WebViewArgument(url: TPAgentConfig.url, forceTitle: copy.$1),
-      );
-    }
 
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Semantics(
         button: true,
-        onTap: openAgent,
+        onTap: TPAgentConfig.open,
         label: '${copy.$1}，${copy.$2}，${copy.$3}',
         excludeSemantics: true,
         child: FilledButton(
-          onPressed: openAgent,
+          onPressed: TPAgentConfig.open,
           style: FilledButton.styleFrom(
             backgroundColor: TPColors.primary800,
             foregroundColor: TPColors.white,

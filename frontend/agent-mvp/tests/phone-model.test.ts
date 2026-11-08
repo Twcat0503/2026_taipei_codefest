@@ -202,6 +202,34 @@ describe('phone model lifecycle', () => {
     expect(rpc.call).toHaveBeenCalledWith('llm_stop', expect.anything());
     expect(phone.state.ready).toBe(false);
   });
+  it('cancels a UI explanation without stopping the shared phone model', async () => {
+    const rpc = bridge();
+    const phone = new PhoneModel(() => {}, rpc);
+    await phone.start();
+    const fetcher = vi.fn(
+      (_url: string, options: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          options.signal!.addEventListener(
+            'abort',
+            () => reject(new DOMException('Aborted', 'AbortError')),
+            { once: true },
+          );
+        }),
+    );
+    vi.stubGlobal('fetch', fetcher);
+    const controller = new AbortController();
+    const pending = phone.complete({ ...input(controller.signal), stopOnAbort: false });
+    const rejection = expect(pending).rejects.toThrow('Aborted');
+    controller.abort();
+    await rejection;
+    expect(rpc.call).not.toHaveBeenCalledWith('llm_stop', expect.anything());
+    expect(phone.state.ready).toBe(true);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => completion()),
+    );
+    expect((await phone.complete(input())).calls[0]?.arguments.domain).toBe('bills');
+  });
   it('does not claim idle when stop is not acknowledged', async () => {
     const rpc = bridge();
     const phone = new PhoneModel(() => {}, rpc);

@@ -136,6 +136,40 @@ export function postNative(name: string, data: unknown): boolean {
   }
 }
 
+/** Origin-bound replies from native handlers arrive on window rather than flutterObject. */
+export function requestNativeWindow(
+  name: string,
+  data: NativeData,
+  signal: AbortSignal,
+): Promise<NativeData> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) return reject(new DOMException('Aborted', 'AbortError'));
+    const requestId = newNativeRequestId();
+    const finish = (error?: Error, reply?: NativeData) => {
+      clearTimeout(timer);
+      window.removeEventListener('message', receiveReply);
+      signal.removeEventListener('abort', abort);
+      if (error) reject(error);
+      else resolve(reply ?? {});
+    };
+    const abort = () => finish(new DOMException('Aborted', 'AbortError'));
+    const receiveReply = (event: MessageEvent) => {
+      if (typeof event.data !== 'string' || event.data.length > MAX_MESSAGE_LENGTH) return;
+      try {
+        const message: unknown = JSON.parse(event.data);
+        if (!isRecord(message) || message.name !== name || !isRecord(message.data)) return;
+        if (message.data.requestId === requestId) finish(undefined, message.data);
+      } catch {
+        /* Ignore unrelated messages. */
+      }
+    };
+    const timer = setTimeout(() => finish(new Error('NATIVE_BRIDGE_TIMEOUT')), 10000);
+    window.addEventListener('message', receiveReply);
+    signal.addEventListener('abort', abort, { once: true });
+    if (!postNative(name, { ...data, requestId })) finish(new Error('NATIVE_BRIDGE_UNAVAILABLE'));
+  });
+}
+
 /**
  * Calls `handler` with the `data` of every reply named `name` that echoes `requestId`, for flows
  * where one request gets several replies. Returns the unsubscribe function.
