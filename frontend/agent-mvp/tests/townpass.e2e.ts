@@ -74,7 +74,9 @@ test('benefit questions show verified information and a checklist without leavin
 test('benefits and rehab information work before the phone model starts and reflow in English', async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 393, height: 915 });
+  // Tall enough for all three home suggestions while the phone model is stopped; the home screen
+  // shows only as many suggestions as fit, so at 915 px the benefits one is cut off.
+  await page.setViewportSize({ width: 393, height: 1000 });
   await page.getByRole('button', { name: '設定', exact: true }).click();
   await page.getByText('開發者檢視與接點設定', { exact: true }).click();
   await page.getByLabel('模型來源').selectOption('phone');

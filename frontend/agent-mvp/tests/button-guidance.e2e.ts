@@ -32,6 +32,13 @@ async function dynamicAction(page: Page) {
 function streamed(text: string) {
   return `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\ndata: [DONE]\n\n`;
 }
+/** Button guidance only: the home introduction spoken on load has its own tests. */
+async function guidanceSpoken(page: Page) {
+  const spoken = JSON.parse(
+    (await page.locator('html').getAttribute('data-button-spoken')) ?? '[]',
+  ) as string[];
+  return spoken.filter((text) => !text.includes('右上角是設定'));
+}
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     const spoken: string[] = [];
@@ -97,9 +104,7 @@ test('guidance defaults on, speaks basic help and remembers opting out', async (
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.locator('.button-guide-note')).toHaveCount(0);
   await expect(page.getByText('按鈕基本說明', { exact: true })).toHaveCount(0);
-  await expect
-    .poll(() => page.locator('html').getAttribute('data-button-spoken'))
-    .toBe(JSON.stringify(['開啟設定。', '關閉設定。']));
+  await expect.poll(() => guidanceSpoken(page)).toEqual(['開啟設定。', '關閉設定。']);
   await close.click();
   await expect(page.getByRole('dialog')).not.toBeVisible();
   await page.reload();
@@ -206,9 +211,7 @@ test('a model explains a button without seeing typed input or running its action
     });
   });
   await action.click();
-  await expect
-    .poll(() => page.locator('html').getAttribute('data-button-spoken'))
-    .toBe(JSON.stringify(['執行這個選項。']));
+  await expect.poll(() => guidanceSpoken(page)).toEqual(['執行這個選項。']);
   await expect(page.getByText('執行這個選項。', { exact: true })).toHaveCount(0);
   await expect(page.locator('.button-guide-note')).toHaveCount(0);
   await expect(page.getByRole('dialog')).not.toBeVisible();
@@ -364,7 +367,7 @@ test('changing target and executing cancels delayed model narration', async ({ p
   await action.click();
   await expect(page.locator('html')).toHaveAttribute('data-button-activated', 'true');
   await page.waitForTimeout(800);
-  expect(await page.locator('html').getAttribute('data-button-spoken')).toBeNull();
+  expect(await guidanceSpoken(page)).toEqual([]);
 });
 
 test('disabled buttons can be explained without enabling their action', async ({ page }) => {
