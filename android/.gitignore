@@ -1,5 +1,7 @@
 gradle-wrapper.jar
 /.gradle
+# Kotlin Gradle Plugin daemon session files
+.kotlin/
 /captures/
 /gradlew
 /gradlew.bat
