@@ -73,16 +73,17 @@ async function nativeVoice(
   await expect(page.getByRole('button', { name: '開始語音輸入', exact: true })).toBeVisible();
 }
 
-test('system voice starts without the phone model and leaves editable text', async ({
-  page,
-}) => {
+test('system voice starts without the phone model and leaves editable text', async ({ page }) => {
   await nativeVoice(page, { previous: true });
   await page.getByRole('button', { name: '開始語音輸入', exact: true }).click();
   await expect(page.getByText('正在聆聽，請說出你的需求', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: '完成語音輸入', exact: true }).click();
   await expect(page.getByLabel('你想要做什麼？', { exact: true })).toHaveValue('附近的無障礙廁所');
   await expect(page.locator('section.assistant-message')).toHaveCount(0);
-  await expect(page.locator('html')).toHaveAttribute('data-voice-requests', /speech_start,speech_stop/);
+  await expect(page.locator('html')).toHaveAttribute(
+    'data-voice-requests',
+    /speech_start,speech_stop/,
+  );
   expect(await page.locator('html').getAttribute('data-voice-requests')).not.toContain('asr_start');
   expect(
     await page.evaluate(() => localStorage.getItem('townpass-agent-conversation-v1')),

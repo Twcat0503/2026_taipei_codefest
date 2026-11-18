@@ -9,7 +9,13 @@ export function welfareFor(
   request: string,
   previous: WelfareSelection | null = null,
 ): WelfareSelection | null {
-  if (!/復康|rehab.?bus|paratransit/iu.test(request) && /新北|桃園|臺中|台中|臺南|台南|高雄|基隆|新竹|宜蘭|花蓮|臺東|台東|彰化|南投|嘉義|雲林|屏東|苗栗|澎湖|金門|連江|New Taipei/iu.test(request)) return null;
+  if (
+    !/復康|rehab.?bus|paratransit/iu.test(request) &&
+    /新北|桃園|臺中|台中|臺南|台南|高雄|基隆|新竹|宜蘭|花蓮|臺東|台東|彰化|南投|嘉義|雲林|屏東|苗栗|澎湖|金門|連江|New Taipei/iu.test(
+      request,
+    )
+  )
+    return null;
   if (
     /進度|核准了|入帳|已領|案件編號|孕婦|懷孕|育兒|生育|敬老|長者|老人|長照|新北市補助|新北.*生活補助|status|already paid|maternity|senior|long.term care/iu.test(
       request,
