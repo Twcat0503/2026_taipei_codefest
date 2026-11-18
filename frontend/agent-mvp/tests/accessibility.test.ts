@@ -1102,6 +1102,21 @@ describe('accessibility state', () => {
     expect(a11yState.highContrast).toBe(true);
   });
 
+  it('settles an overtaken load with the newer result when its own reply comes first', async () => {
+    // Startup and the home introduction both load; the startup caller mirrors what it gets.
+    const { bridge, sent, emit } = fakeBridge();
+    vi.stubGlobal('window', { flutterObject: bridge });
+    const { loadA11yState, a11yState } = await load();
+    const older = loadA11yState();
+    const newer = loadA11yState();
+    const [olderId, newerId] = sent().map((message) => message.data.requestId);
+    emit('a11y_state', { requestId: olderId, boldText: false });
+    emit('a11y_state', { requestId: newerId, boldText: true });
+    expect((await older).boldText).toBe(true);
+    expect((await newer).boldText).toBe(true);
+    expect(a11yState.boldText).toBe(true);
+  });
+
   it('keeps the screen reader setting in memory: no storage, logging or network', async () => {
     const local = memoryStorage();
     const session = memoryStorage();
