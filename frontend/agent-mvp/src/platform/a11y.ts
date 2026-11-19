@@ -59,14 +59,9 @@ function validNativeFields(reply: NativeData): Partial<A11yState> {
 }
 
 let latestLoad = 0;
+let newestLoad: Promise<A11yState> | undefined;
 
-/**
- * Reads the settings into `a11yState` and returns a copy. In the app the native `a11y_state` reply
- * wins field by field; anything missing, invalid or unavailable falls back to the browser media
- * queries (and `screenReader` to null). A load that was overtaken by a newer one does not overwrite it.
- */
-export async function loadA11yState(): Promise<A11yState> {
-  const load = ++latestLoad;
+async function readA11yState(): Promise<A11yState> {
   let next = browserState();
   if (hasNativeBridge()) {
     try {
@@ -76,8 +71,24 @@ export async function loadA11yState(): Promise<A11yState> {
       /* Keep the browser fallback. */
     }
   }
-  if (load === latestLoad) Object.assign(a11yState, next);
-  return { ...a11yState };
+  return next;
+}
+
+/**
+ * Reads the settings into `a11yState` and returns a copy. In the app the native `a11y_state` reply
+ * wins field by field; anything missing, invalid or unavailable falls back to the browser media
+ * queries (and `screenReader` to null). A load that was overtaken by a newer one does not overwrite it
+ * and settles with the newer load's result, so a caller never mirrors a stale copy.
+ */
+export function loadA11yState(): Promise<A11yState> {
+  const load = ++latestLoad;
+  const pending = readA11yState().then((next) => {
+    if (load !== latestLoad && newestLoad) return newestLoad;
+    Object.assign(a11yState, next);
+    return { ...a11yState };
+  });
+  newestLoad = pending;
+  return pending;
 }
 
 function setFlag(

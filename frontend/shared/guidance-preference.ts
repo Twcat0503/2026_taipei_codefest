@@ -49,14 +49,19 @@ export function initialGuidance(): { enabled: boolean; lang: string } {
       __tpButtonGuidance?: { enabled?: unknown; lang?: unknown; configured?: unknown };
     }
   ).__tpButtonGuidance;
-  let stored: string | null = null;
-  try {
-    stored = localStorage.getItem('tp-button-guidance');
-  } catch {
-    /* Native state remains usable. */
+  if (typeof injected?.enabled === 'boolean') {
+    // Browser storage only matters when the native preference was never configured.
+    let stored: string | null = null;
+    if (injected.configured === false) {
+      try {
+        stored = localStorage.getItem('tp-button-guidance');
+      } catch {
+        /* Native state remains usable. */
+      }
+    }
+    if (stored === null)
+      return { enabled: injected.enabled, lang: injected.lang === 'en' ? 'en' : 'zh-Hant-TW' };
   }
-  if (typeof injected?.enabled === 'boolean' && (injected.configured !== false || stored === null))
-    return { enabled: injected.enabled, lang: injected.lang === 'en' ? 'en' : 'zh-Hant-TW' };
   try {
     return {
       enabled: localStorage.getItem('tp-button-guidance') !== 'off',

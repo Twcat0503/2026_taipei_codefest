@@ -36,14 +36,30 @@ void main() {
       return reply!;
     }
 
-    final data = {'requestId': 'test-id', 'latitude': 25.03, 'longitude': 121.54};
+    final data = {
+      'requestId': 'test-id',
+      'latitude': 25.03,
+      'longitude': 121.54,
+    };
     final allowed = await invoke('http://127.0.0.1:5173', true, data);
     expect(allowed['requestId'], 'test-id');
     expect(allowed['address'], '臺北市大安區和平東路100號');
     expect(calls, 1);
-    expect((await invoke('https://example.com', true, data))['error'], 'origin_not_allowed');
-    expect((await invoke('http://127.0.0.1:5173', false, data))['error'], 'origin_not_allowed');
-    expect((await invoke('http://127.0.0.1:5173', true, {'latitude': 91, 'longitude': 0}))['error'], 'invalid_coordinates');
+    expect(
+      (await invoke('https://example.com', true, data))['error'],
+      'origin_not_allowed',
+    );
+    expect(
+      (await invoke('http://127.0.0.1:5173', false, data))['error'],
+      'origin_not_allowed',
+    );
+    expect(
+      (await invoke('http://127.0.0.1:5173', true, {
+        'latitude': 91,
+        'longitude': 0,
+      }))['error'],
+      'invalid_coordinates',
+    );
     expect(calls, 1);
   });
 }

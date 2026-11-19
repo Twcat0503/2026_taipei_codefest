@@ -15,6 +15,17 @@ async function nativeVoice(
     const listeners = new Set<(event: { data: string }) => void>();
     const names: string[] = [];
     let speechRequestId: string | undefined;
+    const sendSpeech = (data: Record<string, unknown>) =>
+      queueMicrotask(() =>
+        window.dispatchEvent(
+          new MessageEvent('message', { data: JSON.stringify({ name: 'speech_start', data }) }),
+        ),
+      );
+    // Android's recognizer ends on its own when the speaker pauses; tests choose that moment.
+    window.addEventListener('fixture-speech-end', () => {
+      if (speechRequestId)
+        sendSpeech({ requestId: speechRequestId, type: 'final', text: '附近的無障礙廁所' });
+    });
     window.flutterObject = {
       addEventListener: (_name, listener) => listeners.add(listener),
       removeEventListener: (_name, listener) => listeners.delete(listener),
@@ -39,17 +50,12 @@ async function nativeVoice(
         else if (request.name === 'speech_start' || request.name === 'speech_stop') {
           if (request.name === 'speech_start') speechRequestId = request.data.requestId;
           if (!speechRequestId) return;
-          const data = {
+          sendSpeech({
             requestId: speechRequestId,
             type: unavailable ? 'error' : request.name === 'speech_start' ? 'listening' : 'final',
             ...(unavailable ? { error: 'unavailable' } : {}),
             ...(request.name === 'speech_stop' ? { text: '附近的無障礙廁所' } : {}),
-          };
-          queueMicrotask(() =>
-            window.dispatchEvent(
-              new MessageEvent('message', { data: JSON.stringify({ name: 'speech_start', data }) }),
-            ),
-          );
+          });
         } else if (['llm_start', 'llm_stop', 'llm_status'].includes(request.name)) {
           const running = request.name === 'llm_start';
           const data = {
@@ -73,20 +79,21 @@ async function nativeVoice(
   await expect(page.getByRole('button', { name: '開始語音輸入', exact: true })).toBeVisible();
 }
 
-test('system voice starts without the phone model and leaves editable text', async ({
+test('system voice starts without the phone model and submits what it recognized', async ({
   page,
 }) => {
   await nativeVoice(page, { previous: true });
   await page.getByRole('button', { name: '開始語音輸入', exact: true }).click();
   await expect(page.getByText('正在聆聽，請說出你的需求', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '完成語音輸入', exact: true }).click();
-  await expect(page.getByLabel('你想要做什麼？', { exact: true })).toHaveValue('附近的無障礙廁所');
-  await expect(page.locator('section.assistant-message')).toHaveCount(0);
-  await expect(page.locator('html')).toHaveAttribute('data-voice-requests', /speech_start,speech_stop/);
+  await page.evaluate(() => window.dispatchEvent(new Event('fixture-speech-end')));
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('附近的無障礙廁所');
+  await expect(page.locator('section.assistant-message')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-voice-requests', /speech_start/);
   expect(await page.locator('html').getAttribute('data-voice-requests')).not.toContain('asr_start');
+  // The new request replaces the saved conversation rather than continuing it.
   expect(
-    await page.evaluate(() => localStorage.getItem('townpass-agent-conversation-v1')),
-  ).toBeNull();
+    await page.evaluate(() => localStorage.getItem('townpass-agent-conversation-v1') ?? ''),
+  ).not.toContain('browseBooks');
   expect(
     (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
       .violations,
@@ -105,8 +112,8 @@ test('unavailable system voice keeps text input usable', async ({ page }) => {
   await nativeVoice(page, { unavailable: true });
   await expect(page.getByLabel('你想要做什麼？', { exact: true })).toBeEnabled();
   await page.getByRole('button', { name: '開始語音輸入', exact: true }).click();
-  await expect(page.getByRole('button', { name: '改用文字輸入', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '改用文字輸入', exact: true }).click();
+  await expect(page.getByText(/^這個環境尚未提供語音輸入/)).toBeVisible();
+  await page.getByRole('button', { name: '取消語音輸入', exact: true }).click();
   await expect(page.getByLabel('你想要做什麼？', { exact: true })).toBeEnabled();
 });
 

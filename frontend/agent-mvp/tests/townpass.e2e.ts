@@ -74,7 +74,9 @@ test('benefit questions show verified information and a checklist without leavin
 test('benefits and rehab information work before the phone model starts and reflow in English', async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 393, height: 915 });
+  // Tall enough for all three home suggestions while the phone model is stopped; the home screen
+  // shows only as many suggestions as fit, so at 915 px the benefits one is cut off.
+  await page.setViewportSize({ width: 393, height: 1000 });
   await page.getByRole('button', { name: '設定', exact: true }).click();
   await page.getByText('開發者檢視與接點設定', { exact: true }).click();
   await page.getByLabel('模型來源').selectOption('phone');
@@ -660,7 +662,9 @@ test('water fee asks for the account number once, then fills it in', async ({ pa
   await expect(page.locator('.remembered')).toContainText('目前沒有記住任何資料');
 });
 
-test('water number starts listening automatically and is confirmed before leaving', async ({ page }) => {
+test('water number starts listening automatically and is confirmed before leaving', async ({
+  page,
+}) => {
   await page.evaluate(() => {
     const listeners = new Set<(event: { data: string }) => void>();
     window.flutterObject = {
@@ -704,7 +708,10 @@ test('water number starts listening automatically and is confirmed before leavin
   await send(page, '我要繳水費');
   await expect(page.locator('#water-hint')).toContainText('逐位說出水號');
   await expect(page.getByLabel('你的水號是？')).toHaveValue('1234567890');
-  await expect(page.locator('html')).toHaveAttribute('data-water-prompt-before-start', /逐位說出水號/);
+  await expect(page.locator('html')).toHaveAttribute(
+    'data-water-prompt-before-start',
+    /逐位說出水號/,
+  );
   await page.getByRole('button', { name: '前往', exact: true }).click();
   await expect(page.getByRole('heading', { name: '請確認水號' })).toBeVisible();
   await expect(page.getByText('1-23-456789-0', { exact: true })).toBeVisible();

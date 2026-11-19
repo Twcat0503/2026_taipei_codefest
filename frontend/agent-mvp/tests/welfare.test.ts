@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { welfareFor, welfareReadout } from '../src/agent/skills/welfare';
-import { welfareGuides, WELFARE_SOURCES, welfareTopics, welfareSections } from '../src/agent/open-data/welfare';
+import {
+  welfareGuides,
+  WELFARE_SOURCES,
+  welfareTopics,
+  welfareSections,
+} from '../src/agent/open-data/welfare';
 import { AgentRunner } from '../src/agent/runner';
 import { initialState, type ModelAdapter } from '../src/agent/types';
 import type { ToolClient } from '../src/agent/tool-client';
@@ -21,11 +26,24 @@ describe('verified benefits and rehab guidance', () => {
   it('supports a short follow-up but does not hijack a new task or another city', () => {
     const previous = { topic: 'aids', section: 'steps' } as const;
     expect(welfareFor('那需要哪些文件', previous)).toEqual({ topic: 'aids', section: 'documents' });
-    for (const request of ['附近的身障停車場', '我想申請孕婦補助', '長輩可以申請什麼補助', '生活補助案件進度', '新北輔具補助', '我要繳水費', '幫我寫一首詩'])
+    for (const request of [
+      '附近的身障停車場',
+      '我想申請孕婦補助',
+      '長輩可以申請什麼補助',
+      '生活補助案件進度',
+      '新北輔具補助',
+      '我要繳水費',
+      '幫我寫一首詩',
+    ])
       expect(welfareFor(request, previous)).toBeNull();
   });
   it('answers supported questions and follow-ups without a model, tool call or external navigation', async () => {
-    const model: ModelAdapter = { mode: 'phone', complete: vi.fn(async () => { throw new Error('PHONE_NOT_READY'); }) };
+    const model: ModelAdapter = {
+      mode: 'phone',
+      complete: vi.fn(async () => {
+        throw new Error('PHONE_NOT_READY');
+      }),
+    };
     const tools = { listTools: vi.fn(), callTool: vi.fn() } as unknown as ToolClient;
     const state = initialState();
     const runner = new AgentRunner(model, state, tools);
