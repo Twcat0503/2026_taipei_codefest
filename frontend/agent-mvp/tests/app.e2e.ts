@@ -197,6 +197,11 @@ test('bill clarification, statuses, browser navigation and no persistent account
     true,
   );
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('demo-water');
+  // The 200% checks above cover reflow. Navigate at the default size: with wide fonts such as
+  // DejaVu Sans on CI, the fixed header and composer dock cover the link at 200%.
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '';
+  });
   // Verify actual navigation without depending on the external template host uptime.
   await page.route('https://taipei-pass-service.vercel.app/**', (route) =>
     route.fulfill({ body: '<h1>Service template destination</h1>', contentType: 'text/html' }),
