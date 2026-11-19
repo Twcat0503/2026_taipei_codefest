@@ -6,6 +6,15 @@ async function chooseService(page: Page, name: string) {
   await page.getByRole('button', { name: /^(送出需求|Send request)$/ }).click();
 }
 
+/** Share of the screen left to the conversation between the fixed chat header and composer dock. */
+async function conversationShare(page: Page) {
+  return page.evaluate(() => {
+    const header = document.querySelector('.chat-header')!.getBoundingClientRect();
+    const dock = document.querySelector('.composer-dock')!.getBoundingClientRect();
+    return (dock.top - header.bottom) / window.innerHeight;
+  });
+}
+
 test.beforeEach(async ({ page }) => {
   // These flows cover the user's saved standard-tap preference.
   await page.addInitScript(() => localStorage.setItem('tp-button-guidance', 'off'));
@@ -166,6 +175,11 @@ test('bill clarification, statuses, browser navigation and no persistent account
   page,
 }) => {
   await chooseService(page, '我想看到我這期的帳單與繳費狀態');
+  // Force a wide Latin font: at 200% it makes the fixed header and composer dock tallest. Verdana
+  // is close to DejaVu Sans, the Linux CI font that first showed them covering the results.
+  await page.addStyleTag({
+    content: '*, *::before, *::after { font-family: Verdana, sans-serif !important; }',
+  });
   await expect(
     page.getByRole('group', { name: '你想查哪一種帳單？也可以選擇全部。' }),
   ).toBeVisible();
@@ -186,6 +200,7 @@ test('bill clarification, statuses, browser navigation and no persistent account
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
+  expect(await conversationShare(page)).toBeGreaterThan(0.5);
   await page.getByRole('button', { name: '設定', exact: true }).click();
   await page.getByLabel('語言', { exact: true }).selectOption('en');
   await page.getByRole('button', { name: 'Close settings', exact: true }).click();
@@ -196,12 +211,16 @@ test('bill clarification, statuses, browser navigation and no persistent account
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
+  // The fixed header and dock leave most of the screen to the conversation, so results stay
+  // reachable wherever they scroll; the quick chips follow the conversation instead.
+  expect(await conversationShare(page)).toBeGreaterThan(0.5);
+  await expect(page.locator('.composer-dock > .quick-chips')).toBeHidden();
+  const chips = page.locator('.conversation > .quick-chips');
+  await chips.getByRole('button', { name: 'More suggestions', exact: true }).click();
+  await expect(
+    chips.getByRole('button', { name: 'Parking with pregnancy spaces nearby', exact: true }),
+  ).toBeVisible();
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('demo-water');
-  // The 200% checks above cover reflow. Navigate at the default size: with wide fonts such as
-  // DejaVu Sans on CI, the fixed header and composer dock cover the link at 200%.
-  await page.evaluate(() => {
-    document.documentElement.style.fontSize = '';
-  });
   // Verify actual navigation without depending on the external template host uptime.
   await page.route('https://taipei-pass-service.vercel.app/**', (route) =>
     route.fulfill({ body: '<h1>Service template destination</h1>', contentType: 'text/html' }),

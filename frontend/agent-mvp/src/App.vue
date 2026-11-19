@@ -28,6 +28,7 @@ import {
 } from './platform/profile';
 import { readMember, type Member } from './platform/member';
 import WelcomePanel from './components/WelcomePanel.vue';
+import QuickChips from './components/QuickChips.vue';
 import { townpassSuggestionGroups } from './agent/suggestion-groups';
 import VoiceWave from './components/VoiceWave.vue';
 import { messages } from './i18n';
@@ -412,6 +413,16 @@ const quickSuggestions = computed(() =>
           accessible: `${t.value[item.key]}${item.demo ? t.value.suggestionDemoLabel : ''}`,
         })),
 );
+/**
+ * The quick chips render above the input and after the conversation. Both follow these rules;
+ * style.css shows the second one instead when the screen is short for the text size.
+ */
+const showQuickChips = computed(
+  () => !home.value && !state.draft && !composerCompact.value && !voiceOpen.value,
+);
+function nextQuickGroup() {
+  quickGroup.value = (quickGroup.value + 1) % (2 + townpassSuggestionGroups.length);
+}
 const inputDisabled = computed(
   () =>
     busy.value ||
@@ -1718,6 +1729,17 @@ onBeforeUnmount(() => {
             <div v-if="busy || voiceOpen" class="townpass-watermark" aria-hidden="true">
               <strong>城 市 通</strong><span>TOWN PASS</span>
             </div>
+            <!-- After the watermark, whose text can overflow its box at large text sizes. -->
+            <QuickChips
+              v-if="showQuickChips"
+              :label="t.quick"
+              :more-label="t.moreSuggestions"
+              :suggestions="quickSuggestions"
+              :guide="quickGroup >= 2 ? 'demo' : 'request'"
+              :disabled="inputDisabled"
+              @pick="pick"
+              @more="nextQuickGroup"
+            />
           </div>
         </Transition>
       </main>
@@ -1736,30 +1758,16 @@ onBeforeUnmount(() => {
       </div>
     </section>
     <footer v-else class="composer-dock">
-      <div
-        v-if="!home && !state.draft && !composerCompact"
-        class="quick-chips"
-        role="group"
-        :aria-label="t.quick"
-      >
-        <button
-          v-for="suggestion in quickSuggestions"
-          :key="suggestion.request"
-          :disabled="inputDisabled"
-          :aria-label="'accessible' in suggestion ? suggestion.accessible : suggestion.request"
-          :data-suggestion-guide="quickGroup >= 2 ? 'demo' : 'request'"
-          @click="pick(suggestion.request)"
-        >
-          <span aria-hidden="true"></span>{{ suggestion.label }}
-        </button>
-        <button
-          type="button"
-          data-suggestion-guide="refresh"
-          @click="quickGroup = (quickGroup + 1) % (2 + townpassSuggestionGroups.length)"
-        >
-          {{ t.moreSuggestions }}
-        </button>
-      </div>
+      <QuickChips
+        v-if="showQuickChips"
+        :label="t.quick"
+        :more-label="t.moreSuggestions"
+        :suggestions="quickSuggestions"
+        :guide="quickGroup >= 2 ? 'demo' : 'request'"
+        :disabled="inputDisabled"
+        @pick="pick"
+        @more="nextQuickGroup"
+      />
       <p v-if="state.draft && !home" class="draft-hint">{{ t.draftHint }}</p>
       <form class="composer" @submit.prevent="submit()">
         <input
