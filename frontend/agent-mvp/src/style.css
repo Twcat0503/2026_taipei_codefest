@@ -123,6 +123,8 @@ a {
   margin-top: var(--dev-hud-height, 0px);
   margin-inline: auto;
   background: var(--paper);
+  /* Lets the quick chips move into the conversation when the screen is short (see .quick-chips). */
+  container: assistant-shell / size;
 }
 .chat-header {
   flex-shrink: 0;
@@ -1032,6 +1034,23 @@ dd {
 }
 .quick-chips button:hover:not(:disabled) {
   background: var(--pale);
+}
+/* The quick chips also render after the conversation. On a screen short for the text size (large
+   text, or a phone on its side) chips above the input make the fixed header and dock cover most of
+   the conversation, so the copy after the conversation shows instead and scrolls with it. Unlike
+   in media queries, rem here follows the page's text size; 36rem matches composerCompact in
+   App.vue. :where() keeps these rules weak enough for the small-phone rule to hide both copies. */
+:where(.conversation) > .quick-chips {
+  display: none;
+  margin: 1.5rem 0 0;
+}
+@container assistant-shell (height < 36rem) {
+  :where(.composer-dock) > .quick-chips {
+    display: none;
+  }
+  :where(.conversation) > .quick-chips {
+    display: flex;
+  }
 }
 .composer-note {
   padding-top: 0.5rem;
